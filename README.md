@@ -77,9 +77,10 @@ export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 The OpenCode plugin exposes the same durable tools as the library shell:
 
 - `task_create`, `task_get`, `task_list`, `task_update`, `task_checkpoint`
-- `public_dispatch`, `public_collect`, `public_retry`, `public_cancel`
-- `context_bundle`, `context_digest`, `wiki_bundle`
-- `resume_packet`, `chunked_write_plan`
+- `public_dispatch`, `public_collect`, `public_checkpoint`, `public_retry`, `public_cancel`
+- `context_bundle`, `context_digest`, `repo_map`, `business_logic_map`, `wiki_bundle`
+- `legacy_repo_index`, `ui_action_trace`, `api_backend_trace`, `integration_catalog`, `traceability_matrix`, `evidence_qa`
+- `tool_usage_plan`, `resume_packet`, `chunked_write_plan`, `qwen_retry_policy`, `orchestration_health`, `rules_snapshot`
 - `orchestration_profile`, `artifact_check`, `mermaid_check`, `mermaid_fix`
 
 It also sets `TINY_CHU_ROOT` and `TINY_CHU_OPENCODE_PLUGIN` through the OpenCode `shell.env` hook, and adds a compact continuation reminder during OpenCode session compaction.
@@ -145,13 +146,18 @@ console.log(profile.models.delegate.model);
 The profile gives the foreman a deterministic sequence:
 
 - inventory files with `fd`
+- choose the next bounded step with `tool_usage_plan`
+- map architecture and UI/API/database flow candidates with `repo_map`
+- extract business variables, database-style columns, and comparison expressions with `business_logic_map`
 - search text with `rg --json`
 - search TypeScript structure with `ast-grep`
 - extract bounded source snippets with `context_digest` before making repository claims
 - slice JSON/YAML/Markdown with `jq`, `yq`, and `mdq`
-- delegate compact packets to the Qwen worker
+- delegate compact packets to the Qwen worker, using `qwen_retry_policy` for the public limit of 20 requests/min and 20000 tokens/min
 - resume interrupted work with `resume_packet` instead of relying on memory
 - split long generated Markdown with `chunked_write_plan` before writing files
+- check `orchestration_health` after failed, interrupted, checkpointed, or retry-wait worker jobs
+- write confirmed implementation patterns with `rules_snapshot` so future changes can load `.tiny/rules/architecture-patterns.md`
 - checkpoint after each pass so resumed work starts from the latest evidence
 - validate Mermaid diagrams with `mermaid-cli` (`mmdc`) before publishing
 
@@ -172,6 +178,29 @@ Each pass follows a small-model-safe cycle: review the evidence map, plan one bo
 ## Small-model resilience tools
 
 Use `context_digest` when the foreman model needs repository evidence but should not read an entire file into context. It returns bounded line snippets and citations.
+
+Use `tool_usage_plan` when the foreman model is unsure which command or Tiny-Chu tool to run next. It returns a short ordered plan with native commands, Tiny-Chu tools, and output budgets.
+
+Use `repo_map` before explaining architecture or tracing data flow. It scans bounded files, classifies UI/API/database/domain/config/test layers, and returns recommended `fd`, `rg`, `ast-grep`, and `context_digest` follow-up commands.
+
+Use `business_logic_map` before explaining complex business rules. It returns bounded variables, database-style column names, comparison operators, and line evidence so a small model can compare business logic without loading whole files.
+
+Use the legacy analysis tool chain when a small foreman model needs Button to FE action/saga/API to backend service to MyBatis/RFC traceability:
+
+1. `legacy_repo_index` builds a deterministic evidence index from React, Redux-Saga, Axios, Java Spring/Vert.x-style routes, MyBatis XML, and SAP JCo-style RFC candidates.
+2. `ui_action_trace` links a UI event to handler, Redux action, Saga watcher/worker, and API client when evidence exists.
+3. `api_backend_trace` links an HTTP method/path to backend route, service, mapper, and RFC facts; unmatched endpoints stay explicit.
+4. `integration_catalog` catalogs MyBatis mapper SQL and RFC calls separately.
+5. `traceability_matrix` merges the verified links into JSON rows and Markdown-ready table data.
+6. `evidence_qa` blocks missing evidence ids, hallucinated symbols, and partial traces that omit Unknown gaps.
+
+Generated analysis deliverables should use `.analysis/` only when a caller explicitly asks for files. Tiny-Chu orchestration state remains under `.tiny/`.
+
+Use `qwen_retry_policy` whenever `qwen3.6-35b-a3b` delegation may hit the shared public limit. The encoded limit is 20 requests/min and 20000 tokens/min; the policy returns spacing, retry delays, minimum chunk count, and a non-stop recovery protocol.
+
+Use `orchestration_health` after failures or interruptions. It summarizes `.tiny/tasks` and `.tiny/public-jobs`, highlights retryable or checkpointed jobs, and returns recovery steps that preserve progress.
+
+Use `rules_snapshot` after confirming repository architecture patterns. It writes `.tiny/rules/architecture-patterns.md` so future implementation requests reuse known Tiny-Chu patterns instead of asking the model to rediscover them.
 
 Use `resume_packet` at session start, after compaction, or after a long command. It returns the active task, latest checkpoint, next steps, open questions, and evidence refs.
 

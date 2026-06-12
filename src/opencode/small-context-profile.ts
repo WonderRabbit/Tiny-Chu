@@ -44,6 +44,11 @@ export interface SmallContextOrchestrationProfile {
     readonly mustInclude: readonly string[];
     readonly mustReturn: readonly string[];
   };
+  readonly qwenRateLimit: {
+    readonly requestsPerMinute: number;
+    readonly tokensPerMinute: number;
+    readonly retryTool: string;
+  };
   readonly continuationProtocol: {
     readonly checkpointTemplate: string;
     readonly rules: readonly string[];
@@ -97,12 +102,20 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
     contextStrategy: {
       nativeTools: CONTEXT_TOOLS,
       passes: [
+        "start with tool_usage_plan to choose the smallest safe command/tool sequence",
         "inventory with fd before opening files",
+        "build a bounded architecture and UI-to-database flow sketch with repo_map",
+        "use legacy_repo_index before Button-to-API-to-DB/RFC legacy tracing",
+        "use ui_action_trace, api_backend_trace, integration_catalog, traceability_matrix, then evidence_qa for legacy enterprise flow analysis",
+        "extract variables, columns, and comparison evidence with business_logic_map before explaining complex business rules",
         "rank evidence with rg --json and ast-grep structural matches",
         "use context_digest for bounded cited snippets instead of full-file reads",
         "slice JSON/YAML/Markdown with jq, yq, and mdq instead of full-file prompts",
+        "call qwen_retry_policy before or after public delegation when the shared Qwen limit may be hit",
         "delegate only compact packets with objective, files, evidence, and must-return fields",
         "use chunked_write_plan before writing long Markdown or generated artifacts",
+        "check orchestration_health after failures, interruptions, or retry waits",
+        "write rules_snapshot after architecture patterns are confirmed",
         "checkpoint every completed pass with summary, nextSteps, evidenceRefs, and openQuestions",
       ],
     },
@@ -122,6 +135,12 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
         "Every claim must cite a file path with line, a command transcript, or an evidenceRef.",
         "If evidence is missing, write an uncertainty or openQuestion instead of guessing.",
         "Use context_digest before claiming repository facts from source files.",
+        "Use repo_map before explaining architecture, web UI entry points, API handlers, or database writes.",
+        "Use legacy_repo_index and evidence_qa before accepting Button-to-Saga-to-API-to-BE-to-DB/RFC traceability.",
+        "Use business_logic_map before claiming detailed business rules, variable relationships, or column comparisons.",
+        "Use tool_usage_plan when unsure which native command or Tiny-Chu tool should run next.",
+        "Use qwen_retry_policy for qwen3.6-35b-a3b delegation; the public limit is 20 requests/min and 20000 tokens/min.",
+        "Use orchestration_health before declaring a stopped or failed run unrecoverable.",
         "Never accept AS-IS, UI, story, testcase, sequence, flowchart, or ERD output until artifact_check is valid.",
         "Prefer jq, yq, mdq, fd, ast-grep, and rg outputs over model-only summaries for repository facts.",
       ],
@@ -129,6 +148,11 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
     delegatePacket: {
       mustInclude: ["objective", "artifactType", "boundedFiles", "evidenceRefs", "knownUncertainties", "mustReturn"],
       mustReturn: ["artifactMarkdown", "citations", "uncertainties", "verificationCommands", "nextSteps"],
+    },
+    qwenRateLimit: {
+      requestsPerMinute: 20,
+      tokensPerMinute: 20_000,
+      retryTool: "qwen_retry_policy",
     },
     continuationProtocol: {
       checkpointTemplate: '{"summary":"...","artifactType":"as_is","passIndex":1,"nextSteps":["..."],"evidenceRefs":["..."],"openQuestions":["..."],"verificationCommands":["..."]}',
@@ -161,6 +185,11 @@ export function renderSmallContextGuide(profile: SmallContextOrchestrationProfil
     `Must include: ${profile.delegatePacket.mustInclude.join(", ")}`,
     `Must return: ${profile.delegatePacket.mustReturn.join(", ")}`,
   ].join("\n");
+  const qwen = [
+    `Model: ${profile.models.delegate.model}`,
+    `Limit: ${profile.qwenRateLimit.requestsPerMinute} requests/min, ${profile.qwenRateLimit.tokensPerMinute} tokens/min`,
+    `Retry tool: ${profile.qwenRateLimit.retryTool}`,
+  ].join("\n");
   const continuation = profile.continuationProtocol.rules.map((rule) => `- ${rule}`).join("\n");
   const mermaid = profile.mermaid.rules.map((rule) => `- ${rule}`).join("\n");
   const nativeToolNames = POWERSHELL_TOOLING_PROFILE.nativeTools.map((tool) => tool.name).join(", ");
@@ -178,6 +207,8 @@ export function renderSmallContextGuide(profile: SmallContextOrchestrationProfil
     antiHallucination,
     "## Qwen delegate packet",
     delegatePacket,
+    "## Qwen public rate limits",
+    qwen,
     "## Native workflow tools",
     tools,
     "## Continuation checkpoint",

@@ -1,0 +1,59 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { resolveTinyInfiPaths } from "../state/paths.js";
+
+export interface RulesSnapshotResult {
+  readonly path: ".tiny/rules/architecture-patterns.md";
+  readonly rules: readonly string[];
+  readonly evidenceRefs: readonly string[];
+}
+
+const DEFAULT_RULES: readonly string[] = [
+  "Public API additions are exported from src/index.ts after the implementation module exists.",
+  "OpenCode tool bridge additions require both createTinyInfiPlugin() tool registration and TOOL_SPECS metadata in src/opencode/plugin.ts.",
+  "Every new Tiny-Chu tool gets a behavior test through createTinyInfiPlugin() and a bridge-surface assertion in the OpenCode plugin test.",
+  "File-backed orchestration state is resolved through resolveTinyInfiPaths() and remains under .tiny/.",
+  "Small-model repository analysis starts with tool_usage_plan, repo_map, business_logic_map, context_digest, then artifact_check or mermaid_check.",
+  "Long generated Markdown is planned with chunked_write_plan and resumed through task_checkpoint instead of one large model write.",
+  "Qwen public delegate calls use qwen_retry_policy for the 20 rpm and 20000 tpm limits, then public_checkpoint and public_retry when recovery is needed.",
+  "Checkpointed, failed, or retry_wait public jobs are checked with orchestration_health before declaring work complete.",
+];
+
+function stringList(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.map(String).filter((item) => item.trim() !== "") : [];
+}
+
+function markdown(rules: readonly string[], evidenceRefs: readonly string[]): string {
+  const ruleLines = rules.map((rule) => `- ${rule}`).join("\n");
+  const evidence = evidenceRefs.length > 0 ? evidenceRefs.map((ref) => `- ${ref}`).join("\n") : "- generated from current Tiny-Chu architecture";
+  return [
+    "# Architecture Patterns",
+    "",
+    "These rules are generated from the current Tiny-Chu implementation so future small-model work can reuse known patterns instead of rediscovering them.",
+    "",
+    "## OpenCode tool bridge",
+    "",
+    ruleLines,
+    "",
+    "## Evidence refs",
+    "",
+    evidence,
+    "",
+  ].join("\n");
+}
+
+export async function writeRulesSnapshot(root: string | undefined, input: Record<string, unknown>): Promise<RulesSnapshotResult> {
+  const paths = resolveTinyInfiPaths(root);
+  const rules = stringList(input.rules);
+  const evidenceRefs = stringList(input.evidenceRefs);
+  const mergedRules = rules.length > 0 ? rules : DEFAULT_RULES;
+  const rulesDir = path.join(paths.tinyDir, "rules");
+  const file = path.join(rulesDir, "architecture-patterns.md");
+  await mkdir(rulesDir, { recursive: true });
+  await writeFile(file, markdown(mergedRules, evidenceRefs), "utf8");
+  return {
+    path: ".tiny/rules/architecture-patterns.md",
+    rules: mergedRules,
+    evidenceRefs,
+  };
+}

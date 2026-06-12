@@ -8,9 +8,21 @@ import { TaskStore, type TaskStatus, type TinyTask } from "../state/task-store.j
 import { WikiBundler } from "../wiki/wiki-bundler.js";
 import { readPlanStatus } from "../ulw-loop/plan.js";
 import { checkArtifactMarkdown } from "./artifact-contract.js";
+import { createApiBackendTrace } from "./api-backend-trace.js";
+import { createBusinessLogicMap } from "./business-logic-map.js";
+import { createEvidenceQa } from "./evidence-qa.js";
+import { createIntegrationCatalog } from "./integration-catalog.js";
+import { createLegacyRepoIndex } from "./legacy-repo-index.js";
+import { createOrchestrationHealth } from "./orchestration-health.js";
 import { POWERSHELL_TOOLING_PROFILE, renderPowerShellToolingGuide, type PowerShellToolingProfile } from "./powershell-tooling.js";
+import { createQwenRetryPolicy } from "./qwen-retry-policy.js";
+import { createRepoMap } from "./repo-map.js";
+import { writeRulesSnapshot } from "./rules-snapshot.js";
 import { createSmallContextOrchestrationProfile, renderSmallContextGuide } from "./small-context-profile.js";
 import { createChunkedWritePlan, createContextDigest, createResumePacket } from "./small-model-tools.js";
+import { createToolUsagePlan } from "./tool-plan.js";
+import { createTraceabilityMatrix } from "./traceability-matrix.js";
+import { createUiActionTrace } from "./ui-action-trace.js";
 
 export interface OpenCodeShellRuntime {
   name: "powershell";
@@ -172,12 +184,25 @@ export function createTinyInfiPlugin(config: TinyInfiConfig = {}): TinyPluginMod
         artifactType: typeof input.artifactType === "string" ? input.artifactType : undefined,
       }),
       public_collect: async (input) => dispatcher.get(stringInput(input, "id")),
+      public_checkpoint: async (input) => dispatcher.checkpoint(stringInput(input, "id"), stringInput(input, "summary"), typeof input.result === "string" ? input.result : undefined),
       public_retry: async (input) => dispatcher.retry(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
       public_cancel: async (input) => dispatcher.cancel(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
       context_bundle: async (input, context) => loadContextBundle(root, typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? "."),
       context_digest: async (input) => createContextDigest(resolveTinyInfiPaths(root).root, input),
+      repo_map: async (input) => createRepoMap(resolveTinyInfiPaths(root).root, input),
+      business_logic_map: async (input) => createBusinessLogicMap(resolveTinyInfiPaths(root).root, input),
+      legacy_repo_index: async (input) => createLegacyRepoIndex(resolveTinyInfiPaths(root).root, input),
+      ui_action_trace: async (input) => createUiActionTrace(resolveTinyInfiPaths(root).root, input),
+      api_backend_trace: async (input) => createApiBackendTrace(resolveTinyInfiPaths(root).root, input),
+      integration_catalog: async (input) => createIntegrationCatalog(resolveTinyInfiPaths(root).root, input),
+      traceability_matrix: async (input) => createTraceabilityMatrix(input),
+      evidence_qa: async (input) => createEvidenceQa(input),
       wiki_bundle: async (input) => wiki.bundle(Array.isArray(input.refs) ? input.refs.map(String) : []),
       orchestration_profile: async () => orchestrationProfile,
+      qwen_retry_policy: async (input) => createQwenRetryPolicy(input),
+      orchestration_health: async () => createOrchestrationHealth(root),
+      rules_snapshot: async (input) => writeRulesSnapshot(root, input),
+      tool_usage_plan: async (input) => createToolUsagePlan(input),
       resume_packet: async (input) => {
         const task = await tasks.get(stringInput(input, "id"));
         if (!task) throw new Error(`Task not found: ${stringInput(input, "id")}`);
