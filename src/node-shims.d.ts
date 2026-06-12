@@ -17,6 +17,10 @@ declare module "node:path" {
     basename(path: string): string;
     relative(from: string, to: string): string;
     extname(path: string): string;
+    win32: {
+      resolve(...paths: string[]): string;
+      relative(from: string, to: string): string;
+    };
   };
   export default path;
 }
@@ -34,6 +38,8 @@ declare module "node:fs/promises" {
   export function access(path: string): Promise<void>;
   export function mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefined>;
   export function readFile(path: string, encoding: "utf8"): Promise<string>;
+  export function realpath(path: string): Promise<string>;
+  export function symlink(target: string, path: string): Promise<void>;
   export function writeFile(path: string, data: string, encoding?: "utf8"): Promise<void>;
   export function rename(oldPath: string, newPath: string): Promise<void>;
   export function unlink(path: string): Promise<void>;

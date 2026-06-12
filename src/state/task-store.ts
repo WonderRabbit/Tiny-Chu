@@ -16,6 +16,19 @@ export interface TinyTask {
   planRef?: string;
   evidenceRefs: string[];
   publicJobIds: string[];
+  checkpoints: TaskCheckpoint[];
+}
+
+export interface TaskCheckpoint {
+  sequence: number;
+  summary: string;
+  artifactType?: string;
+  passIndex?: number;
+  nextSteps: string[];
+  evidenceRefs: string[];
+  openQuestions: string[];
+  verificationCommands: string[];
+  createdAt: string;
 }
 
 export interface TaskStoreOptions {
@@ -28,8 +41,37 @@ function taskId(now: Date): string {
   return `T-${stamp}`;
 }
 
+function assertTaskId(id: string): void {
+  if (!/^T-[A-Za-z0-9_-]+$/.test(id)) throw new Error(`Invalid task id: ${id}`);
+}
+
 function taskFile(root: string | undefined, id: string): string {
+  assertTaskId(id);
   return path.join(resolveTinyInfiPaths(root).tasksDir, `${id}.json`);
+}
+
+function isTinyTask(task: TinyTask | undefined): task is TinyTask {
+  return task !== undefined;
+}
+
+function normalizeCheckpoint(checkpoint: TaskCheckpoint): TaskCheckpoint {
+  return {
+    ...checkpoint,
+    nextSteps: checkpoint.nextSteps ?? [],
+    evidenceRefs: checkpoint.evidenceRefs ?? [],
+    openQuestions: checkpoint.openQuestions ?? [],
+    verificationCommands: checkpoint.verificationCommands ?? [],
+  };
+}
+
+function normalizeTask(task: TinyTask): TinyTask {
+  return {
+    ...task,
+    notes: task.notes ?? [],
+    evidenceRefs: task.evidenceRefs ?? [],
+    publicJobIds: task.publicJobIds ?? [],
+    checkpoints: (task.checkpoints ?? []).map(normalizeCheckpoint),
+  };
 }
 
 export class TaskStore {
@@ -55,6 +97,7 @@ export class TaskStore {
       planRef: input.planRef,
       evidenceRefs: [],
       publicJobIds: [],
+      checkpoints: [],
     };
     await writeJsonAtomic(taskFile(this.root, task.id), task);
     return task;
@@ -63,15 +106,15 @@ export class TaskStore {
   async get(id: string): Promise<TinyTask | undefined> {
     const sentinel = Symbol("missing");
     const value = await readJsonFile<TinyTask | typeof sentinel>(taskFile(this.root, id), sentinel);
-    return value === sentinel ? undefined : value;
+    return value === sentinel ? undefined : normalizeTask(value);
   }
 
   async list(status?: TaskStatus): Promise<TinyTask[]> {
     const dir = resolveTinyInfiPaths(this.root).tasksDir;
     await ensureDir(dir);
     const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
-    const tasks = await Promise.all(files.map((file) => readJsonFile<TinyTask>(path.join(dir, file), undefined as never)));
-    return tasks.filter((task) => !status || task.status === status).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const tasks = await Promise.all(files.map((file) => readJsonFile<TinyTask | undefined>(path.join(dir, file), undefined)));
+    return tasks.filter(isTinyTask).map(normalizeTask).filter((task) => !status || task.status === status).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
   async update(id: string, patch: Partial<Omit<TinyTask, "id" | "createdAt">>): Promise<TinyTask> {
@@ -86,5 +129,30 @@ export class TaskStore {
     };
     await writeJsonAtomic(taskFile(this.root, id), updated);
     return updated;
+  }
+
+  async checkpoint(id: string, input: { summary: string; artifactType?: string; passIndex?: number; nextSteps?: string[]; evidenceRefs?: string[]; openQuestions?: string[]; verificationCommands?: string[] }): Promise<TaskCheckpoint> {
+    const current = await this.get(id);
+    if (!current) throw new Error(`Task not found: ${id}`);
+    const existing = current.checkpoints ?? [];
+    const checkpoint: TaskCheckpoint = {
+      sequence: existing.length + 1,
+      summary: input.summary,
+      artifactType: input.artifactType,
+      passIndex: input.passIndex,
+      nextSteps: input.nextSteps ?? [],
+      evidenceRefs: input.evidenceRefs ?? [],
+      openQuestions: input.openQuestions ?? [],
+      verificationCommands: input.verificationCommands ?? [],
+      createdAt: this.now().toISOString(),
+    };
+    const updated: TinyTask = {
+      ...current,
+      checkpoints: [...existing, checkpoint],
+      evidenceRefs: [...current.evidenceRefs, ...checkpoint.evidenceRefs].sort(),
+      updatedAt: checkpoint.createdAt,
+    };
+    await writeJsonAtomic(taskFile(this.root, id), updated);
+    return checkpoint;
   }
 }

@@ -33,6 +33,7 @@ export interface PublicJob {
   contract: {
     mustReturn: string[];
     format: "markdown_sections" | "json";
+    artifactType?: string;
   };
   result?: string;
   error?: string;
@@ -70,8 +71,17 @@ function jobId(now: Date): string {
   return `J-${stamp}`;
 }
 
+function assertJobId(id: string): void {
+  if (!/^J-[A-Za-z0-9_-]+$/.test(id)) throw new Error(`Invalid public job id: ${id}`);
+}
+
 function jobFile(root: string | undefined, id: string): string {
+  assertJobId(id);
   return path.join(resolveTinyInfiPaths(root).publicJobsDir, `${id}.json`);
+}
+
+function isPublicJob(job: PublicJob | undefined): job is PublicJob {
+  return job !== undefined;
 }
 
 export class PublicDispatcher {
@@ -104,9 +114,11 @@ export class PublicDispatcher {
     checkpointSummary?: string;
     budget?: Partial<PublicJobBudget>;
     mustReturn?: string[];
+    artifactType?: string;
   }): Promise<PublicJob> {
     const now = this.now();
     const iso = now.toISOString();
+    const mustReturn = input.mustReturn && input.mustReturn.length > 0 ? input.mustReturn : ["findings", "changed_files", "risks", "next_step"];
     const budget: PublicJobBudget = {
       inputTokensMax: input.budget?.inputTokensMax ?? 2400,
       outputTokensMax: input.budget?.outputTokensMax ?? 1200,
@@ -130,8 +142,9 @@ export class PublicDispatcher {
         prompt: input.prompt,
       },
       contract: {
-        mustReturn: input.mustReturn ?? ["findings", "changed_files", "risks", "next_step"],
+        mustReturn,
         format: "markdown_sections",
+        artifactType: input.artifactType,
       },
     };
     await writeJsonAtomic(jobFile(this.root, job.id), job);
@@ -148,8 +161,8 @@ export class PublicDispatcher {
     const dir = resolveTinyInfiPaths(this.root).publicJobsDir;
     await ensureDir(dir);
     const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
-    const jobs = await Promise.all(files.map((file) => readJsonFile<PublicJob>(path.join(dir, file), undefined as never)));
-    return jobs.filter((job) => !status || job.status === status).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const jobs = await Promise.all(files.map((file) => readJsonFile<PublicJob | undefined>(path.join(dir, file), undefined)));
+    return jobs.filter(isPublicJob).filter((job) => !status || job.status === status).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
   async checkpoint(id: string, summary: string, partialResult?: string): Promise<PublicJob> {

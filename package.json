@@ -9,11 +9,17 @@
     "test": "npm run build && node --test test/*.test.mjs"
   },
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./opencode": "./dist/opencode/plugin.js"
   },
   "files": [
     "dist",
     "README.md"
   ],
-  "devDependencies": {}
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.17.4"
+  }
 }
