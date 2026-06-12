@@ -4,4 +4,4 @@ export { resolveTinyInfiPaths, type TinyInfiPaths } from "./state/paths.js";
 export { TaskStore, type TinyTask, type TaskStatus } from "./state/task-store.js";
 export { parsePlanMarkdown, readPlanStatus, writePlanTemplate, type PlanStatus, type PlanCheckbox } from "./ulw-loop/plan.js";
 export { WikiBundler, type WikiBundle, type WikiDocumentRef, type WikiIndex } from "./wiki/wiki-bundler.js";
-export { createTinyInfiPlugin, type TinyInfiConfig, type TinyPluginModule, type TinyToolContext } from "./opencode/tiny-plugin.js";
+export { createTinyInfiPlugin, POWERSHELL_OPENCODE_RUNTIME, type OpenCodeRuntimeConfig, type OpenCodeShellRuntime, type TinyInfiConfig, type TinyPluginModule, type TinyToolContext } from "./opencode/tiny-plugin.js";

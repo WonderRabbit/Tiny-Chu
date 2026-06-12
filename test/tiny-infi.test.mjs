@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createTinyInfiPlugin, loadContextBundle, parsePlanMarkdown, PublicDispatcher, TaskStore, WikiBundler } from "../dist/index.js";
+import { createTinyInfiPlugin, POWERSHELL_OPENCODE_RUNTIME, loadContextBundle, parsePlanMarkdown, PublicDispatcher, TaskStore, WikiBundler } from "../dist/index.js";
 
 test("TaskStore persists tasks under .omo/tasks", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-task-"));
@@ -58,6 +58,17 @@ test("tiny plugin injects context on ulw and continues unfinished plans", async 
   const transformed = await plugin.hooks.transformUserMessage("ulw do it");
   assert.match(transformed, /tiny-infi-context/);
   assert.deepEqual(await plugin.hooks.onSessionIdle({ planRef: ".omo/plans/PLAN.md" }), { shouldContinue: true, reason: "1 open checkbox item(s) remain" });
+});
+
+test("tiny plugin declares the OpenCode PowerShell runtime", () => {
+  const plugin = createTinyInfiPlugin();
+  assert.deepEqual(plugin.opencode, POWERSHELL_OPENCODE_RUNTIME);
+  assert.deepEqual(plugin.opencode.shell, {
+    name: "powershell",
+    executable: "pwsh",
+    version: "7.6.2",
+    args: ["-NoLogo", "-NoProfile"],
+  });
 });
 
 test("plan parser reports checkbox completion", () => {

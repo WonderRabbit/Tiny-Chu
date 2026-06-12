@@ -4,6 +4,26 @@ import { TaskStore } from "../state/task-store.js";
 import { WikiBundler } from "../wiki/wiki-bundler.js";
 import { readPlanStatus } from "../ulw-loop/plan.js";
 
+export interface OpenCodeShellRuntime {
+  name: "powershell";
+  executable: "pwsh";
+  version: "7.6.2";
+  args: readonly ["-NoLogo", "-NoProfile"];
+}
+
+export interface OpenCodeRuntimeConfig {
+  shell: OpenCodeShellRuntime;
+}
+
+export const POWERSHELL_OPENCODE_RUNTIME: OpenCodeRuntimeConfig = {
+  shell: {
+    name: "powershell",
+    executable: "pwsh",
+    version: "7.6.2",
+    args: ["-NoLogo", "-NoProfile"],
+  },
+};
+
 export interface TinyInfiConfig {
   root?: string;
   publicDispatcher?: {
@@ -24,6 +44,7 @@ export type TinyToolHandler = (input: Record<string, unknown>, context?: TinyToo
 
 export interface TinyPluginModule {
   name: "tiny-infi";
+  opencode: OpenCodeRuntimeConfig;
   tools: Record<string, TinyToolHandler>;
   hooks: {
     transformUserMessage(message: string, context?: TinyToolContext): Promise<string>;
@@ -45,6 +66,7 @@ export function createTinyInfiPlugin(config: TinyInfiConfig = {}): TinyPluginMod
 
   return {
     name: "tiny-infi",
+    opencode: POWERSHELL_OPENCODE_RUNTIME,
     tools: {
       task_create: async (input) => tasks.create({
         title: stringInput(input, "title"),
