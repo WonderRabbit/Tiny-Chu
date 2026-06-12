@@ -53,6 +53,28 @@ console.log(POWERSHELL_OPENCODE_RUNTIME.shell.version);
 // "7.6.2"
 ```
 
+
+## PowerShell native-tool profile
+
+Tiny Infi also exports a compact PowerShell tooling profile for small foreman models. The profile records the shell parsing rules and safe defaults that usually cause mistakes when Unix-oriented tools are called from `pwsh`:
+
+- use real native executables (`jq`, `yq`, `mdq`, `fd`, `ast-grep`, `rg`) instead of PowerShell aliases or Unix-only commands such as `grep -R`, `find -name`, and `xargs` pipelines
+- single-quote filters, selectors, regexes, and structural patterns so PowerShell does not expand `$`, `[]`, `{}`, `|`, or backticks before the native tool receives them
+- insert the native tool's own `--` separator before positional patterns or paths that begin with `-`
+- prefer machine-readable output (`--json`, `--json=stream`, `-o json`, `-c`) and deterministic no-color environment defaults
+- set `$PSNativeCommandArgumentPassing = 'Standard'` for PowerShell 7+ sessions with complex native arguments
+
+```ts
+import { POWERSHELL_TOOLING_PROFILE, renderPowerShellToolingGuide } from "tiny-chu";
+
+console.log(POWERSHELL_TOOLING_PROFILE.nativeTools.map((tool) => tool.name));
+// ["jq", "yq", "mdq", "fd", "ast-grep", "ripgrep"]
+
+console.log(renderPowerShellToolingGuide());
+```
+
+When `transformUserMessage()` injects Tiny Infi context for `ulw`/`ultrawork` requests, it now appends this guide in a `<tiny-infi-powershell-tooling>` block so the active model can use these tools without re-deriving PowerShell-safe syntax every turn.
+
 ## State layout
 
 ```text

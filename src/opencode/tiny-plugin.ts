@@ -3,6 +3,7 @@ import { PublicDispatcher } from "../dispatcher/public-job.js";
 import { TaskStore } from "../state/task-store.js";
 import { WikiBundler } from "../wiki/wiki-bundler.js";
 import { readPlanStatus } from "../ulw-loop/plan.js";
+import { POWERSHELL_TOOLING_PROFILE, renderPowerShellToolingGuide, type PowerShellToolingProfile } from "./powershell-tooling.js";
 
 export interface OpenCodeShellRuntime {
   name: "powershell";
@@ -13,6 +14,7 @@ export interface OpenCodeShellRuntime {
 
 export interface OpenCodeRuntimeConfig {
   shell: OpenCodeShellRuntime;
+  tooling: PowerShellToolingProfile;
 }
 
 export const POWERSHELL_OPENCODE_RUNTIME: OpenCodeRuntimeConfig = {
@@ -22,6 +24,7 @@ export const POWERSHELL_OPENCODE_RUNTIME: OpenCodeRuntimeConfig = {
     version: "7.6.2",
     args: ["-NoLogo", "-NoProfile"],
   },
+  tooling: POWERSHELL_TOOLING_PROFILE,
 };
 
 export interface TinyInfiConfig {
@@ -99,7 +102,7 @@ export function createTinyInfiPlugin(config: TinyInfiConfig = {}): TinyPluginMod
       async transformUserMessage(message, context) {
         if (!/\b(ulw|ultrawork)\b/i.test(message)) return message;
         const bundle = await loadContextBundle(root, context?.targetPath ?? ".");
-        return `${message}\n\n<tiny-infi-context>\n${bundle.text}\n</tiny-infi-context>`;
+        return `${message}\n\n<tiny-infi-context>\n${bundle.text}\n</tiny-infi-context>\n\n<tiny-infi-powershell-tooling>\n${renderPowerShellToolingGuide()}\n</tiny-infi-powershell-tooling>`;
       },
       async onSessionIdle(input) {
         if (!input.planRef) return { shouldContinue: false, reason: "no active plan" };

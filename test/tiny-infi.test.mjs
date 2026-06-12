@@ -3,7 +3,7 @@ import { access, mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createTinyInfiPlugin, POWERSHELL_OPENCODE_RUNTIME, loadContextBundle, parsePlanMarkdown, PublicDispatcher, resolveTinyInfiPaths, TaskStore, WikiBundler } from "../dist/index.js";
+import { createTinyInfiPlugin, POWERSHELL_OPENCODE_RUNTIME, POWERSHELL_TOOLING_PROFILE, renderPowerShellToolingGuide, loadContextBundle, parsePlanMarkdown, PublicDispatcher, resolveTinyInfiPaths, TaskStore, WikiBundler } from "../dist/index.js";
 
 test("TaskStore persists tasks under .tiny/tasks", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-task-"));
@@ -63,6 +63,8 @@ test("tiny plugin injects context on ulw and continues unfinished plans", async 
   const plugin = createTinyInfiPlugin({ root });
   const transformed = await plugin.hooks.transformUserMessage("ulw do it");
   assert.match(transformed, /tiny-infi-context/);
+  assert.match(transformed, /tiny-infi-powershell-tooling/);
+  assert.match(transformed, /Quote jq\/yq\/mdq\/rg\/fd\/ast-grep patterns with single quotes/);
   assert.deepEqual(await plugin.hooks.onSessionIdle({ planRef: ".tiny/plans/PLAN.md" }), { shouldContinue: true, reason: "1 open checkbox item(s) remain" });
 });
 
@@ -75,6 +77,16 @@ test("tiny plugin declares the OpenCode PowerShell runtime", () => {
     version: "7.6.2",
     args: ["-NoLogo", "-NoProfile"],
   });
+  assert.equal(plugin.opencode.tooling, POWERSHELL_TOOLING_PROFILE);
+  assert.deepEqual(plugin.opencode.tooling.nativeTools.map((tool) => tool.name), ["jq", "yq", "mdq", "fd", "ast-grep", "ripgrep"]);
+});
+
+test("PowerShell tooling guide captures native command safety defaults", () => {
+  const guide = renderPowerShellToolingGuide();
+  assert.match(guide, /PowerShell native-tool guide/);
+  assert.match(guide, /\$PSNativeCommandArgumentPassing = 'Standard'/);
+  assert.match(guide, /rg --files -g '\*\.ts' -g '!dist\/\*\*'/);
+  assert.equal(POWERSHELL_TOOLING_PROFILE.environment.NO_COLOR, "1");
 });
 
 test("plan parser reports checkbox completion", () => {
