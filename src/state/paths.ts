@@ -2,7 +2,6 @@ import path from "node:path";
 
 export interface TinyInfiPaths {
   root: string;
-  omoDir: string;
   tasksDir: string;
   plansDir: string;
   boulderFile: string;
@@ -15,15 +14,13 @@ export interface TinyInfiPaths {
 
 export function resolveTinyInfiPaths(root = process.cwd()): TinyInfiPaths {
   const absoluteRoot = path.resolve(root);
-  const omoDir = path.join(absoluteRoot, ".omo");
-  const tinyDir = path.join(absoluteRoot, ".tiny-infi");
+  const tinyDir = path.join(absoluteRoot, ".tiny");
   const wikiDir = path.join(tinyDir, "wiki");
   return {
     root: absoluteRoot,
-    omoDir,
-    tasksDir: path.join(omoDir, "tasks"),
-    plansDir: path.join(omoDir, "plans"),
-    boulderFile: path.join(omoDir, "boulder.json"),
+    tasksDir: path.join(tinyDir, "tasks"),
+    plansDir: path.join(tinyDir, "plans"),
+    boulderFile: path.join(tinyDir, "boulder.json"),
     tinyDir,
     publicJobsDir: path.join(tinyDir, "public-jobs"),
     memoryDir: path.join(tinyDir, "memory"),

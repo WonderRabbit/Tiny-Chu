@@ -53,7 +53,7 @@ export async function writePlanTemplate(root: string | undefined, fileName: stri
     "## Source of Truth",
     "- nearest AGENTS.md",
     "- project rules bundle",
-    "- .tiny-infi/wiki/index.json",
+    "- .tiny/wiki/index.json",
     "",
     "## TODOs",
     ...input.todos.map((todo, index) => `- [ ] ${index + 1}. ${todo}`),

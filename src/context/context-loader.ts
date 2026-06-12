@@ -15,7 +15,7 @@ export interface ContextBundle {
   text: string;
 }
 
-const RULE_DIRS = [".omo/rules", ".claude/rules", ".cursor/rules", ".github/instructions"] as const;
+const RULE_DIRS = [".tiny/rules", ".claude/rules", ".cursor/rules", ".github/instructions"] as const;
 const RULE_FILES = [".github/copilot-instructions.md"] as const;
 
 async function exists(file: string): Promise<boolean> {
