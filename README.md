@@ -38,6 +38,21 @@ const tiny = createTinyInfiPlugin({
 await tiny.tools.task_create({ title: "Refactor auth boundary" });
 ```
 
+## OpenCode shell runtime
+
+`createTinyInfiPlugin()` declares that OpenCode sessions should run on the PowerShell runtime. The exported runtime setting pins the shell name, executable, startup arguments, and PowerShell version so consumers can inspect or pass it through to their OpenCode configuration.
+
+```ts
+import { POWERSHELL_OPENCODE_RUNTIME, createTinyInfiPlugin } from "tiny-chu";
+
+const tiny = createTinyInfiPlugin();
+
+console.log(tiny.opencode.shell);
+// { name: "powershell", executable: "pwsh", version: "7.6.2", args: ["-NoLogo", "-NoProfile"] }
+console.log(POWERSHELL_OPENCODE_RUNTIME.shell.version);
+// "7.6.2"
+```
+
 ## State layout
 
 ```text
