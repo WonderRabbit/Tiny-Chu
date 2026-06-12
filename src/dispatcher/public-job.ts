@@ -1,0 +1,220 @@
+import { readdir } from "node:fs/promises";
+import path from "node:path";
+import { resolveTinyInfiPaths } from "../state/paths.js";
+import { ensureDir, readJsonFile, writeJsonAtomic } from "../state/file-store.js";
+
+export type PublicJobStatus = "queued" | "running" | "checkpointed" | "retry_wait" | "done" | "failed" | "cancelled";
+
+export interface PublicJobBudget {
+  inputTokensMax: number;
+  outputTokensMax: number;
+  totalTokensHard: number;
+}
+
+export interface PublicJob {
+  id: string;
+  taskId?: string;
+  kind: "public.analysis" | "public.review" | "public.plan";
+  status: PublicJobStatus;
+  owner: string;
+  attempt: number;
+  createdAt: string;
+  updatedAt: string;
+  retryAt?: string;
+  resumeFrom?: string;
+  budget: PublicJobBudget;
+  context: {
+    rulesRefs: string[];
+    wikiRefs: string[];
+    planRef?: string;
+    checkpointSummary?: string;
+    prompt: string;
+  };
+  contract: {
+    mustReturn: string[];
+    format: "markdown_sections" | "json";
+  };
+  result?: string;
+  error?: string;
+}
+
+export interface RateGateSnapshot {
+  now: string;
+  requestCount: number;
+  tokenCount: number;
+  softRpm: number;
+  softTpm: number;
+  hardRpm: number;
+  hardTpm: number;
+  allowed: boolean;
+  reason?: string;
+}
+
+export interface PublicDispatcherOptions {
+  root?: string;
+  now?: () => Date;
+  softRpm?: number;
+  softTpm?: number;
+  hardRpm?: number;
+  hardTpm?: number;
+  owner?: string;
+}
+
+interface RateEvent {
+  at: string;
+  tokens: number;
+}
+
+function jobId(now: Date): string {
+  const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return `J-${stamp}`;
+}
+
+function jobFile(root: string | undefined, id: string): string {
+  return path.join(resolveTinyInfiPaths(root).publicJobsDir, `${id}.json`);
+}
+
+export class PublicDispatcher {
+  readonly root?: string;
+  private readonly now: () => Date;
+  private readonly softRpm: number;
+  private readonly softTpm: number;
+  private readonly hardRpm: number;
+  private readonly hardTpm: number;
+  private readonly owner: string;
+  private events: RateEvent[] = [];
+
+  constructor(options: PublicDispatcherOptions = {}) {
+    this.root = options.root;
+    this.now = options.now ?? (() => new Date());
+    this.softRpm = options.softRpm ?? 12;
+    this.softTpm = options.softTpm ?? 14_000;
+    this.hardRpm = options.hardRpm ?? 16;
+    this.hardTpm = options.hardTpm ?? 18_000;
+    this.owner = options.owner ?? "public-qwen";
+  }
+
+  async dispatch(input: {
+    taskId?: string;
+    kind?: PublicJob["kind"];
+    prompt: string;
+    rulesRefs?: string[];
+    wikiRefs?: string[];
+    planRef?: string;
+    checkpointSummary?: string;
+    budget?: Partial<PublicJobBudget>;
+    mustReturn?: string[];
+  }): Promise<PublicJob> {
+    const now = this.now();
+    const iso = now.toISOString();
+    const budget: PublicJobBudget = {
+      inputTokensMax: input.budget?.inputTokensMax ?? 2400,
+      outputTokensMax: input.budget?.outputTokensMax ?? 1200,
+      totalTokensHard: input.budget?.totalTokensHard ?? 4000,
+    };
+    const job: PublicJob = {
+      id: jobId(now),
+      taskId: input.taskId,
+      kind: input.kind ?? "public.analysis",
+      status: "queued",
+      owner: this.owner,
+      attempt: 1,
+      createdAt: iso,
+      updatedAt: iso,
+      budget,
+      context: {
+        rulesRefs: input.rulesRefs ?? [],
+        wikiRefs: input.wikiRefs ?? [],
+        planRef: input.planRef,
+        checkpointSummary: input.checkpointSummary,
+        prompt: input.prompt,
+      },
+      contract: {
+        mustReturn: input.mustReturn ?? ["findings", "changed_files", "risks", "next_step"],
+        format: "markdown_sections",
+      },
+    };
+    await writeJsonAtomic(jobFile(this.root, job.id), job);
+    return job;
+  }
+
+  async get(id: string): Promise<PublicJob | undefined> {
+    const sentinel = Symbol("missing");
+    const value = await readJsonFile<PublicJob | typeof sentinel>(jobFile(this.root, id), sentinel);
+    return value === sentinel ? undefined : value;
+  }
+
+  async list(status?: PublicJobStatus): Promise<PublicJob[]> {
+    const dir = resolveTinyInfiPaths(this.root).publicJobsDir;
+    await ensureDir(dir);
+    const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
+    const jobs = await Promise.all(files.map((file) => readJsonFile<PublicJob>(path.join(dir, file), undefined as never)));
+    return jobs.filter((job) => !status || job.status === status).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async checkpoint(id: string, summary: string, partialResult?: string): Promise<PublicJob> {
+    const job = await this.require(id);
+    return this.save({
+      ...job,
+      status: "checkpointed",
+      updatedAt: this.now().toISOString(),
+      context: { ...job.context, checkpointSummary: summary },
+      result: partialResult ?? job.result,
+    });
+  }
+
+  async retry(id: string, reason = "retry requested"): Promise<PublicJob> {
+    const job = await this.require(id);
+    const delaySeconds = Math.min(90, [15, 30, 60][Math.max(0, Math.min(job.attempt - 1, 2))] ?? 90);
+    const retryAt = new Date(this.now().getTime() + delaySeconds * 1000).toISOString();
+    return this.save({ ...job, status: "retry_wait", attempt: job.attempt + 1, retryAt, updatedAt: this.now().toISOString(), error: reason });
+  }
+
+  async complete(id: string, result: string): Promise<PublicJob> {
+    const job = await this.require(id);
+    return this.save({ ...job, status: "done", result, updatedAt: this.now().toISOString(), error: undefined });
+  }
+
+  async cancel(id: string, reason = "cancelled"): Promise<PublicJob> {
+    const job = await this.require(id);
+    return this.save({ ...job, status: "cancelled", error: reason, updatedAt: this.now().toISOString() });
+  }
+
+  checkRateGate(tokens: number): RateGateSnapshot {
+    const now = this.now();
+    const cutoff = now.getTime() - 60_000;
+    this.events = this.events.filter((event) => Date.parse(event.at) >= cutoff);
+    const requestCount = this.events.length;
+    const tokenCount = this.events.reduce((sum, event) => sum + event.tokens, 0);
+    const projectedRequests = requestCount + 1;
+    const projectedTokens = tokenCount + tokens;
+    if (projectedRequests > this.hardRpm || projectedTokens > this.hardTpm) {
+      return this.snapshot(now, requestCount, tokenCount, false, "hard_limit");
+    }
+    if (projectedRequests > this.softRpm || projectedTokens > this.softTpm) {
+      return this.snapshot(now, requestCount, tokenCount, false, "soft_limit");
+    }
+    return this.snapshot(now, requestCount, tokenCount, true);
+  }
+
+  recordUsage(tokens: number): RateGateSnapshot {
+    const snapshot = this.checkRateGate(tokens);
+    if (snapshot.allowed) this.events.push({ at: this.now().toISOString(), tokens });
+    return snapshot;
+  }
+
+  private snapshot(now: Date, requestCount: number, tokenCount: number, allowed: boolean, reason?: string): RateGateSnapshot {
+    return { now: now.toISOString(), requestCount, tokenCount, softRpm: this.softRpm, softTpm: this.softTpm, hardRpm: this.hardRpm, hardTpm: this.hardTpm, allowed, reason };
+  }
+
+  private async require(id: string): Promise<PublicJob> {
+    const job = await this.get(id);
+    if (!job) throw new Error(`Public job not found: ${id}`);
+    return job;
+  }
+
+  private async save(job: PublicJob): Promise<PublicJob> {
+    await writeJsonAtomic(jobFile(this.root, job.id), job);
+    return job;
+  }
+}

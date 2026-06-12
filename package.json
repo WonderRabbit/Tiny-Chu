@@ -1,0 +1,19 @@
+{
+  "name": "tiny-chu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tiny Infi OpenCode shell and file-backed orchestration primitives.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "devDependencies": {}
+}
