@@ -31,8 +31,12 @@ export async function createApiBackendTrace(root: string, input: Record<string, 
   const api = index.facts.find((fact) => fact.kind === "api_client" && fact.method === method && fact.path === targetPath);
   const route = index.facts.find((fact) => fact.kind === "backend_route" && fact.method === method && fact.path === targetPath);
   const service = route ? index.facts.find((fact) => fact.kind === "service_method" && fact.symbol?.endsWith(`.${route.symbol ?? ""}`)) : undefined;
-  const mapper = service ? index.facts.find((fact) => fact.kind === "mapper_call") : undefined;
-  const rfc = service ? index.facts.find((fact) => fact.kind === "rfc_call") : undefined;
+  const mapper = service ? index.facts.find((fact) => fact.kind === "mapper_call" && fact.file === service.file) : undefined;
+  const rfc = service ? index.facts.find((fact) => fact.kind === "rfc_call" && fact.file === service.file) : undefined;
+  const missingIntegration = [
+    ...(mapper ? [] : ["No mapper call evidence linked to matched service"]),
+    ...(rfc ? [] : ["No RFC call evidence linked to matched service"]),
+  ];
   const evidence = [api, route].flatMap((fact) => fact ? [fact.id] : []);
   if (!route) {
     return {
@@ -54,6 +58,6 @@ export async function createApiBackendTrace(root: string, input: Record<string, 
       ...(rfc?.symbol ? { rfcFunction: rfc.symbol } : {}),
       evidence: [mapper, rfc].flatMap((fact) => fact ? [fact.id] : []),
     },
-    missingEvidence: service ? [] : ["No service method evidence linked to backend route"],
+    missingEvidence: service ? missingIntegration : ["No service method evidence linked to backend route"],
   };
 }

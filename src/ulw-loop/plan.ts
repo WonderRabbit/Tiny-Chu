@@ -19,6 +19,16 @@ export interface PlanStatus {
   complete: boolean;
 }
 
+export interface PlanFocus {
+  readonly planRef: string;
+  readonly total: number;
+  readonly done: number;
+  readonly open: number;
+  readonly nextOpenItems: readonly PlanCheckbox[];
+  readonly finalVerificationOpen: boolean;
+  readonly truncated: boolean;
+}
+
 export function parsePlanMarkdown(markdown: string, planPath: string): PlanStatus {
   const lines = markdown.split(/\r?\n/);
   let section = "";
@@ -33,6 +43,20 @@ export function parsePlanMarkdown(markdown: string, planPath: string): PlanStatu
   });
   const done = checkboxes.filter((item) => item.checked).length;
   return { path: planPath, total: checkboxes.length, done, open: checkboxes.length - done, checkboxes, complete: checkboxes.length > 0 && done === checkboxes.length };
+}
+
+export function selectPlanFocus(status: PlanStatus, options: { readonly maxOpenItems?: number } = {}): PlanFocus {
+  const maxOpenItems = typeof options.maxOpenItems === "number" && Number.isInteger(options.maxOpenItems) && options.maxOpenItems > 0 ? options.maxOpenItems : 3;
+  const openItems = status.checkboxes.filter((item) => !item.checked);
+  return {
+    planRef: status.path,
+    total: status.total,
+    done: status.done,
+    open: status.open,
+    nextOpenItems: openItems.slice(0, maxOpenItems),
+    finalVerificationOpen: openItems.some((item) => item.section === "Final Verification Wave" || /^F\d+\b/.test(item.text)),
+    truncated: openItems.length > maxOpenItems,
+  };
 }
 
 export async function readPlanStatus(root: string | undefined, planRef: string): Promise<PlanStatus> {

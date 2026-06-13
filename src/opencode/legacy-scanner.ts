@@ -4,7 +4,7 @@ import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
 import type { LegacyConfidence, LegacyEvidenceFact } from "./legacy-types.js";
 
 const EXCLUDED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".tiny", ".omo", ".analysis"]);
-const INCLUDED_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".java", ".xml", ".json", ".gradle", ".sql", ".md", ".yml", ".yaml"]);
+const INCLUDED_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".java", ".xml", ".json", ".gradle", ".sql", ".md", ".yml", ".yaml", ".properties"]);
 
 export interface LegacySourceFile {
   readonly path: string;

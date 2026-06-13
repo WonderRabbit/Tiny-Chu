@@ -44,8 +44,7 @@ function traceRow(index: LegacyRepoIndexResult, label: string): UiActionTraceRow
   const reduxAction = actionCreator?.path ? findFact(index, "redux_action", actionCreator.path) : undefined;
   const sagaWatcher = reduxAction?.symbol ? findFact(index, "saga_watcher", reduxAction.symbol) : undefined;
   const sagaWorker = sagaWatcher?.path ? findExactFact(index, "saga_worker", sagaWatcher.path) : undefined;
-  const exactApiClient = sagaWorker ? index.facts.find((fact) => fact.kind === "api_client" && sagaWorker.text.includes(fact.symbol ?? "")) : undefined;
-  const apiClient = exactApiClient ?? (sagaWorker ? index.facts.find((fact) => fact.kind === "api_client") : undefined);
+  const apiClient = sagaWorker ? index.facts.find((fact) => fact.kind === "api_client" && sagaWorker.text.includes(fact.symbol ?? "")) : undefined;
   const linked = [event, handler, reduxAction, sagaWatcher, sagaWorker, apiClient].flatMap((fact) => fact ? [fact.id] : []);
   const complete = Boolean(handler && reduxAction && sagaWatcher && sagaWorker && apiClient);
   return {

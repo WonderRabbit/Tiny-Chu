@@ -68,7 +68,7 @@ Tiny-Chu는 모델 라우터 자체가 아니라 OpenCode 플러그인 도구를
 
 | 에이전트 | 권장 모델 | 책임 | 사용 도구 |
 | --- | --- | --- | --- |
-| `tiny-foreman` | Ollama `gemma4-small` | 목표 유지, 계획 분해, checkpoint, 근거 수집 요청, 워커 위임 | `tool_usage_plan`, `legacy_repo_index`, `ui_action_trace`, `api_backend_trace`, `integration_catalog`, `traceability_matrix`, `evidence_qa`, `task_*`, `resume_packet`, `context_digest`, `public_dispatch`, `public_collect`, `qwen_retry_policy`, `orchestration_health`, `chunked_write_plan` |
+| `tiny-foreman` | Ollama `gemma4-small` | 목표 유지, 계획 분해, checkpoint, 근거 수집 요청, 워커 위임 | `doctor`, `environment_doctor`, `tool_usage_plan`, `session_preflight`, `task_focus_packet`, `context_packet`, `legacy_repo_index`, `ui_action_trace`, `api_backend_trace`, `integration_catalog`, `traceability_matrix`, `ui_layout_catalog`, `ux_rationale_trace`, `ux_validation_matrix`, `layout_truth_verify`, `evidence_qa`, `claim_evidence_check`, `task_*`, `resume_packet`, `context_digest`, `evidence_snapshot`, `worker_packet_optimizer`, `public_dispatch`, `public_collect`, `public_complete`, `qwen_retry_policy`, `orchestration_health`, `chunked_write_plan` |
 | `repo-analyst` | `qwen3.6-35b-a3b` | 소스 구조 분석, AS-IS, 위험 분석, 설계 판단 | `repo_map`, `business_logic_map`, `legacy_repo_index`, `fd`, `rg`, `ast-grep`, `context_digest`, `artifact_check` |
 | `artifact-architect` | `qwen3.6-35b-a3b` | UI 정의서, 사용자 스토리, TestCase, ERD 초안 작성 | `public_dispatch`, `wiki_bundle`, `artifact_check`, `chunked_write_plan` |
 | `mermaid-reviewer` | small 또는 large | sequence, flowchart, ERD Mermaid 문법 검토 | `mdq`, `mermaid_check`, `mermaid_fix`, `mmdc` |
@@ -77,8 +77,20 @@ Tiny-Chu는 모델 라우터 자체가 아니라 OpenCode 플러그인 도구를
 
 ### 에이전트 운용 규칙
 
+- Small-context operating-mode correction gate는 작은 모델이 프로젝트 전체 작업을 시작하기 전 확인하는 local-only readiness gate다. Tiny-Chu는 이 gate에서 no live provider call을 수행하지 않는다.
+- 정확한 순서는 `doctor` -> `session_preflight` -> `context_packet` -> `incremental_evidence_cache` -> `tool_usage_plan` -> `worker_packet_optimizer({ dispatch: false })` -> `qwen_retry_policy` -> `claim_evidence_check` -> `artifact_pack_manifest` -> `task_checkpoint` / `resume_packet` 이다.
+- `incremental_evidence_cache`는 source hash staleness만 판단한다. git dirty worktree 신호가 아니므로 executor는 별도로 `git status --short`와 `git diff -- <file>`을 확인한다.
 - `tiny-foreman`은 먼저 `tool_usage_plan`으로 다음 도구 순서를 받고, 파일 전체를 읽기 전에 `repo_map`, `fd`, `rg`, `ast-grep`로 후보를 줄인다.
+- `tool_usage_plan.steps`는 작은 모델을 위해 짧게 잘릴 수 있으므로, 작업 후에는 항상 `tool_usage_plan.verification.requiredTools`를 실행한 뒤 종료한다.
+- 새 세션이나 이상 징후가 있으면 먼저 `doctor`로 canonical readiness를 확인한다. 순수 command 확인만 필요하면 `environment_doctor`, 실패 복구만 필요하면 `orchestration_health`를 쓴다.
+- compaction 이후에는 `context_packet`과 `task_focus_packet`으로 필요한 근거와 다음 plan checkbox만 복구한다.
+- 이전 `.omo/evidence`를 재사용할 때는 `evidence_snapshot`과 `incremental_evidence_cache`를 함께 확인한다.
 - Button to API to Backend to DB/RFC 분석은 `legacy_repo_index` 이후 `ui_action_trace`, `api_backend_trace`, `integration_catalog`, `traceability_matrix`, `evidence_qa` 순서로 진행한다.
+- 여러 버튼을 분석할 때는 `button_workflow_plan`으로 버튼별 work item을 만들고, `button_worker_packet` / `button_workflow_dispatch`로 한 worker가 한 버튼만 처리하게 한다. 워커 결과는 `markdown_envelope_check`와 `button_worker_result_check`를 통과한 뒤에만 `public_complete`한다.
+- 화면 구성의 존재 이유와 위치 이유를 역공학할 때는 `ui_layout_catalog`, `ux_rationale_trace`, `ux_validation_matrix`, `ux_reverse_report`를 먼저 실행하고, 기존 memory를 재사용하기 전에는 `layout_truth_verify`를 실행한다.
+- 상세 설계 분석은 `api_contract_catalog`, `dto_schema_map`, `redux_state_flow_map`, `auth_permission_trace`, `error_transaction_map`으로 반복 탐색을 JSON evidence로 줄인다.
+- 산출물 배포 전에는 `claim_evidence_check`, `trace_diagram_render`, `artifact_pack_manifest`를 실행해 근거 없는 이름, 깨지는 Mermaid, 누락 산출물을 막는다.
+- 산출물 생성 전에는 `artifact_format_template`으로 형식 요구사항을 먼저 가져오고, 생성 후에는 `artifact_check`를 실행한다. `.tiny/artifacts/templates/<artifactType>.md`는 override template이며 산출물 자체로 계산하지 않는다.
 - 복잡한 business logic, 변수 관계, 컬럼 비교를 설명하기 전에는 `business_logic_map`을 먼저 호출한다.
 - repo 사실을 말하기 전에 `context_digest`로 line citation을 확보한다.
 - 큰 분석은 `public_dispatch`로 워커 패킷을 만들고, 워커 응답은 `public_collect`로 가져온다.
@@ -135,6 +147,7 @@ OpenCode에서는 아래 이름의 도구가 노출된다. 라이브러리에서
 | `task_update` | title/status/priority/evidence 갱신 | `id`, `status`, `evidenceRefs` |
 | `task_checkpoint` | pass 종료, 위임 전후, 중단 전 상태 저장 | `id`, `summary`, `artifactType`, `passIndex`, `nextSteps`, `evidenceRefs`, `openQuestions`, `verificationCommands` |
 | `resume_packet` | session 시작, compaction 이후, 중단 복구 | `id` |
+| `task_focus_packet` | active task, latest checkpoint, 다음 plan checkbox를 함께 복구 | `id`, `planRef`, `maxOpenItems` |
 
 예시:
 
@@ -163,6 +176,7 @@ const packet = await tiny.tools.resume_packet({ id: task.id });
 | Tool | 언제 쓰나 | 결과 |
 | --- | --- | --- |
 | `context_bundle` | `AGENTS.md`, `.tiny/rules`, `.claude/rules`, `.cursor/rules`, `.github/instructions`를 모을 때 | project rule bundle |
+| `context_packet` | compaction/resume 이후 작은 context와 evidence ref만 넘길 때 | bounded packet, omitted, truncated |
 | `context_digest` | 큰 파일에서 특정 query line 근거만 뽑을 때 | bounded snippets, citations, truncated |
 | `repo_map` | architecture, web button, API handler, database write 후보를 작게 맵핑할 때 | bounded layers, files, dataFlowHints, recommendedCommands |
 | `business_logic_map` | business rule의 변수, 컬럼, 비교식을 상세히 보되 파일 전체를 모델에 넣지 않을 때 | variables, columns, comparisons, evidence |
@@ -172,12 +186,115 @@ const packet = await tiny.tools.resume_packet({ id: task.id });
 | `integration_catalog` | MyBatis SQL과 SAP RFC 호출을 분리 cataloging할 때 | dbCatalog, rfcCatalog |
 | `traceability_matrix` | UI에서 DB/RFC까지 한 줄 matrix로 병합할 때 | JSON rows, Markdown table |
 | `evidence_qa` | 산출물 publish 전 근거 누락과 hallucinated symbol을 차단할 때 | blockers, warnings, required fixes |
+| `evidence_snapshot` | `.omo/evidence` 등 기존 증거 파일을 작게 요약해 재사용할 때 | cacheKey, files, sourceRefs, omittedFiles |
+| `ui_layout_catalog` | React/JS/TS source에서 조회조건, 버튼, 결과 컬럼, 메시지를 source order로 cataloging할 때 | screens, elements, evidenceRefs |
+| `ux_rationale_trace` | 조회조건/결과 필드의 존재 이유와 위치 이유를 보수적 status로 설명할 때 | layout truth records, unknowns |
+| `ux_validation_matrix` | 값 종류에 따른 client/server 검증과 성공/실패 메시지 근거를 나눌 때 | fields, clientRules, serverRules, messageEvidence |
+| `ux_reverse_report` | UX reverse 분석 Markdown을 만들 때 | `ux_reverse_analysis` markdown, evidenceRefs, Figma adapter keys |
+| `layout_truth_verify` | `.tiny/ux/layout-truth.json`을 재사용하기 전에 source fingerprint를 확인할 때 | verified, stale, missing, reviewTargets |
+| `layout_truth_update` | 검증된 UX 해석을 repository memory로 저장하거나 진화시킬 때 | updated records, rejected |
+| `layout_truth_report` | 저장된 layout truth를 사람이 검토할 Markdown으로 볼 때 | `.tiny/ux/layout-truth.md` |
 | `wiki_bundle` | `.tiny/wiki/index.json` 기준 canonical 문서를 가져올 때 | selected wiki docs |
 | `orchestration_profile` | small-context 운영 규칙을 모델에게 주입할 때 | foreman/delegate/tool/audit/artifact profile |
-| `tool_usage_plan` | 어떤 command/tool을 다음에 써야 할지 모델이 불확실할 때 | ordered steps, command budgets, stop rules |
+| `tool_usage_plan` | 어떤 command/tool을 다음에 써야 할지 모델이 불확실할 때 | ordered steps, `omittedSteps`, `nextRequiredTool`, deterministic caps, stop rules |
 | `qwen_retry_policy` | Qwen public worker가 rate limit, timeout, network failure에 걸렸을 때 | limits, retry delays, minimum batches, recovery protocol |
+| `worker_packet_optimizer` | Qwen worker에게 넘길 근거 packet이 커질 때 | packets, ratePlan, dispatchOrder, recoverySteps |
+| `incremental_evidence_cache` | 이전 repo-map/index/trace 근거를 재사용하기 전에 | cacheKey, staleReasons, recommendedRescanTools |
+| `doctor` | readiness/state/session을 하나의 status로 볼 때 | ready/degraded/attention/blocked sections |
+| `claim_evidence_check` | artifact에 API/class/table/RFC 이름이 들어갈 때 | valid, diagnostics, supportedSymbols |
+| `trace_diagram_render` | traceability JSON으로 Mermaid를 만들 때 | markdown, diagnostics, verificationCommands |
 | `orchestration_health` | 중단, 실패, retry wait 이후 복구 상태를 점검할 때 | task/job counts, retryable jobs, recovery steps |
 | `rules_snapshot` | 확인한 구현 패턴을 추후 작업 rules로 남길 때 | `.tiny/rules/architecture-patterns.md` |
+| `artifact_format_template` | 산출물 생성 전 형식 template과 validation rule을 볼 때 | builtin/file template, requiredSections |
+| `button_workflow_plan` | 여러 UI button/control을 worker별 작업으로 분리할 때 | one work item per control |
+| `button_worker_packet` | 한 버튼만 담은 JSON worker packet을 만들 때 | buttonIds, prompt, contract |
+| `button_workflow_dispatch` | sequential worker job을 큐에 넣을 때 | dispatched, remaining |
+| `button_worker_result_check` | worker result evidence를 completion 전에 검증할 때 | valid, blockers |
+| `button_trace_aggregate` / `aggregation_drift_check` | 검증된 버튼별 trace를 병합하고 drift를 막을 때 | rows, blockers |
+| `atomic_markdown_write` / `write_loop_guard` | generated Markdown을 안전하게 쓸 때 | allow/skip/block decisions |
+| `button_workflow_done_claim` | 전체 버튼 workflow 완료 선언을 검증할 때 | valid, blockers |
+
+### 작은 모델 저부하 cap 옵션
+
+현재 구현된 확장 도구는 작은 모델이 큰 배열을 그대로 받지 않도록 `max*` 입력을 지원한다. `tiny-foreman`은 큰 repo에서 항상 아래 값을 먼저 낮게 잡고, Unknown이 남을 때만 같은 도구를 좁은 `targetPath`로 다시 호출한다.
+
+OpenCode plugin으로 실행되는 모든 Tiny-Chu tool output에는 마지막 안전망으로 bridge budget이 적용된다. 라이브러리 직접 호출 결과는 그대로 유지되고, OpenCode가 모델에게 전달하는 `ToolResult.output`만 줄어든다.
+
+```json
+{
+  "maxOutputChars": 8000,
+  "maxArrayItems": 40
+}
+```
+
+큰 결과가 잘리면 `ToolResult.metadata.truncated`, `budget.omittedItems`, `budget.fullSizeChars`, `budget.outputSizeChars`를 확인한다. 작은 모델은 잘린 출력으로 결론을 내리지 말고, 더 좁은 `targetPath`, 더 낮은 `max*`, 또는 `context_digest`로 재조회한다.
+
+`ulw`/`ultrawork` prompt injection은 기본적으로 compact mode다. `<tiny-infi-powershell-tooling>`은 PowerShell 핵심 quoting 규칙만 넣고, `<tiny-infi-small-context>`는 `profileMode: compact`, `omittedContextPasses`, `omittedAntiHallucinationRules`, `omittedArtifactContracts`를 포함한다. 전체 운영 규칙은 필요할 때만 `orchestration_profile`로 가져온다.
+
+| Tool | 기본 저부하 입력 | 목적 |
+| --- | --- | --- |
+| `environment_doctor` | `{ toolNames: ["node", "npm", "opencode", "ollama"], timeoutMs: 500 }` | 매번 모든 보조 CLI를 검사하지 않고 필요한 readiness만 확인 |
+| `api_contract_catalog` | `{ maxEndpoints: 20, maxRequestKeys: 20, maxEvidenceRefs: 12, maxFacts: 300 }` | FE/BE API 후보, request key, evidence ref 폭주 방지 |
+| `dto_schema_map` | `{ maxSymbols: 80, maxLinks: 80, maxFacts: 300 }` | payload/DTO/mapper/RFC 필드 연결을 작은 JSON으로 제한 |
+| `redux_state_flow_map` | `{ maxItems: 40, maxLinks: 80, maxFacts: 300 }` | selector/read/write cross product 폭주 방지 |
+| `auth_permission_trace` | `{ maxConditions: 40, maxLinks: 80, maxFacts: 300 }` | UI 조건과 backend 권한 조건 연결을 제한 |
+| `error_transaction_map` | `{ maxItems: 40, maxFacts: 300 }` | catch, rollback, transaction 후보를 문서화 가능한 크기로 제한 |
+| `test_impact_planner` | `{ maxTests: 40, maxMissingTestCases: 8 }` | 테스트 후보와 누락 테스트 제안을 짧게 유지 |
+| `worker_packet_optimizer` | `{ maxEvidenceRefsPerPacket: 20, maxFilesPerPacket: 8, maxPackets: 6, maxMustReturn: 6 }` | Qwen worker에게 넘길 packet을 rate limit 안에서 분할 |
+| `artifact_pack_manifest` | `{ maxArtifacts: 30 }` | 산출물 묶음 QA 결과가 너무 길어지는 것을 방지 |
+| `incremental_evidence_cache` | `{ maxInputs: 80 }` | 변경 감지용 hash 대상 파일 수를 제한 |
+| `ui_layout_catalog` | `{ maxFiles: 40, maxElements: 80, maxEvidenceRefs: 40, maxFileChars: 12000 }` | 화면 요소 catalog 폭주 방지 |
+| `ux_rationale_trace` | `{ maxRationales: 80, maxEvidenceRefs: 40, maxFacts: 300 }` | 존재/위치 이유를 보수적 근거 수로 제한 |
+| `ux_validation_matrix` | `{ maxValidationRules: 80, maxEvidenceRefs: 40, maxFacts: 300 }` | client/server/message 검증 근거를 제한 |
+| `layout_truth_update` | `{ maxRecords: 120 }` | layout truth memory 병합량 제한 |
+
+### UI/UX reverse engineering과 layout truth
+
+기존 화면 구성을 UX 관점에서 역공학할 때도 source code first가 기본이다. 첫 구현은 브라우저, screenshot, Figma 파일을 요구하지 않는다.
+
+권장 순서:
+
+1. `tool_usage_plan({ objective: "reverse engineer screen UX layout rationale", artifactType: "ux_reverse_analysis" })`
+2. `ui_layout_catalog({ targetPath: "<screen-or-src>", maxFiles: 40, maxElements: 80 })`
+3. `ux_rationale_trace({ catalog })`
+4. `ux_validation_matrix({ catalog })`
+5. `layout_truth_verify({})`
+6. `ux_reverse_report({ catalog, rationale, validation })`
+7. `artifact_check({ artifactType: "ux_reverse_analysis", markdown, evidenceRefs })`
+8. 검증이 통과한 뒤 `layout_truth_update({ records: rationale.rationales })`
+9. 필요하면 `layout_truth_report({})`로 `.tiny/ux/layout-truth.md`를 생성한다.
+
+운영 규칙:
+
+- 조회조건이 왜 존재하는지, 왜 첫 번째 또는 두 번째 위치인지 설명할 때는 `Verified / Inferred / Unknown / Needs Verification` 중 하나를 붙인다.
+- source order만 있으면 위치 이유는 보통 `Inferred`다. 실제 화면 좌표가 없으므로 `Verified`라고 과장하지 않는다.
+- backend DTO, MyBatis `#{param}`, API payload, message key가 없으면 server validation 또는 메시지는 `Unknown`으로 둔다.
+- `layout_truth_update`는 기존 `Verified` rationale을 더 약한 `Unknown` evidence로 덮어쓰지 않는다.
+- `layout_truth_verify`가 stale을 반환하면 그 record는 설계 근거가 아니라 review target이다.
+- Figma 연동은 adapter-ready JSON 경계만 제공한다. `fileKey`, `nodeId`, `figmaNodeName`, `truthId`, `component`, `variables` 같은 mapping key를 남길 수 있지만, 현재 Tiny-Chu는 Figma token을 읽거나 API를 호출하지 않는다.
+
+예시:
+
+```ts
+const contracts = await tiny.tools.api_contract_catalog({
+  targetPath: "src",
+  maxEndpoints: 20,
+  maxRequestKeys: 20,
+  maxEvidenceRefs: 12,
+  maxFacts: 300,
+});
+
+const packets = await tiny.tools.worker_packet_optimizer({
+  objective: "Analyze order approval flow",
+  evidenceRefs: contracts.contracts.flatMap((item) => item.evidenceRefs),
+  maxEvidenceRefsPerPacket: 20,
+  maxFilesPerPacket: 8,
+  maxPackets: 6,
+  dispatch: false,
+});
+```
+
+`worker_packet_optimizer`가 여러 packet을 반환하면 `dispatchOrder` 순서대로 처리한다. Qwen 공용 모델 제한은 20 requests/min, 20000 tokens/min이므로 packet 하나가 실패하면 전체 작업을 다시 던지지 말고 실패 packet만 `qwen_retry_policy`와 `public_retry`로 재시도한다.
 
 `context_digest` 예시:
 
@@ -280,6 +397,7 @@ await tiny.tools.task_checkpoint({
 - `user_story`
 - `test_case`
 - `erd`
+- `ux_reverse_analysis`
 
 `artifact_check` 예시:
 

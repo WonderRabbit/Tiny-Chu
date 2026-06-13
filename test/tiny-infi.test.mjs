@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, mkdir, symlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createTinyInfiPlugin, POWERSHELL_OPENCODE_RUNTIME, POWERSHELL_TOOLING_PROFILE, renderPowerShellToolingGuide, loadContextBundle, parsePlanMarkdown, PublicDispatcher, resolveTinyInfiPaths, TaskStore, WikiBundler, isPathInsideRoot, ARTIFACT_TYPES } from "../dist/index.js";
+import { appendJsonLine, buildContextPacket, createTinyInfiPlugin, POWERSHELL_OPENCODE_RUNTIME, POWERSHELL_TOOLING_PROFILE, renderPowerShellToolingGuide, loadContextBundle, parsePlanMarkdown, PublicDispatcher, readJsonLines, resolveTinyInfiPaths, selectPlanFocus, TaskStore, WikiBundler, isPathInsideRoot, ARTIFACT_TYPES } from "../dist/index.js";
 
 test("TaskStore persists tasks under .tiny/tasks", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-task-"));
@@ -76,6 +76,19 @@ test("tiny plugin preserves public job artifact contracts", async () => {
   assert.deepEqual((await plugin.tools.public_collect({ id: job.id })).contract.mustReturn, job.contract.mustReturn);
 });
 
+test("public worker supports json lifecycle and completion", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-public-json-"));
+  const plugin = createTinyInfiPlugin({ root });
+  const markdown = await plugin.tools.public_dispatch({ prompt: "default public worker" });
+  assert.equal(markdown.contract.format, "markdown_sections");
+  const json = await plugin.tools.public_dispatch({ prompt: "one button", format: "json", mustReturn: ["buttonId", "traceRows"] });
+  assert.equal(json.contract.format, "json");
+  const done = await plugin.tools.public_complete({ id: json.id, result: JSON.stringify({ ok: true }) });
+  assert.equal(done.status, "done");
+  assert.equal(done.result, JSON.stringify({ ok: true }));
+  await assert.rejects(() => plugin.tools.public_dispatch({ prompt: "bad", format: "xml" }), /Invalid public job format/);
+});
+
 test("PublicDispatcher rejects path-like ids", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-public-id-"));
   const dispatcher = new PublicDispatcher({ root });
@@ -130,6 +143,22 @@ test("tiny plugin injects context on ulw and continues unfinished plans", async 
   assert.deepEqual(await plugin.hooks.onSessionIdle({ planRef: ".tiny/plans/PLAN.md" }), { shouldContinue: true, reason: "1 open checkbox item(s) remain" });
 });
 
+test("tiny plugin injects bounded context packet for ultrawork prompts", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-packet-hook-"));
+  await writeFile(path.join(root, "AGENTS.md"), `Always test\n${"X".repeat(20_000)}`, "utf8");
+  const plugin = createTinyInfiPlugin({ root });
+  const plain = await plugin.hooks.transformUserMessage("plain question");
+  assert.equal(plain, "plain question");
+  const packet = await plugin.tools.context_packet({ targetPath: ".", maxChars: 1200, evidenceRefs: ["AGENTS.md:1"] });
+  assert.equal(packet.evidence[0].ref, "AGENTS.md:1");
+  assert.ok(packet.truncated);
+  const transformed = await plugin.hooks.transformUserMessage("ulw continue");
+  assert.match(transformed, /tiny-infi-context/);
+  assert.match(transformed, /contextPacket/);
+  assert.match(transformed, /truncated/);
+  assert.ok(transformed.length <= 16_000);
+});
+
 test("tiny plugin declares the OpenCode PowerShell runtime", () => {
   const plugin = createTinyInfiPlugin();
   assert.deepEqual(plugin.opencode, POWERSHELL_OPENCODE_RUNTIME);
@@ -157,6 +186,10 @@ test("tiny plugin exposes a small-context orchestration profile", async () => {
   assert.deepEqual(profile.artifacts.map((artifact) => artifact.type), ARTIFACT_TYPES);
   assert.match(profile.antiHallucination.rules.join("\n"), /Every claim must cite/);
   assert.match(profile.delegatePacket.mustReturn.join("\n"), /uncertainties/);
+  assert.ok(profile.packetStrategy.maxContextChars > 0);
+  assert.ok(profile.packetStrategy.tools.includes("context_packet"));
+  assert.ok(profile.packetStrategy.tools.includes("task_focus_packet"));
+  assert.ok(profile.agentTemplates.foreman);
 });
 
 test("tiny plugin persists task checkpoints for continuation", async () => {
@@ -180,6 +213,49 @@ test("tiny plugin persists task checkpoints for continuation", async () => {
   assert.equal(persisted.checkpoints.length, 1);
   assert.deepEqual(persisted.checkpoints[0].nextSteps, ["run ast-grep on plugin tools", "draft Mermaid architecture"]);
   assert.deepEqual(persisted.checkpoints[0].verificationCommands, ["rg --json createTinyInfiPlugin src"]);
+  const focus = await plugin.tools.task_focus_packet({ id: task.id, maxOpenItems: 1 });
+  assert.equal(focus.found, true);
+  assert.equal(focus.latestCheckpoint.summary, "scanned files with fd and selected entry points");
+});
+
+test("TaskStore stores growing checkpoints in a sidecar", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-sidecar-"));
+  let tick = 0;
+  const store = new TaskStore({ root, now: () => new Date(Date.UTC(2026, 5, 12, 0, 0, tick++)) });
+  const task = await store.create({ title: "Large checkpoint history" });
+  for (let index = 0; index < 25; index += 1) {
+    await store.checkpoint(task.id, { summary: `checkpoint ${index} ${"x".repeat(1000)}`, evidenceRefs: [`evidence-${index}.txt`] });
+  }
+  const taskFile = path.join(root, ".tiny", "tasks", `${task.id}.json`);
+  const sidecar = path.join(root, ".tiny", "tasks", `${task.id}.checkpoints.jsonl`);
+  const [taskSize, sidecarSize, persisted] = await Promise.all([stat(taskFile), stat(sidecar), store.get(task.id)]);
+  assert.ok(taskSize.size < sidecarSize.size);
+  assert.equal(persisted?.checkpoints.length, 25);
+  assert.equal((await store.list())[0].checkpoints.length, 25);
+});
+
+test("context packet bounds evidence and rejects outside-root refs", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-context-packet-"));
+  await writeFile(path.join(root, "AGENTS.md"), "A".repeat(5000), "utf8");
+  await mkdir(path.join(root, "src"), { recursive: true });
+  await writeFile(path.join(root, "src", "a.ts"), ["export const one = 1;", "export const two = 2;", "export const three = 3;"].join("\n"), "utf8");
+  const packet = await buildContextPacket({ root, targetPath: "src/a.ts", maxChars: 1200, evidenceRefs: ["src/a.ts:2"] });
+  assert.ok(JSON.stringify(packet).length <= 1400);
+  assert.equal(packet.truncated, true);
+  assert.equal(packet.evidence[0].ref, "src/a.ts:2");
+  assert.match(packet.evidence[0].text, /two/);
+  await assert.rejects(() => buildContextPacket({ root, targetPath: ".", evidenceRefs: ["../secret.ts:1"] }), /outside configured root|outside root/);
+});
+
+test("jsonl sidecar helpers append and read ordered records", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-jsonl-"));
+  const file = path.join(root, "records.jsonl");
+  await appendJsonLine(file, { sequence: 1, summary: "one" });
+  await appendJsonLine(file, { sequence: 2, summary: "two" });
+  const records = await readJsonLines(file, []);
+  assert.deepEqual(records.map((item) => item.sequence), [1, 2]);
+  await writeFile(file, "{\"ok\":true}\nnot-json\n", "utf8");
+  await assert.rejects(() => readJsonLines(file, []), /line 2/);
 });
 
 test("artifact checker rejects hallucination-prone uncited artifacts", async () => {
@@ -202,6 +278,27 @@ test("artifact checker validates Mermaid-backed artifact syntax", async () => {
   });
   assert.equal(result.valid, false);
   assert.deepEqual(result.diagnostics.map((diagnostic) => diagnostic.code), ["mermaid_syntax_error"]);
+});
+
+test("artifact_format_template returns built-in and file-backed templates", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-artifact-template-"));
+  const plugin = createTinyInfiPlugin({ root });
+  const builtin = await plugin.tools.artifact_format_template({ artifactType: "as_is" });
+  assert.equal(builtin.artifactType, "as_is");
+  assert.equal(builtin.source, "builtin");
+  assert.ok(builtin.requiredSections.includes("Evidence"));
+  assert.match(builtin.templateMarkdown, /## Evidence/);
+  const flowchart = await plugin.tools.artifact_format_template({ artifactType: "flowchart" });
+  assert.ok(flowchart.acceptedMermaidDeclarations.includes("flowchart") || flowchart.acceptedMermaidDeclarations.includes("graph"));
+  await mkdir(path.join(root, ".tiny", "artifacts", "templates"), { recursive: true });
+  await writeFile(path.join(root, ".tiny", "artifacts", "templates", "flowchart.md"), "# Custom Flow\n", "utf8");
+  const override = await plugin.tools.artifact_format_template({ artifactType: "flowchart" });
+  assert.equal(override.source, "file");
+  assert.equal(override.templatePath, ".tiny/artifacts/templates/flowchart.md");
+  assert.equal(override.templateMarkdown, "# Custom Flow\n");
+  const unknown = await plugin.tools.artifact_format_template({ artifactType: "unknown" });
+  assert.equal(unknown.valid, false);
+  assert.deepEqual(unknown.diagnostics.map((diagnostic) => diagnostic.code), ["unknown_artifact_type"]);
 });
 
 test("mermaid checker reports broken fences and normalizes markdown", async () => {
@@ -262,4 +359,8 @@ test("plan parser reports checkbox completion", () => {
   assert.equal(status.total, 2);
   assert.equal(status.done, 1);
   assert.equal(status.complete, false);
+  const focus = selectPlanFocus(status, { maxOpenItems: 1 });
+  assert.equal(focus.open, 1);
+  assert.equal(focus.nextOpenItems[0].text, "b");
+  assert.equal(focus.finalVerificationOpen, true);
 });

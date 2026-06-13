@@ -1,6 +1,9 @@
+import { readFile } from "node:fs/promises";
 import { checkMermaidMarkdown, type MermaidDiagnostic } from "../markdown/mermaid.js";
+import { resolveTinyInfiPaths } from "../state/paths.js";
+import { resolvePathInsideRoot } from "../state/path-safety.js";
 
-export const ARTIFACT_TYPES = ["as_is", "ui_definition", "sequence_diagram", "flowchart", "user_story", "test_case", "erd"] as const;
+export const ARTIFACT_TYPES = ["as_is", "ui_definition", "sequence_diagram", "flowchart", "user_story", "test_case", "erd", "ux_reverse_analysis"] as const;
 
 export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
 
@@ -38,6 +41,20 @@ export interface ArtifactCheckInput {
   readonly artifactType: string;
   readonly markdown: string;
   readonly evidenceRefs?: readonly string[];
+}
+
+export interface ArtifactFormatTemplateResult {
+  readonly valid: boolean;
+  readonly artifactType?: ArtifactType;
+  readonly source?: "builtin" | "file";
+  readonly templatePath?: string;
+  readonly title?: string;
+  readonly requiredSections: readonly string[];
+  readonly requiresMermaid: boolean;
+  readonly acceptedMermaidDeclarations: readonly string[];
+  readonly validationRules: readonly string[];
+  readonly templateMarkdown: string;
+  readonly diagnostics: readonly ArtifactDiagnostic[];
 }
 
 export const ARTIFACT_CONTRACTS: readonly ArtifactContract[] = [
@@ -97,6 +114,14 @@ export const ARTIFACT_CONTRACTS: readonly ArtifactContract[] = [
     acceptedMermaidDeclarations: ["erDiagram"],
     validationRules: ["Use a valid fenced Mermaid erDiagram block and cite schema/source evidence."],
   },
+  {
+    type: "ux_reverse_analysis",
+    title: "UX reverse analysis",
+    requiredSections: ["Screen Summary", "Layout Inventory", "Layout Truth", "Existence Rationale", "Position Rationale", "Validation Matrix", "Messages", "Unknowns", "Evidence"],
+    requiresMermaid: false,
+    acceptedMermaidDeclarations: [],
+    validationRules: ["Explain layout existence and position only from source or layout-truth evidence; keep unsupported reasons Unknown or Needs Verification."],
+  },
 ];
 
 function artifactType(value: string): ArtifactType | undefined {
@@ -105,6 +130,67 @@ function artifactType(value: string): ArtifactType | undefined {
 
 function contractFor(type: ArtifactType): ArtifactContract {
   return ARTIFACT_CONTRACTS.find((contract) => contract.type === type) ?? ARTIFACT_CONTRACTS[0];
+}
+
+function renderTemplate(contract: ArtifactContract): string {
+  const sections = contract.requiredSections.length > 0
+    ? contract.requiredSections.map((section) => `## ${section}\n\n- Cite evidenceRefs here.\n`).join("\n")
+    : `## Evidence\n\n- Cite evidenceRefs here.\n\n\`\`\`mermaid\n${contract.acceptedMermaidDeclarations[0] ?? "flowchart"}\n%% Replace with evidence-backed diagram.\n\`\`\`\n`;
+  return [`# ${contract.title}`, "", sections.trim(), "", "## Validation Rules", ...contract.validationRules.map((rule) => `- ${rule}`), ""].join("\n");
+}
+
+export async function createArtifactFormatTemplate(root: string | undefined, input: Record<string, unknown>): Promise<ArtifactFormatTemplateResult> {
+  const rawType = typeof input.artifactType === "string" ? input.artifactType : "";
+  const type = artifactType(rawType);
+  if (!type) {
+    return {
+      valid: false,
+      requiredSections: [],
+      requiresMermaid: false,
+      acceptedMermaidDeclarations: [],
+      validationRules: [],
+      templateMarkdown: "",
+      diagnostics: [{ code: "unknown_artifact_type", message: `Unknown artifact type: ${rawType}` }],
+    };
+  }
+  const configuredRoot = resolveTinyInfiPaths(root).root;
+  const relativeTemplate = `.tiny/artifacts/templates/${type}.md`;
+  const absolute = resolvePathInsideRoot(configuredRoot, relativeTemplate);
+  const contract = contractFor(type);
+  if (absolute) {
+    const fileTemplate = await readFile(absolute, "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (fileTemplate !== undefined) {
+      return {
+        valid: true,
+        artifactType: type,
+        source: "file",
+        templatePath: relativeTemplate,
+        title: contract.title,
+        requiredSections: contract.requiredSections,
+        requiresMermaid: contract.requiresMermaid,
+        acceptedMermaidDeclarations: contract.acceptedMermaidDeclarations,
+        validationRules: contract.validationRules,
+        templateMarkdown: fileTemplate,
+        diagnostics: [],
+      };
+    }
+  }
+  return {
+    valid: true,
+    artifactType: type,
+    source: "builtin",
+    templatePath: `.tiny/artifacts/templates/${type}.md`,
+    title: contract.title,
+    requiredSections: contract.requiredSections,
+    requiresMermaid: contract.requiresMermaid,
+    acceptedMermaidDeclarations: contract.acceptedMermaidDeclarations,
+    validationRules: contract.validationRules,
+    templateMarkdown: renderTemplate(contract),
+    diagnostics: [],
+  };
 }
 
 function missingSections(markdown: string, sections: readonly string[]): readonly string[] {

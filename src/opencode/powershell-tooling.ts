@@ -113,3 +113,24 @@ export function renderPowerShellToolingGuide(profile: PowerShellToolingProfile =
     tools,
   ].join("\n\n");
 }
+
+export function renderCompactPowerShellToolingGuide(profile: PowerShellToolingProfile = POWERSHELL_TOOLING_PROFILE): string {
+  const rules = profile.shellSyntaxRules.slice(0, 4).map((rule) => `- ${rule}`).join("\n");
+  const environment = Object.entries(profile.environment)
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+    .join("; ");
+  const tools = profile.nativeTools
+    .map((tool) => `${tool.name}=${tool.executable}`)
+    .join("; ");
+
+  return [
+    "# PowerShell compact native-tool guide",
+    "profileMode: compact",
+    "## Required shell rules",
+    rules,
+    "## Deterministic defaults",
+    `Environment: ${environment}`,
+    `Tools: ${tools}`,
+    "Use full renderPowerShellToolingGuide only when a command-specific rule is missing.",
+  ].join("\n\n");
+}

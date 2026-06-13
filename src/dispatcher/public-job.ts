@@ -34,6 +34,11 @@ export interface PublicJob {
     mustReturn: string[];
     format: "markdown_sections" | "json";
     artifactType?: string;
+    formatTemplate?: {
+      artifactType: string;
+      preparationTool: "artifact_format_template";
+      requiredBefore: "artifact_generation";
+    };
   };
   result?: string;
   error?: string;
@@ -66,9 +71,12 @@ interface RateEvent {
   tokens: number;
 }
 
+let nextJobSequence = 0;
+
 function jobId(now: Date): string {
-  const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-  return `J-${stamp}`;
+  nextJobSequence += 1;
+  const stamp = now.toISOString().replace(/[-:.]/g, "");
+  return `J-${stamp}-${nextJobSequence.toString(36).padStart(4, "0")}`;
 }
 
 function assertJobId(id: string): void {
@@ -115,6 +123,7 @@ export class PublicDispatcher {
     budget?: Partial<PublicJobBudget>;
     mustReturn?: string[];
     artifactType?: string;
+    format?: "markdown_sections" | "json";
   }): Promise<PublicJob> {
     const now = this.now();
     const iso = now.toISOString();
@@ -143,8 +152,9 @@ export class PublicDispatcher {
       },
       contract: {
         mustReturn,
-        format: "markdown_sections",
+        format: input.format ?? "markdown_sections",
         artifactType: input.artifactType,
+        ...(input.artifactType ? { formatTemplate: { artifactType: input.artifactType, preparationTool: "artifact_format_template", requiredBefore: "artifact_generation" as const } } : {}),
       },
     };
     await writeJsonAtomic(jobFile(this.root, job.id), job);

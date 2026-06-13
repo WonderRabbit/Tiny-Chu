@@ -170,3 +170,62 @@ test("legacy analysis marks missing links unknown and evidence QA flags hallucin
   assert.ok(qa.criticalBlockers.some((blocker) => blocker.includes("ImaginaryController.deleteOrder")));
   assert.equal(qa.status, "fail");
 });
+
+test("legacy analysis does not link unrelated API clients from a saga worker", async () => {
+  const root = await createLegacyFixture();
+  await writeFixtureFile(root, "src/state/orphanSaga.js", [
+    "import { takeEvery } from 'redux-saga/effects';",
+    "export function* watchOrphan() { yield takeEvery('ORPHAN_ACTION', orphanWorker); }",
+    "export function* orphanWorker(action) { yield action.payload; }",
+  ]);
+  await writeFixtureFile(root, "src/ui/OrphanPage.jsx", [
+    "import React from 'react';",
+    "export function OrphanPage() {",
+    "  const handleOrphan = () => dispatch(orphanAction());",
+    "  return <button onClick={handleOrphan}>Orphan</button>;",
+    "}",
+  ]);
+  await writeFixtureFile(root, "src/state/orphanActions.js", [
+    "export const ORPHAN_ACTION = 'ORPHAN_ACTION';",
+    "export const orphanAction = () => ({ type: ORPHAN_ACTION });",
+  ]);
+
+  const plugin = createTinyInfiPlugin({ root });
+  const trace = await plugin.tools.ui_action_trace({ label: "Orphan", maxFiles: 120 });
+  assert.equal(trace.rows[0].sagaWorker.symbol, "orphanWorker");
+  assert.equal(trace.rows[0].apiClient.symbol, "Unknown");
+  assert.equal(trace.rows[0].confidence, "needs_verification");
+});
+
+test("legacy analysis does not link mapper or RFC calls from unrelated services", async () => {
+  const root = await createLegacyFixture();
+  await writeFixtureFile(root, "src/main/java/com/example/CancelController.java", [
+    "package com.example;",
+    "import org.springframework.web.bind.annotation.PostMapping;",
+    "@RestController",
+    "public class CancelController {",
+    "  private final CancelService cancelService;",
+    "  @PostMapping(\"/api/cancel\")",
+    "  public CancelResponse cancelOrder(CancelRequest request) {",
+    "    return cancelService.cancelOrder(request);",
+    "  }",
+    "}",
+  ]);
+  await writeFixtureFile(root, "src/main/java/com/example/CancelService.java", [
+    "package com.example;",
+    "public class CancelService {",
+    "  public CancelResponse cancelOrder(CancelRequest request) {",
+    "    return new CancelResponse();",
+    "  }",
+    "}",
+  ]);
+
+  const plugin = createTinyInfiPlugin({ root });
+  const trace = await plugin.tools.api_backend_trace({ method: "POST", path: "/api/cancel", maxFiles: 120 });
+  assert.equal(trace.status, "matched");
+  assert.equal(trace.backendEntry.symbol, "cancelOrder");
+  assert.equal(trace.service.symbol, "CancelService.cancelOrder");
+  assert.equal(trace.integration.mapperId, undefined);
+  assert.equal(trace.integration.rfcFunction, undefined);
+  assert.match(trace.missingEvidence.join(" "), /mapper/i);
+});

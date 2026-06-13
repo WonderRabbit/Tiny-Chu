@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createTinyInfiPlugin } from "../dist/index.js";
+
+async function publicJobCount(root) {
+  const files = await readdir(path.join(root, ".tiny", "public-jobs")).catch((error) => {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  });
+  return files.filter((file) => file.endsWith(".json")).length;
+}
 
 test("context_digest returns bounded evidence snippets with line metadata", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-context-digest-"));
@@ -64,6 +72,20 @@ test("chunked_write_plan returns chunks bounded by maxChunkChars", async () => {
   assert.equal(plan.chunks.map((chunk) => chunk.text).join(""), markdown);
 });
 
+test("atomic markdown write prevents empty overwrite and bak churn", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-atomic-write-"));
+  const plugin = createTinyInfiPlugin({ root });
+  const written = await plugin.tools.atomic_markdown_write({ path: ".tiny/artifacts/report.md", markdown: "# Report\n\nbody\n" });
+  assert.equal(written.decision, "allow");
+  assert.equal(await readFile(path.join(root, ".tiny", "artifacts", "report.md"), "utf8"), "# Report\n\nbody\n");
+  assert.ok(!(await readdir(path.join(root, ".tiny", "artifacts"))).some((file) => file.endsWith(".bak")));
+  const identical = await plugin.tools.write_loop_guard({ path: ".tiny/artifacts/report.md", markdown: "# Report\n\nbody\n", previousChecksum: written.checksum });
+  assert.equal(identical.decision, "skip_identical");
+  const empty = await plugin.tools.write_loop_guard({ path: ".tiny/artifacts/report.md", markdown: "" });
+  assert.equal(empty.decision, "block_empty_overwrite");
+  await assert.rejects(() => plugin.tools.atomic_markdown_write({ path: "../outside.md", markdown: "# bad" }), /outside configured root/);
+});
+
 test("tool_usage_plan gives a bounded small-model command sequence", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-tool-plan-"));
   const plugin = createTinyInfiPlugin({ root });
@@ -81,6 +103,142 @@ test("tool_usage_plan gives a bounded small-model command sequence", async () =>
   assert.ok(plan.steps.some((step) => step.tinyTool === "integration_catalog"));
   assert.ok(plan.steps.some((step) => step.tinyTool === "traceability_matrix"));
   assert.ok(plan.steps.some((step) => step.tinyTool === "evidence_qa"));
+  assert.deepEqual(plan.verification.requiredTools, ["evidence_qa", "claim_evidence_check", "artifact_check", "task_checkpoint"]);
+  assert.ok(plan.verification.requiredAfterWork);
+  assert.ok(plan.steps.some((step) => step.tinyTool === "artifact_format_template"));
+});
+
+test("transformUserMessage injects compact small-model guidance instead of the full profile", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-compact-hook-"));
+  const plugin = createTinyInfiPlugin({ root });
+  const transformed = await plugin.hooks.transformUserMessage("ulw analyze the linked UX and backend flow", { targetPath: "." });
+  assert.match(transformed, /tiny-infi-small-context/);
+  assert.match(transformed, /profileMode: compact/);
+  assert.match(transformed, /omittedContextPasses:/);
+  assert.match(transformed, /Quote jq\/yq\/mdq\/rg\/fd\/ast-grep patterns with single quotes/);
+  assert.match(transformed, /tool_usage_plan/);
+  assert.match(transformed, /artifact_format_template/);
+  assert.doesNotMatch(transformed, /## Artifact contracts/);
+  assert.doesNotMatch(transformed, /### jq \(jq\)/);
+  assert.ok(transformed.length < 6000);
+});
+
+test("orchestration_profile exposes small-context operating mode", async () => {
+  const plugin = createTinyInfiPlugin();
+  const profile = await plugin.tools.orchestration_profile({});
+  const mode = profile.smallContextRun ?? profile.operatingModes?.smallContextRun;
+
+  assert.equal(mode?.mode, "small_context");
+  assert.equal(mode?.noLiveProviderCalls, true);
+  assert.equal(profile.models.foreman.model, "gemma4-small");
+  assert.equal(profile.models.delegate.model, "qwen3.6-35b-a3b");
+  assert.equal(mode.models.delegate.runtimeModel, "qwen3.6-35b-a3b");
+  assert.equal(mode.models.delegate.officialModel, "Qwen3.6-35B-A3B");
+  assert.deepEqual(mode.correctionWorkflow.map((step) => step.tinyTool), [
+    "doctor",
+    "session_preflight",
+    "context_packet",
+    "incremental_evidence_cache",
+    "tool_usage_plan",
+    "worker_packet_optimizer",
+    "qwen_retry_policy",
+    "claim_evidence_check",
+    "artifact_pack_manifest",
+    "task_checkpoint",
+  ]);
+  assert.ok(mode.requiredFirstTools.includes("doctor"));
+  assert.ok(mode.requiredFirstTools.includes("context_packet"));
+  assert.ok(mode.requiredFirstTools.includes("tool_usage_plan"));
+  assert.ok(mode.requiredFirstTools.includes("claim_evidence_check"));
+  assert.match(mode.dirtyWorktreePolicy.commandChecklist.join("\n"), /git status --short/);
+  assert.match(mode.dirtyWorktreePolicy.commandChecklist.join("\n"), /git diff -- <file>/);
+});
+
+test("worker_packet_optimizer is packet-only by default", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-worker-packet-only-"));
+  const plugin = createTinyInfiPlugin({ root });
+
+  const defaultPacket = await plugin.tools.worker_packet_optimizer({
+    objective: "Analyze order flow without queueing public work",
+    evidenceRefs: ["src/ui/OrderPage.jsx:2", "src/api/orderClient.js:3"],
+  });
+  assert.equal(await publicJobCount(root), 0);
+  assert.equal(defaultPacket.noLiveProviderCalls, true);
+  assert.equal(defaultPacket.dispatchMode, "packet_only");
+  assert.equal(defaultPacket.dispatch.requested, false);
+  assert.deepEqual(defaultPacket.dispatch.publicJobIds, []);
+
+  const explicitPacketOnly = await plugin.tools.worker_packet_optimizer({
+    objective: "Analyze order flow without queueing public work",
+    evidenceRefs: ["src/ui/OrderPage.jsx:2", "src/api/orderClient.js:3"],
+    dispatch: false,
+  });
+  assert.equal(await publicJobCount(root), 0);
+  assert.equal(explicitPacketOnly.noLiveProviderCalls, true);
+  assert.equal(explicitPacketOnly.dispatchMode, "packet_only");
+  assert.equal(explicitPacketOnly.dispatch.requested, false);
+  assert.deepEqual(explicitPacketOnly.dispatch.publicJobIds, []);
+  assert.ok(explicitPacketOnly.ratePlan.requestsPerMinute > 0);
+  assert.equal(explicitPacketOnly.dispatchOrder.length, explicitPacketOnly.packets.length);
+  assert.equal(explicitPacketOnly.packets[0].retryPolicyInput.status, "queued");
+});
+
+test("tool_usage_plan emits small-context correction workflow", async () => {
+  const plugin = createTinyInfiPlugin();
+  const plan = await plugin.tools.tool_usage_plan({
+    objective: "correct a small-context operating-mode breach after a live provider call was suggested",
+  });
+  const visibleTools = plan.steps.flatMap((step) => [step.tinyTool, step.nativeTool].filter(Boolean));
+
+  assert.ok(plan.steps.length <= 8);
+  assert.ok(visibleTools.includes("doctor"));
+  assert.ok(visibleTools.includes("session_preflight"));
+  assert.ok(visibleTools.includes("context_packet"));
+  assert.ok(visibleTools.includes("incremental_evidence_cache"));
+  assert.ok(visibleTools.includes("worker_packet_optimizer"));
+  assert.ok(plan.verification.requiredTools.includes("claim_evidence_check"));
+  assert.ok(plan.verification.requiredTools.includes("artifact_pack_manifest"));
+  assert.ok(plan.verification.requiredTools.includes("task_checkpoint"));
+  assert.ok(plan.stopRules.some((rule) => /no live provider calls/i.test(rule)));
+  assert.ok(plan.stopRules.some((rule) => rule.includes("worker_packet_optimizer") && rule.includes("dispatch:false")));
+});
+
+test("incremental evidence cache does not claim git dirtiness", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-evidence-cache-hash-"));
+  await mkdir(path.join(root, "src"), { recursive: true });
+  await writeFile(path.join(root, "src", "feature.ts"), "export const value = 'before';\n", "utf8");
+  const plugin = createTinyInfiPlugin({ root });
+
+  const first = await plugin.tools.incremental_evidence_cache({ targetPath: "src/feature.ts" });
+  await writeFile(path.join(root, "src", "feature.ts"), "export const value = 'after';\n", "utf8");
+  const second = await plugin.tools.incremental_evidence_cache({ targetPath: "src/feature.ts", previous: first });
+
+  assert.ok(second.staleReasons.length > 0);
+  assert.ok(second.staleReasons.every((reason) => /sha256|content hash/i.test(reason)));
+  assert.doesNotMatch(JSON.stringify(second), /dirtyWorktree|git dirt/i);
+});
+
+test("docs describe the small-context operating-mode correction gate", async () => {
+  const docs = `${await readFile("README.md", "utf8")}\n${await readFile("HOW_TO_USE.md", "utf8")}`;
+  const required = [
+    "Small-context operating-mode correction gate",
+    "doctor",
+    "session_preflight",
+    "context_packet",
+    "incremental_evidence_cache",
+    "tool_usage_plan",
+    "worker_packet_optimizer",
+    "dispatch: false",
+    "qwen_retry_policy",
+    "claim_evidence_check",
+    "artifact_pack_manifest",
+    "task_checkpoint",
+    "git status --short",
+    "git diff -- <file>",
+    "source hash staleness",
+    "no live provider call",
+  ];
+  assert.deepEqual(required.filter((item) => !docs.includes(item)), []);
 });
 
 test("tool_usage_plan adds qwen retry policy for delegated public work", async () => {
@@ -102,6 +260,29 @@ test("tool_usage_plan keeps qwen retry policy for delegated Mermaid artifacts", 
   assert.ok(plan.steps.length <= 8);
   assert.ok(plan.steps.some((step) => step.tinyTool === "mermaid_check"));
   assert.ok(plan.steps.some((step) => step.tinyTool === "qwen_retry_policy"));
+  assert.ok(plan.steps.findIndex((step) => step.tinyTool === "artifact_format_template") < plan.steps.findIndex((step) => step.tinyTool === "artifact_check"));
+  assert.deepEqual(plan.verification.requiredTools, ["trace_diagram_render", "artifact_check", "mermaid_check", "task_checkpoint"]);
+  assert.ok(plan.verification.requiredAfterWork);
+});
+
+test("tool_usage_plan preserves verification for delegated legacy trace workflows", async () => {
+  const plugin = createTinyInfiPlugin();
+  const plan = await plugin.tools.tool_usage_plan({
+    objective: "delegate qwen to trace UI button through saga API backend MyBatis RFC and produce a flowchart",
+    artifactType: "flowchart",
+  });
+  assert.ok(plan.steps.length <= 8);
+  assert.ok(plan.omittedSteps > 0);
+  assert.ok(plan.deterministicCaps.some((cap) => cap.name === "context_digest" && cap.maxItems <= 12));
+  assert.ok(plan.deterministicCaps.some((cap) => cap.name === "worker_packet_optimizer"));
+  assert.ok(plan.nextRequiredTool);
+  assert.ok(plan.steps.some((step) => step.tinyTool === "legacy_repo_index"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "traceability_matrix"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "evidence_qa"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "qwen_retry_policy"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "mermaid_check"));
+  assert.ok(plan.verification.requiredAfterWork);
+  assert.ok(plan.verification.requiredTools.includes("task_checkpoint"));
 });
 
 test("repo_map summarizes architecture layers and data flow hints", async () => {

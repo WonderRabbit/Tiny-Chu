@@ -1,5 +1,8 @@
 import { ARTIFACT_CONTRACTS, type ArtifactContract } from "./artifact-contract.js";
-import { POWERSHELL_TOOLING_PROFILE } from "./powershell-tooling.js";
+import { createDefaultAgentModelTemplates, type AgentKind, type AgentModelTemplate } from "./agent-model-options.js";
+import { createSmallContextRunGate, DEFAULT_SMALL_CONTEXT_MODELS, type SmallContextRunGate } from "./small-context-run.js";
+
+export { renderSmallContextGuide } from "./small-context-guide.js";
 
 export interface NativeWorkflowTool {
   readonly name: string;
@@ -27,6 +30,14 @@ export interface SmallContextOrchestrationProfile {
   readonly models: {
     readonly foreman: SmallContextModelProfile;
     readonly delegate: SmallContextModelProfile;
+  };
+  readonly smallContextRun: SmallContextRunGate;
+  readonly agentTemplates: Readonly<Record<AgentKind, AgentModelTemplate>>;
+  readonly packetStrategy: {
+    readonly tools: readonly ["context_packet", "task_focus_packet"];
+    readonly maxContextChars: number;
+    readonly maxEvidenceChars: number;
+    readonly citationRequired: boolean;
   };
   readonly contextStrategy: {
     readonly nativeTools: readonly NativeWorkflowTool[];
@@ -79,43 +90,47 @@ const CONTEXT_TOOLS: readonly NativeWorkflowTool[] = [
 ];
 
 export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot): SmallContextOrchestrationProfile {
+  const models = DEFAULT_SMALL_CONTEXT_MODELS;
   return {
     runtime: {
       shell: runtime.shell,
     },
-    models: {
-      foreman: {
-        provider: "ollama",
-        model: "gemma4-small",
-        role: "local foreman that plans, checkpoints, and routes narrow evidence packets",
-        inputTokenTarget: 1800,
-        outputTokenTarget: 700,
-      },
-      delegate: {
-        provider: "opencode-agent",
-        model: "qwen3.6-35b-a3b",
-        role: "large analysis/design/artifact worker for source reading and synthesis",
-        inputTokenTarget: 12000,
-        outputTokenTarget: 4000,
-      },
+    models,
+    smallContextRun: createSmallContextRunGate(models),
+    agentTemplates: createDefaultAgentModelTemplates(),
+    packetStrategy: {
+      tools: ["context_packet", "task_focus_packet"],
+      maxContextChars: 6000,
+      maxEvidenceChars: 1200,
+      citationRequired: true,
     },
     contextStrategy: {
       nativeTools: CONTEXT_TOOLS,
       passes: [
         "start with tool_usage_plan to choose the smallest safe command/tool sequence",
+        "run environment_doctor when entering a new Windows/OpenCode/Ollama target repository",
         "inventory with fd before opening files",
         "build a bounded architecture and UI-to-database flow sketch with repo_map",
         "use legacy_repo_index before Button-to-API-to-DB/RFC legacy tracing",
         "use ui_action_trace, api_backend_trace, integration_catalog, traceability_matrix, then evidence_qa for legacy enterprise flow analysis",
+        "use ui_layout_catalog, ux_rationale_trace, ux_validation_matrix, ux_reverse_report, then layout_truth_update for source-code-first UX reverse analysis",
+        "run layout_truth_verify before reusing saved UI/UX layout reasons from .tiny/ux/layout-truth.json",
+        "use api_contract_catalog, dto_schema_map, redux_state_flow_map, auth_permission_trace, and error_transaction_map for design-detail gaps",
         "extract variables, columns, and comparison evidence with business_logic_map before explaining complex business rules",
         "rank evidence with rg --json and ast-grep structural matches",
         "use context_digest for bounded cited snippets instead of full-file reads",
+        "use context_packet and task_focus_packet before resuming after compaction or interruption",
         "slice JSON/YAML/Markdown with jq, yq, and mdq instead of full-file prompts",
         "call qwen_retry_policy before or after public delegation when the shared Qwen limit may be hit",
+        "use worker_packet_optimizer to split Qwen packets before public_dispatch",
         "delegate only compact packets with objective, files, evidence, and must-return fields",
+        "use incremental_evidence_cache before reusing old repo-map or trace evidence",
         "use chunked_write_plan before writing long Markdown or generated artifacts",
+        "use artifact_pack_manifest before publishing grouped AS-IS, TO-BE, UI, story, testcase, Mermaid, and ERD outputs",
         "check orchestration_health after failures, interruptions, or retry waits",
         "write rules_snapshot after architecture patterns are confirmed",
+        "after work is produced, run the tool_usage_plan verification block even when the visible step list is capped",
+        "call artifact_format_template before artifact generation, then artifact_check after generation",
         "checkpoint every completed pass with summary, nextSteps, evidenceRefs, and openQuestions",
       ],
     },
@@ -135,13 +150,21 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
         "Every claim must cite a file path with line, a command transcript, or an evidenceRef.",
         "If evidence is missing, write an uncertainty or openQuestion instead of guessing.",
         "Use context_digest before claiming repository facts from source files.",
+        "Use context_packet and task_focus_packet instead of re-reading full context after compaction.",
         "Use repo_map before explaining architecture, web UI entry points, API handlers, or database writes.",
         "Use legacy_repo_index and evidence_qa before accepting Button-to-Saga-to-API-to-BE-to-DB/RFC traceability.",
+        "Use ui_layout_catalog and layout_truth_verify before claiming why a search condition or result field exists or is positioned there.",
+        "Use claim_evidence_check before accepting named APIs, classes, tables, mapper ids, or RFCs in generated artifacts.",
+        "Use trace_diagram_render instead of free-form Mermaid when a trace matrix exists.",
+        "Use powershell_command_guard before running model-generated native commands.",
+        "Use dto_schema_map, redux_state_flow_map, auth_permission_trace, and error_transaction_map before detailed TO-BE impact claims.",
         "Use business_logic_map before claiming detailed business rules, variable relationships, or column comparisons.",
         "Use tool_usage_plan when unsure which native command or Tiny-Chu tool should run next.",
+        "Never treat a bounded step list as complete until its verification.requiredTools have run.",
         "Use qwen_retry_policy for qwen3.6-35b-a3b delegation; the public limit is 20 requests/min and 20000 tokens/min.",
         "Use orchestration_health before declaring a stopped or failed run unrecoverable.",
-        "Never accept AS-IS, UI, story, testcase, sequence, flowchart, or ERD output until artifact_check is valid.",
+        "Never accept AS-IS, UI, UX reverse, story, testcase, sequence, flowchart, or ERD output until artifact_check is valid.",
+        "Call artifact_format_template before drafting an artifact so format requirements are explicit.",
         "Prefer jq, yq, mdq, fd, ast-grep, and rg outputs over model-only summaries for repository facts.",
       ],
     },
@@ -173,49 +196,4 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
       ],
     },
   };
-}
-
-export function renderSmallContextGuide(profile: SmallContextOrchestrationProfile): string {
-  const tools = profile.contextStrategy.nativeTools.map((tool) => `- ${tool.name}: ${tool.command} — ${tool.purpose}`).join("\n");
-  const passes = profile.contextStrategy.passes.map((pass) => `- ${pass}`).join("\n");
-  const passContract = profile.auditLoop.passContract.map((rule) => `- ${rule}`).join("\n");
-  const artifacts = profile.artifacts.map((artifact) => `- ${artifact.type}: ${artifact.requiredSections.length > 0 ? artifact.requiredSections.join(", ") : artifact.acceptedMermaidDeclarations.join(", ")}`).join("\n");
-  const antiHallucination = profile.antiHallucination.rules.map((rule) => `- ${rule}`).join("\n");
-  const delegatePacket = [
-    `Must include: ${profile.delegatePacket.mustInclude.join(", ")}`,
-    `Must return: ${profile.delegatePacket.mustReturn.join(", ")}`,
-  ].join("\n");
-  const qwen = [
-    `Model: ${profile.models.delegate.model}`,
-    `Limit: ${profile.qwenRateLimit.requestsPerMinute} requests/min, ${profile.qwenRateLimit.tokensPerMinute} tokens/min`,
-    `Retry tool: ${profile.qwenRateLimit.retryTool}`,
-  ].join("\n");
-  const continuation = profile.continuationProtocol.rules.map((rule) => `- ${rule}`).join("\n");
-  const mermaid = profile.mermaid.rules.map((rule) => `- ${rule}`).join("\n");
-  const nativeToolNames = POWERSHELL_TOOLING_PROFILE.nativeTools.map((tool) => tool.name).join(", ");
-  return [
-    "# Tiny Infi small-context orchestration",
-    `Foreman: ${profile.models.foreman.provider}/${profile.models.foreman.model}`,
-    `Delegate: ${profile.models.delegate.provider}/${profile.models.delegate.model}`,
-    `PowerShell native tools already profiled: ${nativeToolNames}`,
-    "## Context passes",
-    passes,
-    `## 20-pass audit loop\nTotal passes: ${profile.auditLoop.totalPasses}\n${passContract}`,
-    "## Artifact contracts",
-    artifacts,
-    "## Anti-hallucination rules",
-    antiHallucination,
-    "## Qwen delegate packet",
-    delegatePacket,
-    "## Qwen public rate limits",
-    qwen,
-    "## Native workflow tools",
-    tools,
-    "## Continuation checkpoint",
-    profile.continuationProtocol.checkpointTemplate,
-    continuation,
-    "## Mermaid discipline",
-    profile.mermaid.workflow,
-    mermaid,
-  ].join("\n\n");
 }

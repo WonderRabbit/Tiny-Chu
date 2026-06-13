@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { resolveTinyInfiPaths } from "./paths.js";
-import { ensureDir, readJsonFile, writeJsonAtomic } from "./file-store.js";
+import { appendJsonLine, ensureDir, readJsonFile, readJsonLines, writeJsonAtomic } from "./file-store.js";
 
 export type TaskStatus = "todo" | "in_progress" | "blocked" | "done" | "cancelled";
 
@@ -48,6 +48,11 @@ function assertTaskId(id: string): void {
 function taskFile(root: string | undefined, id: string): string {
   assertTaskId(id);
   return path.join(resolveTinyInfiPaths(root).tasksDir, `${id}.json`);
+}
+
+function checkpointFile(root: string | undefined, id: string): string {
+  assertTaskId(id);
+  return path.join(resolveTinyInfiPaths(root).tasksDir, `${id}.checkpoints.jsonl`);
 }
 
 function isTinyTask(task: TinyTask | undefined): task is TinyTask {
@@ -106,7 +111,8 @@ export class TaskStore {
   async get(id: string): Promise<TinyTask | undefined> {
     const sentinel = Symbol("missing");
     const value = await readJsonFile<TinyTask | typeof sentinel>(taskFile(this.root, id), sentinel);
-    return value === sentinel ? undefined : normalizeTask(value);
+    if (value === sentinel) return undefined;
+    return this.withSidecarCheckpoints(value);
   }
 
   async list(status?: TaskStatus): Promise<TinyTask[]> {
@@ -114,7 +120,8 @@ export class TaskStore {
     await ensureDir(dir);
     const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
     const tasks = await Promise.all(files.map((file) => readJsonFile<TinyTask | undefined>(path.join(dir, file), undefined)));
-    return tasks.filter(isTinyTask).map(normalizeTask).filter((task) => !status || task.status === status).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const normalized = await Promise.all(tasks.filter(isTinyTask).map((task) => this.withSidecarCheckpoints(task)));
+    return normalized.filter((task) => !status || task.status === status).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
   async update(id: string, patch: Partial<Omit<TinyTask, "id" | "createdAt">>): Promise<TinyTask> {
@@ -134,6 +141,8 @@ export class TaskStore {
   async checkpoint(id: string, input: { summary: string; artifactType?: string; passIndex?: number; nextSteps?: string[]; evidenceRefs?: string[]; openQuestions?: string[]; verificationCommands?: string[] }): Promise<TaskCheckpoint> {
     const current = await this.get(id);
     if (!current) throw new Error(`Task not found: ${id}`);
+    const raw = await readJsonFile<TinyTask | undefined>(taskFile(this.root, id), undefined);
+    const inlineCheckpoints = raw ? normalizeTask(raw).checkpoints : [];
     const existing = current.checkpoints ?? [];
     const checkpoint: TaskCheckpoint = {
       sequence: existing.length + 1,
@@ -146,13 +155,23 @@ export class TaskStore {
       verificationCommands: input.verificationCommands ?? [],
       createdAt: this.now().toISOString(),
     };
+    await appendJsonLine(checkpointFile(this.root, id), checkpoint);
     const updated: TinyTask = {
       ...current,
-      checkpoints: [...existing, checkpoint],
-      evidenceRefs: [...current.evidenceRefs, ...checkpoint.evidenceRefs].sort(),
+      checkpoints: inlineCheckpoints,
+      evidenceRefs: [...new Set([...current.evidenceRefs, ...checkpoint.evidenceRefs])].sort(),
       updatedAt: checkpoint.createdAt,
     };
-    await writeJsonAtomic(taskFile(this.root, id), updated);
+    await writeJsonAtomic(taskFile(this.root, id), updated, { compact: true });
     return checkpoint;
+  }
+
+  private async withSidecarCheckpoints(task: TinyTask): Promise<TinyTask> {
+    const normalized = normalizeTask(task);
+    const sidecar = await readJsonLines<TaskCheckpoint>(checkpointFile(this.root, normalized.id), []);
+    const bySequence = new Map<number, TaskCheckpoint>();
+    for (const checkpoint of normalized.checkpoints) bySequence.set(checkpoint.sequence, normalizeCheckpoint(checkpoint));
+    for (const checkpoint of sidecar) bySequence.set(checkpoint.sequence, normalizeCheckpoint(checkpoint));
+    return { ...normalized, checkpoints: [...bySequence.values()].sort((a, b) => a.sequence - b.sequence) };
   }
 }
