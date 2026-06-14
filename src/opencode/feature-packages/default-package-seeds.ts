@@ -1,4 +1,4 @@
-import { BUTTON_WORKFLOW_TOOLS, CORE_RUNTIME_TOOLS, DOCTOR_ARTIFACT_TOOLS, EXTENSION_UTILITY_TOOLS, LEGACY_ANALYSIS_TOOLS, SMALL_MODEL_TOOLS, UX_REVERSE_ENGINEERING_TOOLS } from "./default-tool-seeds.js";
+import { BUTTON_WORKFLOW_TOOLS, CORE_RUNTIME_TOOLS, DOCTOR_ARTIFACT_TOOLS, EXTENSION_UTILITY_TOOLS, LEGACY_ANALYSIS_TOOLS, NATIVE_PREVIEW_TOOLS, SAFE_TOOLING_TOOLS, SMALL_MODEL_TOOLS, UX_REVERSE_ENGINEERING_TOOLS } from "./default-tool-seeds.js";
 import { instruction, resource, type PackageSeed } from "./tool-seed.js";
 
 export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
@@ -83,5 +83,22 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
     hooks: {
       beforeRun: ["chat.message", "shell.env", "experimental.session.compacting"],
     },
+  },
+];
+
+export const SAFE_TOOLING_PACKAGE_SEEDS: readonly PackageSeed[] = [
+  {
+    id: "tiny-chu.safe-tooling",
+    title: "Safe Source Tooling",
+    category: "safe-tooling",
+    dependsOn: ["tiny-chu.core-runtime", "tiny-chu.shared-support"],
+    tools: SAFE_TOOLING_TOOLS,
+  },
+  {
+    id: "tiny-chu.native-previews",
+    title: "Native Preview Tools",
+    category: "safe-tooling",
+    dependsOn: ["tiny-chu.safe-tooling"],
+    tools: NATIVE_PREVIEW_TOOLS,
   },
 ];

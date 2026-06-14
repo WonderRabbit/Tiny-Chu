@@ -29,6 +29,7 @@ export function renderCompactSmallContextGuide(profile: SmallContextOrchestratio
     "- Use context_packet, task_focus_packet, context_digest, repo_map, business_logic_map, and trace catalogs instead of full-file prompts.",
     "- Use worker_packet_optimizer before public_dispatch and qwen_retry_policy on Qwen rate-limit or failure.",
     "- Call artifact_format_template before artifact generation, then artifact_check after generation.",
+    "- For source edits, use safe_patch_check before safe_patch_apply; for generated docs, publish from artifact workspace manifests.",
     "- Use task_checkpoint before delegation, long writes, compaction, interruption, and final output.",
     "## Priority context passes",
     ...passes.map((pass) => `- ${pass}`),

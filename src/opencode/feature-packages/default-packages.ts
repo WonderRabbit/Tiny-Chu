@@ -1,10 +1,18 @@
 import { FeaturePackageError, type TinyFeaturePackage, type TinyToolDescriptor } from "../feature-package.js";
 import type { TinyToolHandler } from "../tiny-plugin-types.js";
-import { DEFAULT_PACKAGE_SEEDS } from "./default-package-seeds.js";
+import { DEFAULT_PACKAGE_SEEDS, SAFE_TOOLING_PACKAGE_SEEDS } from "./default-package-seeds.js";
 import { hookNames, type PackageSeed, type ToolSeed } from "./tool-seed.js";
 
-export function createDefaultTinyFeaturePackages(handlers: Readonly<Record<string, TinyToolHandler>>): readonly TinyFeaturePackage[] {
-  return DEFAULT_PACKAGE_SEEDS.map((seed) => ({
+export interface DefaultFeaturePackageOptions {
+  readonly safeTooling?: boolean;
+  readonly nativePreviews?: boolean;
+}
+
+export function createDefaultTinyFeaturePackages(handlers: Readonly<Record<string, TinyToolHandler>>, options: DefaultFeaturePackageOptions = {}): readonly TinyFeaturePackage[] {
+  const seeds = options.safeTooling === true
+    ? [...DEFAULT_PACKAGE_SEEDS, ...SAFE_TOOLING_PACKAGE_SEEDS.filter((seed) => seed.id !== "tiny-chu.native-previews" || options.nativePreviews === true)]
+    : DEFAULT_PACKAGE_SEEDS;
+  return seeds.map((seed) => ({
     id: seed.id,
     version: 1,
     title: seed.title,

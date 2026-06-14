@@ -100,7 +100,35 @@ node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; con
 
 `ENOTCACHED`가 나오면 일반 tarball이나 비어 있는 npm cache로 dependency를 해석하려 한 것이다. 운영 폐쇄망에서는 `INSTALL.md`의 offline bundle 절차처럼 `.opencode/vendor/`에 dependency-complete tarball이 있어야 한다.
 
-### 2.2 내부 feature package 구조
+### 2.2 안전한 source tooling opt-in
+
+기본 OpenCode tool set은 그대로 유지된다. 작은 모델이 source file을 직접 overwrite하지 못하게 하고 싶을 때만 `safeTooling`을 켠다.
+
+```ts
+const tiny = createTinyChuPlugin({
+  root: process.cwd(),
+  safeTooling: true,
+  nativePreviews: true,
+});
+```
+
+OpenCode plugin option도 같은 이름을 사용한다.
+
+```ts
+export const TinyChu = (input, options) =>
+  TinyChuOpenCodePlugin(input, { ...options, safeTooling: true, nativePreviews: true });
+```
+
+운영 순서는 `preview/check -> apply/publish -> diagnostics`다.
+
+- source edit: patch를 만든 뒤 `safe_patch_check`를 실행하고, allowlist와 현재 `sha256:<hex>` expected hash가 맞을 때만 `safe_patch_apply`를 호출한다.
+- generated docs/reports: `artifact_workspace_prepare`로 source repo 밖 OS temp workspace를 만들고, 필요하면 `artifact_workspace_commit`으로 workspace 내부 `.git`에서만 commit한 뒤 `artifact_publish_manifest`와 `artifact_publish_apply`로 publish한다.
+- host/native 확인: `powershell_toolchain_probe`, `structural_search_ast`, `structural_rewrite_preview`, `json_yaml_transform_preview`, `json_patch_preview`는 선택 도구다. `pwsh`, `ast-grep`, `jq`, `yq`, `jd`가 없으면 unavailable/degraded로 보고하며 자동 설치하지 않는다.
+- publish 전후 확인: `run_diagnostics`는 advisory tool이며 mutation gate가 아니다. 기본적으로 `npm run build`, `npm test` 순서를 권장한다.
+
+이번 safe tooling 범위에는 `run_tests`, `diff_preview`, `js_ts_codemod_preview`, `merge_preview`, `semantic_diff_preview`, `delta`, `difftastic`, `mergiraf`가 포함되지 않는다.
+
+### 2.3 내부 feature package 구조
 
 Tiny-Chu의 70개 OpenCode tool은 이제 `TinyFeaturePackage` descriptor를 compose해서 노출된다. 작은 모델이 `tiny-plugin.ts`, `plugin.ts`, `install-check.ts`의 병렬 목록을 기억하거나 맞춰야 하는 구조가 아니라, 하나의 generated registry가 직접 library tool, OpenCode tool spec, install-check metadata를 만든다.
 

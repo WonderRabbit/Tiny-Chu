@@ -1,4 +1,8 @@
-import { markdown, readJson, writeMarkdown, writeState, type ToolSeed } from "./tool-seed.js";
+import { markdown, readJson, writeMarkdown, writeSource, writeState, type ToolSeed } from "./tool-seed.js";
+
+const STRING_SCHEMA = { type: "string" } as const;
+const STRING_ARRAY_SCHEMA = { type: "array", items: STRING_SCHEMA } as const;
+const OBJECT_SCHEMA = { type: "object" } as const;
 
 export const CORE_RUNTIME_TOOLS: readonly ToolSeed[] = [
   writeState("task_create", "Create a durable Tiny-Chu task under .tiny/tasks."),
@@ -89,4 +93,22 @@ export const DOCTOR_ARTIFACT_TOOLS: readonly ToolSeed[] = [
   readJson("artifact_check", "Validate AS-IS, UI, story, testcase, Mermaid sequence/flow, and ERD artifacts against evidence rules."),
   readJson("mermaid_check", "Check Mermaid fenced blocks for common formatting and syntax issues.", ["mmdc"]),
   markdown("mermaid_fix", "Normalize Mermaid fenced blocks and close unclosed fences when deterministic."),
+];
+
+export const SAFE_TOOLING_TOOLS: readonly ToolSeed[] = [
+  { ...readJson("safe_patch_check", "Validate an allowlisted unified diff with expected hashes without mutating source.", ["git"]), inputSchema: { type: "object", properties: { patch: STRING_SCHEMA, allowedTargets: STRING_ARRAY_SCHEMA, expectedFiles: OBJECT_SCHEMA }, required: ["patch", "allowedTargets", "expectedFiles"] } },
+  { ...writeSource("safe_patch_apply", "Apply an allowlisted unified diff only after hash, path, and lock checks."), inputSchema: { type: "object", properties: { patch: STRING_SCHEMA, allowedTargets: STRING_ARRAY_SCHEMA, expectedFiles: OBJECT_SCHEMA }, required: ["patch", "allowedTargets", "expectedFiles"] } },
+  { ...writeState("artifact_workspace_prepare", "Prepare an isolated OS-temp artifact workspace outside the source repository."), inputSchema: { type: "object", properties: { allowedInputs: STRING_ARRAY_SCHEMA, copyInputs: STRING_ARRAY_SCHEMA }, required: ["allowedInputs"] } },
+  { ...writeState("artifact_workspace_commit", "Commit generated artifacts inside the isolated artifact workspace."), inputSchema: { type: "object", properties: { workspaceRoot: STRING_SCHEMA }, required: ["workspaceRoot"] } },
+  { ...writeState("artifact_publish_manifest", "Write a durable manifest for allowlisted artifact publish operations."), inputSchema: { type: "object", properties: { workspaceRoot: STRING_SCHEMA, entries: { type: "array", items: OBJECT_SCHEMA }, allowedTargets: STRING_ARRAY_SCHEMA }, required: ["workspaceRoot", "entries", "allowedTargets"] } },
+  { ...writeSource("artifact_publish_apply", "Publish artifact workspace files only when target hashes still match the manifest."), inputSchema: { type: "object", properties: { manifestPath: STRING_SCHEMA }, required: ["manifestPath"] } },
+  readJson("powershell_toolchain_probe", "Probe pwsh behavior for OpenCode native tooling compatibility.", ["pwsh"]),
+  readJson("run_diagnostics", "Run advisory build/test diagnostics without gating mutation tools."),
+];
+
+export const NATIVE_PREVIEW_TOOLS: readonly ToolSeed[] = [
+  readJson("structural_search_ast", "Preview ast-grep structural search matches without writing source.", ["ast-grep"]),
+  readJson("structural_rewrite_preview", "Preview ast-grep rewrite output and route mutation through safe_patch_apply.", ["ast-grep"]),
+  readJson("json_yaml_transform_preview", "Preview jq or Mike Farah yq data transforms without writing source.", ["jq", "yq"]),
+  readJson("json_patch_preview", "Preview jd JSON/YAML structural patch output for artifact publishing.", ["jd"]),
 ];

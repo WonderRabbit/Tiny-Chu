@@ -15,6 +15,8 @@ export interface OpenCodeRuntimeConfig {
 
 export interface TinyChuConfig {
   root?: string;
+  safeTooling?: boolean;
+  nativePreviews?: boolean;
   publicDispatcher?: {
     softRpm?: number;
     softTpm?: number;

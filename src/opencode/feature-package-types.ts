@@ -6,6 +6,7 @@ export type TinyFeatureCategory =
   | "extension-utilities"
   | "workflow-hardening"
   | "small-model-resilience"
+  | "safe-tooling"
   | "ux-reverse-engineering"
   | "doctor-artifacts"
   | "support";
@@ -26,6 +27,7 @@ export interface TinyPermissionHint {
   readonly readOnly: boolean;
   readonly writesState?: boolean;
   readonly writesArtifacts?: boolean;
+  readonly writesSource?: boolean;
   readonly network?: "none" | "optional" | "required";
 }
 

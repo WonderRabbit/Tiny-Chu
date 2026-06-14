@@ -32,6 +32,7 @@ import { createRepoMap } from "./repo-map.js";
 import { writeRulesSnapshot } from "./rules-snapshot.js";
 import { renderCompactSmallContextGuide } from "./small-context-compact.js";
 import { createSmallContextOrchestrationProfile } from "./small-context-profile.js";
+import { createSafeToolHandlers } from "./safe-tool-handlers.js";
 import { createChunkedWritePlan, createContextDigest, createResumePacket } from "./small-model-tools.js";
 import { createSessionPreflight } from "./session-preflight.js";
 import { createTaskFocusPacket } from "./task-focus-packet.js";
@@ -126,6 +127,7 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       trace_diagram_render: async (input) => createTraceDiagramRender(input),
       tiny_chu_install_check: async () => createTinyChuInstallCheck(registry.requiredToolNames, registry.packages, registry.nativeToolNames),
       environment_doctor: async (input) => createEnvironmentDoctor(input),
+      ...createSafeToolHandlers(root),
       api_contract_catalog: async (input) => createApiContractCatalog(resolveTinyChuPaths(root).root, input),
       dto_schema_map: async (input) => createDtoSchemaMap(resolveTinyChuPaths(root).root, input),
       redux_state_flow_map: async (input) => createReduxStateFlowMap(resolveTinyChuPaths(root).root, input),
@@ -175,7 +177,10 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       mermaid_check: async (input) => checkMermaidMarkdown(await markdownInput(root, input)),
       mermaid_fix: async (input) => fixMermaidMarkdown(await markdownInput(root, input)),
     };
-  registry = composeFeaturePackages(createDefaultTinyFeaturePackages(tools));
+  registry = composeFeaturePackages(createDefaultTinyFeaturePackages(tools, {
+    safeTooling: config.safeTooling,
+    nativePreviews: config.safeTooling === true && config.nativePreviews === true,
+  }));
 
   return {
     name: "tiny-chu",

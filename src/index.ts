@@ -38,6 +38,13 @@ export { createPowerShellCommandGuard, type CommandGuardDiagnostic, type PowerSh
 export { createSessionPreflight, type SessionPreflightResult } from "./opencode/session-preflight.js";
 export { createTraceDiagramRender, type TraceDiagramRenderResult } from "./opencode/trace-diagram-render.js";
 export { createTinyChuInstallCheck, type TinyChuInstallCheckResult } from "./opencode/install-check.js";
+export { createArtifactPublishApply, createArtifactPublishManifest, type ArtifactPublishApplyResult, type ArtifactPublishManifestResult } from "./opencode/artifact-publish.js";
+export { createArtifactWorkspaceCommit, createArtifactWorkspacePrepare, readWorkspaceFile, type ArtifactWorkspaceCommitResult, type ArtifactWorkspacePrepareResult } from "./opencode/artifact-workspace.js";
+export { createRunDiagnostics, type DiagnosticsCommandResult, type DiagnosticsStatus, type RunDiagnosticsResult } from "./opencode/diagnostics-policy.js";
+export { createJsonPatchPreview, createJsonYamlTransformPreview, createStructuralRewritePreview, createStructuralSearchAst, type JsonPatchPreviewInput, type JsonYamlTransformPreviewInput, type NativePreviewStatus, type StructuralRewritePreviewInput, type StructuralSearchAstInput } from "./opencode/native-tool-wrappers.js";
+export { createPowerShellToolchainProbe, type PowerShellToolchainProbeInput, type PowerShellToolchainProbeResult, type ToolchainProbeCheck, type ToolchainProbeStatus } from "./opencode/powershell-toolchain-probe.js";
+export { createSafePatchApply, createSafePatchCheck, type SafePatchApplyResult, type SafePatchCheckResult, type SafePatchInput, type SafePatchTouchedFile } from "./opencode/safe-patch.js";
+export { SAFE_TOOLING_LIMITS, acquireSafeToolingLock, boundedText, hashSourceTarget, normalizeSafeRelativePath, type SafeToolingDiagnostic, type SourceTargetHash, type SourceTargetStatus } from "./opencode/safe-tooling.js";
 export { reportLayoutTruth, updateLayoutTruth, verifyLayoutTruth, type LayoutTruthReportResult, type LayoutTruthUpdateResult, type LayoutTruthVerifyResult } from "./opencode/layout-truth.js";
 export { createUiLayoutCatalog, createUxRationaleTrace, createUxValidationMatrix, uxSourceFingerprint, type LayoutTruthRecord, type UxLayoutCatalogResult, type UxLayoutElement, type UxRationaleTraceResult, type UxValidationMatrixResult } from "./opencode/ux-reverse-analysis.js";
 export { createUxReverseReport, type UxReverseReportResult } from "./opencode/ux-reverse-report.js";

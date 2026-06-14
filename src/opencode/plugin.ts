@@ -5,10 +5,20 @@ import { createTinyChuPlugin, type TinyToolContext, type TinyToolHandler } from 
 
 type TinyChuPluginOptions = {
   readonly root?: string;
+  readonly safeTooling?: boolean;
+  readonly nativePreviews?: boolean;
 };
 
 function optionRoot(options?: Record<string, unknown>): string | undefined {
   return typeof options?.root === "string" && options.root.trim() !== "" ? options.root : undefined;
+}
+
+function pluginOptions(options?: Record<string, unknown>): TinyChuPluginOptions {
+  return {
+    root: optionRoot(options),
+    safeTooling: options?.safeTooling === true,
+    nativePreviews: options?.nativePreviews === true,
+  };
 }
 
 function toolContext(context: ToolContext): TinyToolContext {
@@ -43,8 +53,9 @@ function tinyTool(spec: TinyComposedToolSpec, handler: TinyToolHandler): ToolDef
 }
 
 export const TinyChuOpenCodePlugin: Plugin = async (input, options): Promise<Hooks> => {
-  const root = optionRoot(options) ?? input.worktree ?? input.directory;
-  const tiny = createTinyChuPlugin({ root });
+  const parsedOptions = pluginOptions(options);
+  const root = parsedOptions.root ?? input.worktree ?? input.directory;
+  const tiny = createTinyChuPlugin({ root, safeTooling: parsedOptions.safeTooling, nativePreviews: parsedOptions.nativePreviews });
   const toolMap: Record<string, ToolDefinition> = {};
   for (const spec of tiny.registry.toolSpecs) {
     const handler = tiny.tools[spec.name];

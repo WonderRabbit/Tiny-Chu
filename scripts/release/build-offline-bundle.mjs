@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { access, chmod, cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { writeBundleTemplate, writeInstallers } from "./offline-installers.mjs";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -111,80 +112,6 @@ async function installProductionDependencies(stagingDir) {
     }
     throw error;
   }
-}
-
-async function writeBundleTemplate(bundleDir, version, tarballName) {
-  const templatePackagePath = path.join(bundleDir, "templates", "opencode", "package.json");
-  const templatePackage = await readJson(templatePackagePath);
-  templatePackage.dependencies = { "tiny-chu": `file:./vendor/${tarballName}` };
-  await writeJson(templatePackagePath, templatePackage);
-
-  const readme = `# Tiny-Chu Offline Bundle
-
-Version: ${version}
-
-Install into a target project:
-
-\`\`\`bash
-./install-offline.sh /path/to/target-project
-\`\`\`
-
-The installer copies the OpenCode shim into \`.opencode/\`, places \`${tarballName}\` under \`.opencode/vendor/\`, and runs npm with \`--offline\`.
-`;
-  await writeFile(path.join(bundleDir, "README-offline.md"), readme);
-}
-
-async function writeInstallers(bundleDir, tarballName) {
-  const shellInstaller = `#!/usr/bin/env bash
-set -euo pipefail
-
-TARGET_PROJECT="\${1:-}"
-if [ -z "\${TARGET_PROJECT}" ]; then
-  echo "usage: ./install-offline.sh /path/to/target-project" >&2
-  exit 2
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-OPENCODE_DIR="\${TARGET_PROJECT}/.opencode"
-CACHE_DIR="\${TMPDIR:-/tmp}/tiny-chu-offline-npm-cache"
-
-mkdir -p "\${OPENCODE_DIR}"
-cp -R "\${SCRIPT_DIR}/templates/opencode/." "\${OPENCODE_DIR}/"
-mkdir -p "\${OPENCODE_DIR}/vendor"
-cp "\${SCRIPT_DIR}/vendor/${tarballName}" "\${OPENCODE_DIR}/vendor/${tarballName}"
-
-cd "\${OPENCODE_DIR}"
-npm install --offline --cache "\${CACHE_DIR}" --ignore-scripts --no-audit --fund=false
-`;
-  const powershellInstaller = `param(
-  [Parameter(Mandatory = $true)]
-  [string]$TargetProject
-)
-
-$ErrorActionPreference = 'Stop'
-$PSNativeCommandArgumentPassing = 'Standard'
-
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$OpenCodeDir = Join-Path $TargetProject '.opencode'
-$VendorDir = Join-Path $OpenCodeDir 'vendor'
-$CacheDir = Join-Path ([System.IO.Path]::GetTempPath()) 'tiny-chu-offline-npm-cache'
-
-New-Item -ItemType Directory -Force -Path $OpenCodeDir | Out-Null
-Copy-Item -Recurse -Force -Path (Join-Path $ScriptDir 'templates/opencode/*') -Destination $OpenCodeDir
-New-Item -ItemType Directory -Force -Path $VendorDir | Out-Null
-Copy-Item -Force -Path (Join-Path $ScriptDir 'vendor/${tarballName}') -Destination (Join-Path $VendorDir '${tarballName}')
-
-Push-Location $OpenCodeDir
-try {
-  npm install --offline --cache $CacheDir --ignore-scripts --no-audit --fund=false
-} finally {
-  Pop-Location
-}
-`;
-  const shellPath = path.join(bundleDir, "install-offline.sh");
-  await writeFile(shellPath, shellInstaller);
-  await chmod(shellPath, 0o755);
-  await writeFile(path.join(bundleDir, "install-offline.ps1"), powershellInstaller);
 }
 
 async function writeInnerChecksums(bundleDir) {

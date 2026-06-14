@@ -54,6 +54,8 @@ const DETERMINISTIC_CAPS: readonly DeterministicToolCap[] = [
   { name: "auth_permission_trace", maxItems: 80, purpose: "permission conditions and linked rows after pre-link bounding" },
   { name: "worker_packet_optimizer", maxItems: 6, purpose: "Qwen packets produced before public_dispatch" },
   { name: "chunked_write_plan", maxItems: 2000, purpose: "characters per generated artifact write chunk" },
+  { name: "safe_patch_check", maxItems: 20, purpose: "source files checked per allowlisted patch before safe_patch_apply" },
+  { name: "artifact_publish_manifest", maxItems: 20, purpose: "artifact files published through stale-target manifests" },
 ];
 
 function textInput(value: unknown, fallback: string): string {
@@ -182,6 +184,7 @@ function coreSteps(objective: string, type: ArtifactType | undefined): ToolPlanS
     { order: 4, goal: "rank textual evidence", nativeTool: "ripgrep", command: "rg --json --line-number --column --no-heading '<term>' <paths>", outputBudget: "top 20 matches" },
     { order: 5, goal: "find syntax shapes", nativeTool: "ast-grep", command: "ast-grep run --lang ts -p '<pattern>' src", outputBudget: "top 20 structural matches" },
     { order: 6, goal: "extract cited source snippets", tinyTool: "context_digest", outputBudget: "max 12 snippets, 160 chars each" },
+    { order: 7, goal: "check source edits before applying them", tinyTool: "safe_patch_check", outputBudget: "valid flag, touched paths, and diagnostics only" },
     ...(mermaid ? [mermaid] : []),
     ...(qwen ? [{ order: 8, goal: "calculate Qwen wait retry and chunking", tinyTool: "qwen_retry_policy", outputBudget: "limits, retryDelaysMs, recovery protocol" }] : []),
     { order: 9, goal: "validate final artifact contract", tinyTool: "artifact_check", outputBudget: "valid flag and diagnostics only" },
@@ -189,7 +192,7 @@ function coreSteps(objective: string, type: ArtifactType | undefined): ToolPlanS
     { order: 11, goal: "checkpoint continuation state", tinyTool: "task_checkpoint", outputBudget: "summary, nextSteps, evidenceRefs, openQuestions" },
   ];
   if (!type) return generic;
-  return generic.filter((step) => step.tinyTool !== "chunked_write_plan" && step.nativeTool !== "ripgrep" && step.nativeTool !== "ast-grep");
+  return generic.filter((step) => step.tinyTool !== "chunked_write_plan" && step.tinyTool !== "safe_patch_check" && step.nativeTool !== "ripgrep" && step.nativeTool !== "ast-grep");
 }
 
 function verificationTools(objective: string, type: ArtifactType | undefined): readonly string[] {
@@ -250,6 +253,8 @@ export function createToolUsagePlan(input: Record<string, unknown>): ToolUsagePl
       "use worker_packet_optimizer before public_dispatch when evidence packets may exceed the small-model budget",
       "run orchestration_health after retries, interruptions, or failed worker jobs",
       "run claim_evidence_check before accepting named APIs, classes, tables, or RFCs in an artifact",
+      "for source edits, preview or construct a patch, run safe_patch_check, then use safe_patch_apply only with expected hashes",
+      "for generated docs or reports, prepare an artifact workspace, create artifact_publish_manifest, then publish with artifact_publish_apply",
       "do not produce artifact claims without evidenceRefs",
       "do not stop after implementation; run the verification tools from the verification block",
       "checkpoint before delegation, long commands, compaction, and final output",

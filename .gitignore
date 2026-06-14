@@ -2,10 +2,12 @@ dist/
 node_modules/
 npm-debug.log*
 
+.tiny/artifacts/
+.tiny/locks/
+
 .omc/
 .omo/
 .claude/
 .opencode/
 .git/
-
 

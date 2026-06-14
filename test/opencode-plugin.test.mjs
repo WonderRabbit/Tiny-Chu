@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createTinyChuPlugin } from "../dist/index.js";
+import { createTinyChuPlugin, hashSourceTarget } from "../dist/index.js";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
 
 test("package exposes an OpenCode plugin entrypoint", async () => {
@@ -34,6 +34,53 @@ test("OpenCode plugin entrypoint exposes Tiny-Chu tools", async () => {
   await hooks["shell.env"]?.({ cwd: root }, { env });
   assert.equal(env.TINY_CHU_ROOT, root);
   assert.equal(env.TINY_CHU_OPENCODE_PLUGIN, "1");
+});
+
+test("OpenCode plugin entrypoint exposes safe tooling only when opted in", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-opencode-safe-tooling-"));
+  const defaultHooks = await TinyChuOpenCodePlugin({
+    project: { root },
+    directory: root,
+    worktree: root,
+    client: { app: { log: async () => undefined } },
+    $: async () => undefined,
+  });
+  const optedInHooks = await TinyChuOpenCodePlugin({
+    project: { root },
+    directory: root,
+    worktree: root,
+    client: { app: { log: async () => undefined } },
+    $: async () => undefined,
+  }, { safeTooling: true, nativePreviews: true });
+
+  assert.equal(defaultHooks.tool.safe_patch_check, undefined);
+  assert.equal(defaultHooks.tool.structural_search_ast, undefined);
+  assert.equal(typeof optedInHooks.tool.safe_patch_check.execute, "function");
+  assert.equal(typeof optedInHooks.tool.artifact_publish_apply.execute, "function");
+  assert.equal(typeof optedInHooks.tool.structural_search_ast.execute, "function");
+});
+
+test("direct plugin safe tooling handlers run through the public tool surface", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-direct-safe-tooling-"));
+  await writeFile(path.join(root, "note.txt"), "old\n", "utf8");
+  const tiny = createTinyChuPlugin({ root, safeTooling: true });
+  const before = await hashSourceTarget(root, "note.txt");
+  const patch = [
+    "diff --git a/note.txt b/note.txt",
+    "--- a/note.txt",
+    "+++ b/note.txt",
+    "@@ -1 +1 @@",
+    "-old",
+    "+new",
+    "",
+  ].join("\n");
+
+  const checked = await tiny.tools.safe_patch_check({ patch, allowedTargets: ["note.txt"], expectedFiles: { "note.txt": before.hash } });
+  const applied = await tiny.tools.safe_patch_apply({ patch, allowedTargets: ["note.txt"], expectedFiles: { "note.txt": before.hash } });
+
+  assert.equal(checked.valid, true);
+  assert.equal(applied.applied, true);
+  assert.equal(await readFile(path.join(root, "note.txt"), "utf8"), "new\n");
 });
 
 test("README documents git_weekly_report as an OpenCode-visible Tiny-Chu tool", async () => {

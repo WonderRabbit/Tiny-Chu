@@ -92,6 +92,22 @@ The OpenCode plugin exposes the same durable tools as the library shell:
 - `ui_layout_catalog`, `ux_rationale_trace`, `ux_validation_matrix`, `layout_truth_update`, `layout_truth_verify`, `layout_truth_report`, `ux_reverse_report`
 - `orchestration_profile`, `artifact_format_template`, `artifact_check`, `mermaid_check`, `mermaid_fix`
 
+Safe source tooling is opt-in. The default registry stays unchanged; enable it only for repositories that want hash-checked source mutation and isolated artifact publish tools:
+
+```ts
+const tiny = createTinyChuPlugin({
+  root: process.cwd(),
+  safeTooling: true,
+  nativePreviews: true,
+});
+```
+
+`safeTooling: true` adds `safe_patch_check`, `safe_patch_apply`, `artifact_workspace_prepare`, `artifact_workspace_commit`, `artifact_publish_manifest`, `artifact_publish_apply`, `powershell_toolchain_probe`, and `run_diagnostics`. With `safeTooling: true`, `nativePreviews: true` also adds `structural_search_ast`, `structural_rewrite_preview`, `json_yaml_transform_preview`, and `json_patch_preview` for preview-only `ast-grep`, `jq`, Mike Farah `yq`, and `jd` workflows; these binaries are optional and missing tools return unavailable/degraded results instead of becoming npm dependencies.
+
+The safe edit workflow is: preview or construct a patch, run `safe_patch_check`, then call `safe_patch_apply` only with explicit allowed targets and current `sha256:<hex>` expected hashes. Generated docs and reports should be built in an `artifact_workspace_prepare` workspace, optionally committed inside that isolated workspace, then published through `artifact_publish_manifest` and `artifact_publish_apply`. Construction Git operations stay outside the source repository; only the final apply/publish step writes source targets.
+
+Deferred tooling remains out of scope for this package: `run_tests`, `diff_preview`, `js_ts_codemod_preview`, `merge_preview`, `semantic_diff_preview`, `delta`, `difftastic`, and `mergiraf` are not implemented by this safe tooling layer.
+
 ### Git weekly reports
 
 `git_weekly_report` is a local-git evidence tool. It reports commits reachable
@@ -158,6 +174,8 @@ Tiny-Chu keeps file-backed boundaries root-confined. Explicit user or index path
 Malformed runtime JSON in `.tiny/tasks/*.json` and `.tiny/public-jobs/*.json` fails closed with `Malformed JSON in <path>`. The normal runtime APIs do not silently skip, rewrite, or quarantine malformed state.
 
 Task IDs, public job IDs, and checkpoint sequence assignment are collision-resistant within one Node.js process. Cross-process file locking is not implemented; callers that run multiple processes against the same `.tiny` state should coordinate externally.
+
+Safe tooling uses `.tiny/locks/` for short-lived mutation locks and `.tiny/artifacts/` for durable publish manifests. These are runtime-only outputs and should be ignored by source control. `.tiny/rules/` remains project state when callers intentionally persist confirmed repository rules.
 
 Performance checks are characterization baselines, not SLAs. Use these commands to refresh observation artifacts with deterministic fixture counts and elapsed milliseconds:
 
@@ -404,6 +422,8 @@ console.log(fixed.markdown);
 
 ```text
 .tiny/
+  artifacts/
+  locks/
   plans/
   public-jobs/
   rules/
