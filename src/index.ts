@@ -8,6 +8,7 @@ export { parsePlanMarkdown, readPlanStatus, selectPlanFocus, writePlanTemplate, 
 export { WikiBundler, type WikiBundle, type WikiDocumentRef, type WikiIndex } from "./wiki/wiki-bundler.js";
 export { createTinyChuPlugin, POWERSHELL_OPENCODE_RUNTIME, type OpenCodeRuntimeConfig, type OpenCodeShellRuntime, type TinyChuConfig, type TinyPluginModule, type TinyToolContext } from "./opencode/tiny-plugin.js";
 export { TinyChuOpenCodePlugin } from "./opencode/plugin.js";
+export { TinyChuOpenCodeTuiPlugin } from "./opencode/tui-plugin.js";
 
 export { renderBudgetedOutput, type BudgetedOutput, type OutputBudgetMetadata } from "./opencode/output-budget.js";
 export { createDefaultAgentModelTemplates, recommendModelOptionControls, validateAgentModelTemplate, type AgentKind, type AgentModelOptionDiagnostic, type AgentModelTemplate, type AgentModelTemplateValidation, type ModelOptionControlInput, type ModelOptionControlRecommendation, type ModelProvider } from "./opencode/agent-model-options.js";

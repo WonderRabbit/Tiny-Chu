@@ -42,21 +42,29 @@ await tiny.tools.task_create({ title: "Refactor auth boundary" });
 
 ## Use in OpenCode
 
-This repository includes a project-local OpenCode plugin shim at `.opencode/plugins/tiny-chu.ts`:
+This repository uses two project-local OpenCode plugin surfaces: the server plugin shim for Tiny-Chu tools, and the TUI plugin config for the home-screen `home_logo`.
 
 ```text
 .opencode/
   package.json
+  tui.json
   plugins/
     tiny-chu.ts
+    tiny-chu-tui.ts
 ```
 
-OpenCode automatically loads project-local plugins from `.opencode/plugins/`, so starting OpenCode from this repository root activates Tiny-Chu without editing `opencode.json`.
+OpenCode automatically loads the server shim from `.opencode/plugins/tiny-chu.ts`, so starting OpenCode from this repository root activates Tiny-Chu tools without editing `opencode.json`. The TUI config at `.opencode/tui.json` enables `.opencode/plugins/tiny-chu-tui.ts`, which replaces the OpenCode home-screen `home_logo` with `TinyChu`.
 
-The local shim imports the TypeScript plugin adapter directly:
+The local server shim imports the TypeScript plugin adapter directly:
 
 ```ts
 export { TinyChuOpenCodePlugin as TinyChu } from "../../src/opencode/plugin.ts";
+```
+
+The local TUI shim imports the TUI plugin directly:
+
+```ts
+export { default } from "../../src/opencode/tui-plugin.ts";
 ```
 
 For another project, copy the templates under `templates/opencode/` or follow [INSTALL.md](./INSTALL.md). Closed-network installs should use the offline bundle and local tarball dependency; the source checkout example below is for developer testing.
@@ -76,6 +84,18 @@ For developer source testing, add Tiny-Chu to that project's `.opencode/package.
 
 ```ts
 export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
+```
+
+Enable the TUI `home_logo` plugin with `.opencode/tui.json` and a TUI shim:
+
+```json
+{
+  "plugin": ["./plugins/tiny-chu-tui.ts"]
+}
+```
+
+```ts
+export { default } from "tiny-chu/tui";
 ```
 
 The OpenCode plugin exposes the same durable tools as the library shell:

@@ -35,6 +35,8 @@ test("package metadata exposes offline install assets and commands", async () =>
   assert.equal(packageJson.scripts["pack:check"], "npm run build && node --test test/install-package.test.mjs");
   assert.equal(packageJson.scripts["release:offline"], "node scripts/release/build-offline-bundle.mjs");
   assert.equal(packageJson.scripts["verify:offline"], "node scripts/release/verify-offline-bundle.mjs");
+  assert.equal(packageJson.exports["./tui"], "./dist/opencode/tui-plugin.js");
+  assert.equal(packageJson.dependencies["@opentui/solid"], "^0.3.4");
   assert.ok(packageJson.files.includes("INSTALL.md"));
   assert.ok(packageJson.files.includes("HOW_TO_USE.md"));
   assert.ok(packageJson.files.includes("templates"));
@@ -56,8 +58,11 @@ test("normal package tarball includes install docs and templates without bundled
     assert.ok(files.has("HOW_TO_USE.md"));
     assert.ok(files.has("INSTALL.md"));
     assert.ok(files.has("templates/opencode/package.json"));
+    assert.ok(files.has("templates/opencode/tui.json"));
     assert.ok(files.has("templates/opencode/plugins/tiny-chu.ts"));
+    assert.ok(files.has("templates/opencode/plugins/tiny-chu-tui.ts"));
     assert.ok(files.has("dist/index.js"));
+    assert.ok(files.has("dist/opencode/tui-plugin.js"));
     assert.equal([...files].some((file) => file.startsWith("node_modules/")), false);
   } finally {
     await rm(cacheDir, { recursive: true, force: true });
@@ -91,7 +96,7 @@ test("normal package tarball fails in a fresh offline consumer without cached de
     const output = `${install.stdout}\n${install.stderr}`;
 
     assert.notEqual(install.code, 0);
-    assert.match(output, /ENOTCACHED|cache mode is 'only-if-cached'|@opencode-ai%2fplugin|@opencode-ai\/plugin/);
+    assert.match(output, /ENOTCACHED|cache mode is 'only-if-cached'|@opencode-ai%2fplugin|@opencode-ai\/plugin|@opentui%2fsolid|@opentui\/solid/);
   } finally {
     await rm(packDir, { recursive: true, force: true });
     await rm(packCache, { recursive: true, force: true });
