@@ -17,7 +17,7 @@ export function renderCompactSmallContextGuide(profile: SmallContextOrchestratio
   const rules = profile.antiHallucination.rules.slice(0, PRIORITY_RULES);
   const nativeToolNames = POWERSHELL_TOOLING_PROFILE.nativeTools.map((tool) => tool.name).join(", ");
   const text = [
-    "# Tiny Infi compact small-context orchestration",
+    "# Tiny-Chu compact small-context orchestration",
     "profileMode: compact",
     `Foreman: ${profile.models.foreman.provider}/${profile.models.foreman.model}`,
     `Delegate: ${profile.models.delegate.provider}/${profile.models.delegate.model}`,

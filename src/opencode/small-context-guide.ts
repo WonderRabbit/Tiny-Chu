@@ -21,7 +21,7 @@ export function renderSmallContextGuide(profile: SmallContextOrchestrationProfil
   const nativeToolNames = POWERSHELL_TOOLING_PROFILE.nativeTools.map((tool) => tool.name).join(", ");
   const templates = Object.keys(profile.agentTemplates).sort().join(", ");
   return [
-    "# Tiny Infi small-context orchestration",
+    "# Tiny-Chu small-context orchestration",
     `Foreman: ${profile.models.foreman.provider}/${profile.models.foreman.model}`,
     `Delegate: ${profile.models.delegate.provider}/${profile.models.delegate.model}`,
     `Agent templates: ${templates}`,

@@ -4,11 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
-import { createTinyInfiPlugin } from "../dist/index.js";
+import { createTinyChuPlugin } from "../dist/index.js";
 
 test("hardening tools guard commands sessions claims and trace diagrams", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-hardening-tools-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
 
   const required = [
     "session_preflight",
@@ -80,6 +80,10 @@ test("hardening tools guard commands sessions claims and trace diagrams", async 
 
   const install = await plugin.tools.tiny_chu_install_check({});
   assert.equal(install.packageName, "tiny-chu");
+  assert.equal(install.installDocs, "INSTALL.md");
+  assert.equal(install.opencodeShim, "templates/opencode/plugins/tiny-chu.ts");
+  assert.equal(install.offlineBundleName, "tiny-chu-offline-vX.Y.Z.tar.gz");
+  assert.deepEqual(install.installModes, ["offline-bundle", "internal-registry", "developer-file"]);
   assert.ok(install.requiredTools.includes("task_create"));
   const hooks = await TinyChuOpenCodePlugin({
     project: { root },
@@ -93,7 +97,7 @@ test("hardening tools guard commands sessions claims and trace diagrams", async 
 });
 
 test("button worker result guard rejects markdown and missing evidence", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const envelope = await plugin.tools.markdown_envelope_check({
     value: {
       buttonId: "b1",
@@ -122,7 +126,7 @@ test("button worker result guard rejects markdown and missing evidence", async (
 
 test("button workflow dispatch persists distinct parallel public jobs", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-button-dispatch-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const plan = {
     workItems: [
       { buttonId: "save", file: "src/App.tsx", line: 10, label: "Save", handler: "save", evidenceRefs: ["src/App.tsx:10"] },
@@ -139,7 +143,7 @@ test("button workflow dispatch persists distinct parallel public jobs", async ()
 });
 
 test("button workflow drift and done claim fail closed on missing evidence", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const drift = await plugin.tools.aggregation_drift_check({
     planned: [{ buttonId: "save", label: "Save", handler: "save", file: "src/App.tsx", line: 10 }],
     observed: [{ buttonId: "save", label: "Delete", handler: "remove", file: "src/App.tsx", line: 10 }],

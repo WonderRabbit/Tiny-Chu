@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createTinyInfiPlugin } from "../dist/index.js";
+import { createTinyChuPlugin } from "../dist/index.js";
 
 async function publicJobCount(root) {
   const files = await readdir(path.join(root, ".tiny", "public-jobs")).catch((error) => {
@@ -14,7 +14,7 @@ async function publicJobCount(root) {
 }
 
 test("context_digest returns bounded evidence snippets with line metadata", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-context-digest-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-context-digest-"));
   await mkdir(path.join(root, "src"), { recursive: true });
   await writeFile(path.join(root, "src", "feature.ts"), [
     "export function alpha() {",
@@ -27,7 +27,7 @@ test("context_digest returns bounded evidence snippets with line metadata", asyn
     "  return 'gamma';",
     "}",
   ].join("\n"), "utf8");
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const digest = await plugin.tools.context_digest({
     targetPath: "src/feature.ts",
     query: "beta",
@@ -40,8 +40,8 @@ test("context_digest returns bounded evidence snippets with line metadata", asyn
 });
 
 test("resume_packet summarizes the latest active task checkpoint", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-resume-packet-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-resume-packet-"));
+  const plugin = createTinyChuPlugin({ root });
   const task = await plugin.tools.task_create({ title: "Small-model resilience", priority: "high" });
   await plugin.tools.task_update({ id: task.id, status: "in_progress" });
   await plugin.tools.task_checkpoint({
@@ -59,8 +59,8 @@ test("resume_packet summarizes the latest active task checkpoint", async () => {
 });
 
 test("chunked_write_plan returns chunks bounded by maxChunkChars", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-chunked-plan-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-chunked-plan-"));
+  const plugin = createTinyChuPlugin({ root });
   const markdown = "# Plan\n\n- [ ] gather context\n- [ ] write tests\n- [ ] verify red\n";
   const plan = await plugin.tools.chunked_write_plan({
     path: ".tiny/plans/SMALL.md",
@@ -73,8 +73,8 @@ test("chunked_write_plan returns chunks bounded by maxChunkChars", async () => {
 });
 
 test("atomic markdown write prevents empty overwrite and bak churn", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-atomic-write-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-atomic-write-"));
+  const plugin = createTinyChuPlugin({ root });
   const written = await plugin.tools.atomic_markdown_write({ path: ".tiny/artifacts/report.md", markdown: "# Report\n\nbody\n" });
   assert.equal(written.decision, "allow");
   assert.equal(await readFile(path.join(root, ".tiny", "artifacts", "report.md"), "utf8"), "# Report\n\nbody\n");
@@ -87,8 +87,8 @@ test("atomic markdown write prevents empty overwrite and bak churn", async () =>
 });
 
 test("tool_usage_plan gives a bounded small-model command sequence", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-tool-plan-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-tool-plan-"));
+  const plugin = createTinyChuPlugin({ root });
   const plan = await plugin.tools.tool_usage_plan({
     objective: "trace a web button to database write and produce a flowchart",
     artifactType: "flowchart",
@@ -109,10 +109,10 @@ test("tool_usage_plan gives a bounded small-model command sequence", async () =>
 });
 
 test("transformUserMessage injects compact small-model guidance instead of the full profile", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-compact-hook-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-compact-hook-"));
+  const plugin = createTinyChuPlugin({ root });
   const transformed = await plugin.hooks.transformUserMessage("ulw analyze the linked UX and backend flow", { targetPath: "." });
-  assert.match(transformed, /tiny-infi-small-context/);
+  assert.match(transformed, /tiny-chu-small-context/);
   assert.match(transformed, /profileMode: compact/);
   assert.match(transformed, /omittedContextPasses:/);
   assert.match(transformed, /Quote jq\/yq\/mdq\/rg\/fd\/ast-grep patterns with single quotes/);
@@ -124,7 +124,7 @@ test("transformUserMessage injects compact small-model guidance instead of the f
 });
 
 test("orchestration_profile exposes small-context operating mode", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const profile = await plugin.tools.orchestration_profile({});
   const mode = profile.smallContextRun ?? profile.operatingModes?.smallContextRun;
 
@@ -155,8 +155,8 @@ test("orchestration_profile exposes small-context operating mode", async () => {
 });
 
 test("worker_packet_optimizer is packet-only by default", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-worker-packet-only-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-worker-packet-only-"));
+  const plugin = createTinyChuPlugin({ root });
 
   const defaultPacket = await plugin.tools.worker_packet_optimizer({
     objective: "Analyze order flow without queueing public work",
@@ -184,18 +184,17 @@ test("worker_packet_optimizer is packet-only by default", async () => {
 });
 
 test("tool_usage_plan emits small-context correction workflow", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const plan = await plugin.tools.tool_usage_plan({
     objective: "correct a small-context operating-mode breach after a live provider call was suggested",
   });
-  const visibleTools = plan.steps.flatMap((step) => [step.tinyTool, step.nativeTool].filter(Boolean));
 
   assert.ok(plan.steps.length <= 8);
-  assert.ok(visibleTools.includes("doctor"));
-  assert.ok(visibleTools.includes("session_preflight"));
-  assert.ok(visibleTools.includes("context_packet"));
-  assert.ok(visibleTools.includes("incremental_evidence_cache"));
-  assert.ok(visibleTools.includes("worker_packet_optimizer"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "doctor"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "session_preflight"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "context_packet"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "incremental_evidence_cache"));
+  assert.ok(plan.steps.some((step) => step.tinyTool === "worker_packet_optimizer"));
   assert.ok(plan.verification.requiredTools.includes("claim_evidence_check"));
   assert.ok(plan.verification.requiredTools.includes("artifact_pack_manifest"));
   assert.ok(plan.verification.requiredTools.includes("task_checkpoint"));
@@ -204,10 +203,10 @@ test("tool_usage_plan emits small-context correction workflow", async () => {
 });
 
 test("incremental evidence cache does not claim git dirtiness", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-evidence-cache-hash-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-evidence-cache-hash-"));
   await mkdir(path.join(root, "src"), { recursive: true });
   await writeFile(path.join(root, "src", "feature.ts"), "export const value = 'before';\n", "utf8");
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
 
   const first = await plugin.tools.incremental_evidence_cache({ targetPath: "src/feature.ts" });
   await writeFile(path.join(root, "src", "feature.ts"), "export const value = 'after';\n", "utf8");
@@ -242,7 +241,7 @@ test("docs describe the small-context operating-mode correction gate", async () 
 });
 
 test("tool_usage_plan adds qwen retry policy for delegated public work", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const plan = await plugin.tools.tool_usage_plan({
     objective: "delegate qwen analysis and recover from rate limit",
   });
@@ -252,7 +251,7 @@ test("tool_usage_plan adds qwen retry policy for delegated public work", async (
 });
 
 test("tool_usage_plan keeps qwen retry policy for delegated Mermaid artifacts", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const plan = await plugin.tools.tool_usage_plan({
     objective: "delegate qwen analysis and produce a flowchart",
     artifactType: "flowchart",
@@ -266,7 +265,7 @@ test("tool_usage_plan keeps qwen retry policy for delegated Mermaid artifacts", 
 });
 
 test("tool_usage_plan preserves verification for delegated legacy trace workflows", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const plan = await plugin.tools.tool_usage_plan({
     objective: "delegate qwen to trace UI button through saga API backend MyBatis RFC and produce a flowchart",
     artifactType: "flowchart",
@@ -286,14 +285,14 @@ test("tool_usage_plan preserves verification for delegated legacy trace workflow
 });
 
 test("repo_map summarizes architecture layers and data flow hints", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-repo-map-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-repo-map-"));
   await mkdir(path.join(root, "src", "ui"), { recursive: true });
   await mkdir(path.join(root, "src", "api"), { recursive: true });
   await mkdir(path.join(root, "src", "db"), { recursive: true });
   await writeFile(path.join(root, "src", "ui", "CheckoutButton.tsx"), "export function CheckoutButton() { return <button onClick={submitOrder}>Buy</button>; }\n", "utf8");
   await writeFile(path.join(root, "src", "api", "order-controller.ts"), "app.post('/orders', async (req) => saveOrder(req.body));\n", "utf8");
   await writeFile(path.join(root, "src", "db", "order-repository.ts"), "export const saveOrder = (order) => sql`INSERT INTO orders ${order}`;\n", "utf8");
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const map = await plugin.tools.repo_map({ maxFiles: 20 });
   assert.ok(map.files.length <= 20);
   assert.deepEqual(map.layers.map((layer) => layer.name), ["ui", "api", "database"]);
@@ -304,18 +303,18 @@ test("repo_map summarizes architecture layers and data flow hints", async () => 
 });
 
 test("repo_map prioritizes an explicit file target", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-repo-map-file-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-repo-map-file-"));
   await mkdir(path.join(root, "src"), { recursive: true });
   await writeFile(path.join(root, "src", "a.ts"), "export const ignored = true;\n", "utf8");
   await writeFile(path.join(root, "src", "z-target.ts"), "export function TargetButton() { return <button>Save</button>; }\n", "utf8");
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const map = await plugin.tools.repo_map({ targetPath: "src/z-target.ts", maxFiles: 1 });
   assert.deepEqual(map.files.map((file) => file.path), ["src/z-target.ts"]);
   assert.equal(map.files[0].layer, "ui");
 });
 
 test("business_logic_map extracts bounded variables columns and comparisons", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-business-logic-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-business-logic-"));
   await mkdir(path.join(root, "src", "domain"), { recursive: true });
   await mkdir(path.join(root, "src", "db"), { recursive: true });
   await writeFile(path.join(root, "src", "domain", "pricing.ts"), [
@@ -329,7 +328,7 @@ test("business_logic_map extracts bounded variables columns and comparisons", as
     "FROM orders",
     "WHERE customer_id = $1 AND total_amount >= 100",
   ].join("\n"), "utf8");
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const map = await plugin.tools.business_logic_map({ targetPath: "src", maxFiles: 10, maxItemsPerFile: 8 });
   assert.ok(map.files.length <= 10);
   assert.ok(map.files.some((file) => file.variables.includes("order.totalAmount")));
@@ -339,11 +338,11 @@ test("business_logic_map extracts bounded variables columns and comparisons", as
 });
 
 test("business_logic_map prioritizes an explicit file target", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-business-file-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-business-file-"));
   await mkdir(path.join(root, "src"), { recursive: true });
   await writeFile(path.join(root, "src", "a.ts"), "export const ignored = account.balance >= 0;\n", "utf8");
   await writeFile(path.join(root, "src", "z-target.ts"), "export const approved = order.total_amount >= customer.credit_limit;\n", "utf8");
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const map = await plugin.tools.business_logic_map({ targetPath: "src/z-target.ts", maxFiles: 1, maxItemsPerFile: 8 });
   assert.deepEqual(map.files.map((file) => file.path), ["src/z-target.ts"]);
   assert.ok(map.files[0].columns.includes("total_amount"));
@@ -351,10 +350,10 @@ test("business_logic_map prioritizes an explicit file target", async () => {
 });
 
 test("business_logic_map ignores jsx tags while preserving real comparisons", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-business-jsx-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-business-jsx-"));
   await mkdir(path.join(root, "src"), { recursive: true });
   await writeFile(path.join(root, "src", "View.tsx"), "export function View(){ return <button disabled={total >= limit}>Pay</button>; }\n", "utf8");
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const map = await plugin.tools.business_logic_map({ targetPath: "src/View.tsx", maxFiles: 1, maxItemsPerFile: 8 });
   const comparisons = map.files[0].comparisons;
   assert.ok(comparisons.some((comparison) => comparison.left === "total" && comparison.operator === ">=" && comparison.right === "limit"));
@@ -362,7 +361,7 @@ test("business_logic_map ignores jsx tags while preserving real comparisons", as
 });
 
 test("qwen_retry_policy encodes public delegate limits and non-stop recovery", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const policy = await plugin.tools.qwen_retry_policy({ estimatedTokens: 45000, attempt: 2, status: "rate_limited" });
   assert.equal(policy.model, "qwen3.6-35b-a3b");
   assert.equal(policy.limits.requestsPerMinute, 20);
@@ -374,8 +373,8 @@ test("qwen_retry_policy encodes public delegate limits and non-stop recovery", a
 });
 
 test("orchestration_health summarizes recoverable queue state", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-health-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-health-"));
+  const plugin = createTinyChuPlugin({ root });
   await plugin.tools.public_dispatch({ prompt: "Analyze checkout flow", mustReturn: ["findings"] });
   const health = await plugin.tools.orchestration_health({});
   assert.equal(health.qwen.limits.requestsPerMinute, 20);
@@ -386,8 +385,8 @@ test("orchestration_health summarizes recoverable queue state", async () => {
 });
 
 test("orchestration_health treats checkpointed public jobs as attention", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-health-checkpointed-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-health-checkpointed-"));
+  const plugin = createTinyChuPlugin({ root });
   const job = await plugin.tools.public_dispatch({ prompt: "Analyze checkout flow", mustReturn: ["findings"] });
   await plugin.tools.public_checkpoint({ id: job.id, summary: "partial worker result", result: "half done" });
   const health = await plugin.tools.orchestration_health({});
@@ -396,14 +395,16 @@ test("orchestration_health treats checkpointed public jobs as attention", async 
 });
 
 test("rules_snapshot writes architecture rules for future implementations", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-infi-rules-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-rules-"));
+  const plugin = createTinyChuPlugin({ root });
   const snapshot = await plugin.tools.rules_snapshot({
     evidenceRefs: ["src/opencode/tiny-plugin.ts", "src/opencode/plugin.ts", "test/small-model-resilience.test.mjs"],
   });
   assert.equal(snapshot.path, ".tiny/rules/architecture-patterns.md");
-  assert.ok(snapshot.rules.some((rule) => rule.includes("createTinyInfiPlugin")));
+  assert.ok(snapshot.rules.some((rule) => rule.includes("TinyFeaturePackage")));
+  assert.ok(snapshot.rules.some((rule) => rule.includes("generated registry")));
   const markdown = await readFile(path.join(root, ".tiny", "rules", "architecture-patterns.md"), "utf8");
   assert.match(markdown, /OpenCode tool bridge/);
+  assert.doesNotMatch(markdown, /TOOL_SPECS/);
   assert.match(markdown, /Evidence refs/);
 });

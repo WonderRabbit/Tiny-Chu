@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveTinyInfiPaths } from "../state/paths.js";
+import { resolveTinyChuPaths } from "../state/paths.js";
 import { ensureDir } from "../state/file-store.js";
 
 export interface PlanCheckbox {
@@ -60,12 +60,12 @@ export function selectPlanFocus(status: PlanStatus, options: { readonly maxOpenI
 }
 
 export async function readPlanStatus(root: string | undefined, planRef: string): Promise<PlanStatus> {
-  const absolute = path.resolve(resolveTinyInfiPaths(root).root, planRef);
+  const absolute = path.resolve(resolveTinyChuPaths(root).root, planRef);
   return parsePlanMarkdown(await readFile(absolute, "utf8"), planRef);
 }
 
 export async function writePlanTemplate(root: string | undefined, fileName: string, input: { title: string; goal: string; todos: string[]; evidence?: string[] }): Promise<string> {
-  const paths = resolveTinyInfiPaths(root);
+  const paths = resolveTinyChuPaths(root);
   await ensureDir(paths.plansDir);
   const planPath = path.join(paths.plansDir, fileName);
   const markdown = [

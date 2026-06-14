@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { resolveTinyInfiPaths } from "../state/paths.js";
+import { resolveTinyChuPaths } from "../state/paths.js";
 import { ensureDir, readJsonFile, writeJsonAtomic } from "../state/file-store.js";
 
 export type PublicJobStatus = "queued" | "running" | "checkpointed" | "retry_wait" | "done" | "failed" | "cancelled";
@@ -85,7 +85,7 @@ function assertJobId(id: string): void {
 
 function jobFile(root: string | undefined, id: string): string {
   assertJobId(id);
-  return path.join(resolveTinyInfiPaths(root).publicJobsDir, `${id}.json`);
+  return path.join(resolveTinyChuPaths(root).publicJobsDir, `${id}.json`);
 }
 
 function isPublicJob(job: PublicJob | undefined): job is PublicJob {
@@ -168,7 +168,7 @@ export class PublicDispatcher {
   }
 
   async list(status?: PublicJobStatus): Promise<PublicJob[]> {
-    const dir = resolveTinyInfiPaths(this.root).publicJobsDir;
+    const dir = resolveTinyChuPaths(this.root).publicJobsDir;
     await ensureDir(dir);
     const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
     const jobs = await Promise.all(files.map((file) => readJsonFile<PublicJob | undefined>(path.join(dir, file), undefined)));

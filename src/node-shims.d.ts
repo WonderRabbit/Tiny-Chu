@@ -45,6 +45,7 @@ declare module "node:child_process" {
 
 declare module "node:fs" {
   export function existsSync(path: string): boolean;
+  export function lstatSync(path: string): { isSymbolicLink(): boolean; isDirectory(): boolean };
 }
 
 declare module "node:fs/promises" {

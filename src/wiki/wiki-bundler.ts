@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { resolveTinyInfiPaths } from "../state/paths.js";
+import { resolveTinyChuPaths } from "../state/paths.js";
+import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
 import { readJsonFile, writeJsonAtomic } from "../state/file-store.js";
 
 export interface WikiDocumentRef {
@@ -28,11 +28,11 @@ export class WikiBundler {
   }
 
   async readIndex(): Promise<WikiIndex> {
-    return readJsonFile<WikiIndex>(resolveTinyInfiPaths(this.root).wikiIndexFile, { documents: [] });
+    return readJsonFile<WikiIndex>(resolveTinyChuPaths(this.root).wikiIndexFile, { documents: [] });
   }
 
   async writeIndex(index: WikiIndex): Promise<void> {
-    await writeJsonAtomic(resolveTinyInfiPaths(this.root).wikiIndexFile, index);
+    await writeJsonAtomic(resolveTinyChuPaths(this.root).wikiIndexFile, index);
   }
 
   async upsertDocument(ref: WikiDocumentRef): Promise<WikiIndex> {
@@ -50,9 +50,11 @@ export class WikiBundler {
     const selected = idsOrTags.length === 0
       ? index.documents.filter((doc) => doc.canonical)
       : index.documents.filter((doc) => idsOrTags.includes(doc.id) || doc.tags.some((tag) => idsOrTags.includes(tag)));
-    const root = resolveTinyInfiPaths(this.root).root;
+    const root = resolveTinyChuPaths(this.root).root;
     const chunks = await Promise.all(selected.map(async (doc) => {
-      const content = await readFile(path.resolve(root, doc.path), "utf8");
+      const file = await resolveExistingPathInsideRoot(root, doc.path);
+      if (!file) throw new Error(`Wiki document path is outside configured root: ${doc.path}`);
+      const content = await readFile(file, "utf8");
       return `---\nwiki: ${doc.id}\npath: ${doc.path}\ntags: ${doc.tags.join(",")}\n---\n${content.trim()}\n`;
     }));
     return { refs: selected, text: chunks.join("\n") };

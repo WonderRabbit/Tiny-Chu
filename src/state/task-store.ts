@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { resolveTinyInfiPaths } from "./paths.js";
+import { resolveTinyChuPaths } from "./paths.js";
 import { appendJsonLine, ensureDir, readJsonFile, readJsonLines, writeJsonAtomic } from "./file-store.js";
 
 export type TaskStatus = "todo" | "in_progress" | "blocked" | "done" | "cancelled";
@@ -36,9 +36,16 @@ export interface TaskStoreOptions {
   now?: () => Date;
 }
 
-function taskId(now: Date): string {
+const taskIdSequences = new Map<string, number>();
+const checkpointLocks = new Map<string, Promise<void>>();
+
+function taskId(root: string | undefined, now: Date): string {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-  return `T-${stamp}`;
+  const base = `T-${stamp}`;
+  const sequenceKey = `${resolveTinyChuPaths(root).tasksDir}\0${base}`;
+  const sequence = taskIdSequences.get(sequenceKey) ?? 0;
+  taskIdSequences.set(sequenceKey, sequence + 1);
+  return sequence === 0 ? base : `${base}-${sequence.toString(36).padStart(4, "0")}`;
 }
 
 function assertTaskId(id: string): void {
@@ -47,12 +54,12 @@ function assertTaskId(id: string): void {
 
 function taskFile(root: string | undefined, id: string): string {
   assertTaskId(id);
-  return path.join(resolveTinyInfiPaths(root).tasksDir, `${id}.json`);
+  return path.join(resolveTinyChuPaths(root).tasksDir, `${id}.json`);
 }
 
 function checkpointFile(root: string | undefined, id: string): string {
   assertTaskId(id);
-  return path.join(resolveTinyInfiPaths(root).tasksDir, `${id}.checkpoints.jsonl`);
+  return path.join(resolveTinyChuPaths(root).tasksDir, `${id}.checkpoints.jsonl`);
 }
 
 function isTinyTask(task: TinyTask | undefined): task is TinyTask {
@@ -79,6 +86,48 @@ function normalizeTask(task: TinyTask): TinyTask {
   };
 }
 
+function checkpointKey(checkpoint: TaskCheckpoint): string {
+  return JSON.stringify(checkpoint);
+}
+
+function compareCheckpoints(left: TaskCheckpoint, right: TaskCheckpoint): number {
+  return left.sequence - right.sequence || left.createdAt.localeCompare(right.createdAt) || left.summary.localeCompare(right.summary);
+}
+
+function mergeCheckpoints(inline: readonly TaskCheckpoint[], sidecar: readonly TaskCheckpoint[]): TaskCheckpoint[] {
+  const checkpoints: TaskCheckpoint[] = [];
+  const seen = new Set<string>();
+  for (const checkpoint of [...inline, ...sidecar]) {
+    const normalized = normalizeCheckpoint(checkpoint);
+    const key = checkpointKey(normalized);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    checkpoints.push(normalized);
+  }
+  return checkpoints.sort(compareCheckpoints);
+}
+
+function nextCheckpointSequence(checkpoints: readonly TaskCheckpoint[]): number {
+  return checkpoints.reduce((max, checkpoint) => Math.max(max, checkpoint.sequence), 0) + 1;
+}
+
+async function withCheckpointLock<T>(id: string, operation: () => Promise<T>): Promise<T> {
+  const previous = checkpointLocks.get(id) ?? Promise.resolve();
+  let release = (): void => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const chain = previous.then(() => gate, () => gate);
+  checkpointLocks.set(id, chain);
+  await previous.then(() => undefined, () => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (checkpointLocks.get(id) === chain) checkpointLocks.delete(id);
+  }
+}
+
 export class TaskStore {
   readonly root?: string;
   private readonly now: () => Date;
@@ -92,7 +141,7 @@ export class TaskStore {
     const now = this.now();
     const iso = now.toISOString();
     const task: TinyTask = {
-      id: taskId(now),
+      id: taskId(this.root, now),
       title: input.title,
       status: "todo",
       priority: input.priority ?? "normal",
@@ -116,7 +165,7 @@ export class TaskStore {
   }
 
   async list(status?: TaskStatus): Promise<TinyTask[]> {
-    const dir = resolveTinyInfiPaths(this.root).tasksDir;
+    const dir = resolveTinyChuPaths(this.root).tasksDir;
     await ensureDir(dir);
     const files = (await readdir(dir)).filter((file) => file.endsWith(".json")).sort();
     const tasks = await Promise.all(files.map((file) => readJsonFile<TinyTask | undefined>(path.join(dir, file), undefined)));
@@ -139,39 +188,38 @@ export class TaskStore {
   }
 
   async checkpoint(id: string, input: { summary: string; artifactType?: string; passIndex?: number; nextSteps?: string[]; evidenceRefs?: string[]; openQuestions?: string[]; verificationCommands?: string[] }): Promise<TaskCheckpoint> {
-    const current = await this.get(id);
-    if (!current) throw new Error(`Task not found: ${id}`);
-    const raw = await readJsonFile<TinyTask | undefined>(taskFile(this.root, id), undefined);
-    const inlineCheckpoints = raw ? normalizeTask(raw).checkpoints : [];
-    const existing = current.checkpoints ?? [];
-    const checkpoint: TaskCheckpoint = {
-      sequence: existing.length + 1,
-      summary: input.summary,
-      artifactType: input.artifactType,
-      passIndex: input.passIndex,
-      nextSteps: input.nextSteps ?? [],
-      evidenceRefs: input.evidenceRefs ?? [],
-      openQuestions: input.openQuestions ?? [],
-      verificationCommands: input.verificationCommands ?? [],
-      createdAt: this.now().toISOString(),
-    };
-    await appendJsonLine(checkpointFile(this.root, id), checkpoint);
-    const updated: TinyTask = {
-      ...current,
-      checkpoints: inlineCheckpoints,
-      evidenceRefs: [...new Set([...current.evidenceRefs, ...checkpoint.evidenceRefs])].sort(),
-      updatedAt: checkpoint.createdAt,
-    };
-    await writeJsonAtomic(taskFile(this.root, id), updated, { compact: true });
-    return checkpoint;
+    assertTaskId(id);
+    return withCheckpointLock(id, async () => {
+      const current = await this.get(id);
+      if (!current) throw new Error(`Task not found: ${id}`);
+      const raw = await readJsonFile<TinyTask | undefined>(taskFile(this.root, id), undefined);
+      const inlineCheckpoints = raw ? normalizeTask(raw).checkpoints : [];
+      const checkpoint: TaskCheckpoint = {
+        sequence: nextCheckpointSequence(current.checkpoints),
+        summary: input.summary,
+        artifactType: input.artifactType,
+        passIndex: input.passIndex,
+        nextSteps: input.nextSteps ?? [],
+        evidenceRefs: input.evidenceRefs ?? [],
+        openQuestions: input.openQuestions ?? [],
+        verificationCommands: input.verificationCommands ?? [],
+        createdAt: this.now().toISOString(),
+      };
+      await appendJsonLine(checkpointFile(this.root, id), checkpoint);
+      const updated: TinyTask = {
+        ...current,
+        checkpoints: inlineCheckpoints,
+        evidenceRefs: [...new Set([...current.evidenceRefs, ...checkpoint.evidenceRefs])].sort(),
+        updatedAt: checkpoint.createdAt,
+      };
+      await writeJsonAtomic(taskFile(this.root, id), updated, { compact: true });
+      return checkpoint;
+    });
   }
 
   private async withSidecarCheckpoints(task: TinyTask): Promise<TinyTask> {
     const normalized = normalizeTask(task);
     const sidecar = await readJsonLines<TaskCheckpoint>(checkpointFile(this.root, normalized.id), []);
-    const bySequence = new Map<number, TaskCheckpoint>();
-    for (const checkpoint of normalized.checkpoints) bySequence.set(checkpoint.sequence, normalizeCheckpoint(checkpoint));
-    for (const checkpoint of sidecar) bySequence.set(checkpoint.sequence, normalizeCheckpoint(checkpoint));
-    return { ...normalized, checkpoints: [...bySequence.values()].sort((a, b) => a.sequence - b.sequence) };
+    return { ...normalized, checkpoints: mergeCheckpoints(normalized.checkpoints, sidecar) };
   }
 }

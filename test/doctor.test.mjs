@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createDoctor, createTinyInfiPlugin } from "../dist/index.js";
+import { createDoctor, createTinyChuPlugin } from "../dist/index.js";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
 
 test("doctor returns normalized sections and status precedence", async () => {
@@ -32,7 +32,7 @@ test("doctor is read-only and reports malformed runtime state", async () => {
 
 test("doctor handles PowerShell mismatch and session ids", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-doctor-session-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const task = await plugin.tools.task_create({ title: "Doctor session" });
   await plugin.tools.task_checkpoint({ id: task.id, summary: "ready to resume", nextSteps: ["run doctor"] });
 
@@ -52,7 +52,7 @@ test("doctor handles PowerShell mismatch and session ids", async () => {
 
 test("doctor returns small-context run gate", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-doctor-small-context-"));
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const task = await plugin.tools.task_create({ title: "Small-context gate" });
   await plugin.tools.task_checkpoint({ id: task.id, summary: "ready", nextSteps: ["run context_packet"] });
   const result = await createDoctor(root, { taskId: task.id, toolNames: ["node"], timeoutMs: 300 });

@@ -43,7 +43,7 @@ function compactValue(value: unknown, maxArrayItems: number, stats: BudgetStats)
 }
 
 function stringify(value: unknown): string {
-  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  return typeof value === "string" ? value : JSON.stringify(value);
 }
 
 function truncateOutput(output: string, maxOutputChars: number, metadata: OutputBudgetMetadata): string {

@@ -1,10 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { loadContextBundle } from "../context/context-loader.js";
 import { PublicDispatcher } from "../dispatcher/public-job.js";
 import { checkMermaidMarkdown, fixMermaidMarkdown } from "../markdown/mermaid.js";
-import { resolveTinyInfiPaths } from "../state/paths.js";
-import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
-import { TaskStore, type TaskStatus, type TinyTask } from "../state/task-store.js";
+import { resolveTinyChuPaths } from "../state/paths.js";
+import { TaskStore } from "../state/task-store.js";
 import { WikiBundler } from "../wiki/wiki-bundler.js";
 import { readPlanStatus } from "../ulw-loop/plan.js";
 import { buildContextPacket } from "../context/evidence-packet.js";
@@ -21,6 +19,9 @@ import { createArtifactPackManifest, createIncrementalEvidenceCache, createWorke
 import { createApiContractCatalog, createDtoSchemaMap } from "./extension-contracts.js";
 import { createEnvironmentDoctor } from "./extension-environment.js";
 import { createAuthPermissionTrace, createErrorTransactionMap, createReduxStateFlowMap, createTestImpactPlanner } from "./extension-flow.js";
+import { composeFeaturePackages, type TinyComposedRegistry } from "./feature-package.js";
+import { createDefaultTinyFeaturePackages } from "./feature-packages/default-packages.js";
+import { createGitWeeklyReport } from "./git-weekly-report.js";
 import { createIntegrationCatalog } from "./integration-catalog.js";
 import { createTinyChuInstallCheck } from "./install-check.js";
 import { createLegacyRepoIndex } from "./legacy-repo-index.js";
@@ -38,12 +39,13 @@ import { createToolUsagePlan } from "./tool-plan.js";
 import { createTraceabilityMatrix } from "./traceability-matrix.js";
 import { createTraceDiagramRender } from "./trace-diagram-render.js";
 import { createUiActionTrace } from "./ui-action-trace.js";
-import type { OpenCodeRuntimeConfig, TinyInfiConfig, TinyPluginModule, TinyToolContext } from "./tiny-plugin-types.js";
+import { markdownInput, numberInput, publicJobFormatInput, stringInput, stringListInput, taskPatchInput, taskPriorityInput, taskStatusInput } from "./tiny-tool-inputs.js";
+import type { OpenCodeRuntimeConfig, TinyChuConfig, TinyPluginModule, TinyToolContext, TinyToolHandler } from "./tiny-plugin-types.js";
 import { reportLayoutTruth, updateLayoutTruth, verifyLayoutTruth } from "./layout-truth.js";
 import { createUiLayoutCatalog, createUxRationaleTrace, createUxValidationMatrix } from "./ux-reverse-analysis.js";
 import { createUxReverseReport } from "./ux-reverse-report.js";
 
-export type { OpenCodeRuntimeConfig, OpenCodeShellRuntime, TinyInfiConfig, TinyPluginModule, TinyToolContext, TinyToolHandler } from "./tiny-plugin-types.js";
+export type { OpenCodeRuntimeConfig, OpenCodeShellRuntime, TinyChuConfig, TinyPluginModule, TinyToolContext, TinyToolHandler } from "./tiny-plugin-types.js";
 
 export const POWERSHELL_OPENCODE_RUNTIME: OpenCodeRuntimeConfig = {
   shell: {
@@ -55,87 +57,15 @@ export const POWERSHELL_OPENCODE_RUNTIME: OpenCodeRuntimeConfig = {
   tooling: POWERSHELL_TOOLING_PROFILE,
 };
 
-function stringInput(input: Record<string, unknown>, key: string): string {
-  const value = input[key];
-  if (typeof value !== "string" || value.trim() === "") throw new Error(`Missing string input: ${key}`);
-  return value;
-}
-
-function stringListInput(input: Record<string, unknown>, key: string): string[] {
-  const value = input[key];
-  return Array.isArray(value) ? value.map(String).filter((item) => item.trim() !== "") : [];
-}
-
-function numberInput(input: Record<string, unknown>, key: string): number | undefined {
-  const value = input[key]; return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
-}
-
-function taskStatusInput(value: unknown): TaskStatus | undefined {
-  switch (value) {
-    case "todo":
-    case "in_progress":
-    case "blocked":
-    case "done":
-    case "cancelled":
-      return value;
-    default:
-      return undefined;
-  }
-}
-
-function taskPriorityInput(value: unknown): TinyTask["priority"] | undefined {
-  switch (value) {
-    case "low":
-    case "normal":
-    case "high":
-      return value;
-    default:
-      return undefined;
-  }
-}
-
-function taskPatchInput(input: Record<string, unknown>): Partial<Omit<TinyTask, "id" | "createdAt">> {
-  const patch: Partial<Omit<TinyTask, "id" | "createdAt">> = {};
-  const status = taskStatusInput(input.status);
-  const priority = taskPriorityInput(input.priority);
-  if (typeof input.title === "string") patch.title = input.title;
-  if (status) patch.status = status;
-  if (priority) patch.priority = priority;
-  if (Array.isArray(input.notes)) patch.notes = input.notes.map(String);
-  if (typeof input.planRef === "string") patch.planRef = input.planRef;
-  if (Array.isArray(input.evidenceRefs)) patch.evidenceRefs = input.evidenceRefs.map(String);
-  if (Array.isArray(input.publicJobIds)) patch.publicJobIds = input.publicJobIds.map(String);
-  return patch;
-}
-
-function publicJobFormatInput(value: unknown): "markdown_sections" | "json" | undefined {
-  if (value === undefined || value === "markdown_sections" || value === "json") return value; throw new Error(`Invalid public job format: ${String(value)}`);
-}
-
-async function markdownInput(root: string | undefined, input: Record<string, unknown>): Promise<string> {
-  if (typeof input.markdown === "string") return input.markdown;
-  if (typeof input.path === "string" && input.path.trim() !== "") {
-    const configuredRoot = resolveTinyInfiPaths(root).root;
-    const absolute = await resolveExistingPathInsideRoot(configuredRoot, input.path);
-    if (!absolute) {
-      throw new Error(`Mermaid path is outside configured root: ${input.path}`);
-    }
-    return readFile(absolute, "utf8");
-  }
-  throw new Error("Missing markdown or path input");
-}
-
-export function createTinyInfiPlugin(config: TinyInfiConfig = {}): TinyPluginModule {
+export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModule {
   const root = config.root;
   const tasks = new TaskStore({ root });
   const dispatcher = new PublicDispatcher({ root, ...config.publicDispatcher });
   const wiki = new WikiBundler(root);
   const orchestrationProfile = createSmallContextOrchestrationProfile(POWERSHELL_OPENCODE_RUNTIME);
+  let registry: TinyComposedRegistry;
 
-  return {
-    name: "tiny-infi",
-    opencode: POWERSHELL_OPENCODE_RUNTIME,
-    tools: {
+  const tools: Record<string, TinyToolHandler> = {
       task_create: async (input) => tasks.create({
         title: stringInput(input, "title"),
         priority: taskPriorityInput(input.priority) ?? "normal",
@@ -174,17 +104,17 @@ export function createTinyInfiPlugin(config: TinyInfiConfig = {}): TinyPluginMod
       public_cancel: async (input) => dispatcher.cancel(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
       public_complete: async (input) => dispatcher.complete(stringInput(input, "id"), stringInput(input, "result")),
       context_bundle: async (input, context) => loadContextBundle(root, typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? "."),
-      context_packet: async (input, context) => buildContextPacket({ root: resolveTinyInfiPaths(root).root, targetPath: typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? ".", maxChars: numberInput(input, "maxChars"), evidenceRefs: stringListInput(input, "evidenceRefs"), notes: stringListInput(input, "notes") }),
-      context_digest: async (input) => createContextDigest(resolveTinyInfiPaths(root).root, input),
-      repo_map: async (input) => createRepoMap(resolveTinyInfiPaths(root).root, input),
-      business_logic_map: async (input) => createBusinessLogicMap(resolveTinyInfiPaths(root).root, input),
-      legacy_repo_index: async (input) => createLegacyRepoIndex(resolveTinyInfiPaths(root).root, input),
-      ui_action_trace: async (input) => createUiActionTrace(resolveTinyInfiPaths(root).root, input),
-      api_backend_trace: async (input) => createApiBackendTrace(resolveTinyInfiPaths(root).root, input),
-      integration_catalog: async (input) => createIntegrationCatalog(resolveTinyInfiPaths(root).root, input),
+      context_packet: async (input, context) => buildContextPacket({ root: resolveTinyChuPaths(root).root, targetPath: typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? ".", maxChars: numberInput(input, "maxChars"), evidenceRefs: stringListInput(input, "evidenceRefs"), notes: stringListInput(input, "notes") }),
+      context_digest: async (input) => createContextDigest(resolveTinyChuPaths(root).root, input),
+      repo_map: async (input) => createRepoMap(resolveTinyChuPaths(root).root, input),
+      business_logic_map: async (input) => createBusinessLogicMap(resolveTinyChuPaths(root).root, input),
+      legacy_repo_index: async (input) => createLegacyRepoIndex(resolveTinyChuPaths(root).root, input),
+      ui_action_trace: async (input) => createUiActionTrace(resolveTinyChuPaths(root).root, input),
+      api_backend_trace: async (input) => createApiBackendTrace(resolveTinyChuPaths(root).root, input),
+      integration_catalog: async (input) => createIntegrationCatalog(resolveTinyChuPaths(root).root, input),
       traceability_matrix: async (input) => createTraceabilityMatrix(input),
       evidence_qa: async (input) => createEvidenceQa(input),
-      evidence_snapshot: async (input) => createEvidenceSnapshot(resolveTinyInfiPaths(root).root, input),
+      evidence_snapshot: async (input) => createEvidenceSnapshot(resolveTinyChuPaths(root).root, input),
       doctor: async (input) => createDoctor(root, input),
       claim_evidence_check: async (input) => createClaimEvidenceCheck(input),
       session_preflight: async (input) => {
@@ -194,39 +124,40 @@ export function createTinyInfiPlugin(config: TinyInfiConfig = {}): TinyPluginMod
       },
       powershell_command_guard: async (input) => createPowerShellCommandGuard(input),
       trace_diagram_render: async (input) => createTraceDiagramRender(input),
-      tiny_chu_install_check: async () => createTinyChuInstallCheck(),
+      tiny_chu_install_check: async () => createTinyChuInstallCheck(registry.requiredToolNames, registry.packages, registry.nativeToolNames),
       environment_doctor: async (input) => createEnvironmentDoctor(input),
-      api_contract_catalog: async (input) => createApiContractCatalog(resolveTinyInfiPaths(root).root, input),
-      dto_schema_map: async (input) => createDtoSchemaMap(resolveTinyInfiPaths(root).root, input),
-      redux_state_flow_map: async (input) => createReduxStateFlowMap(resolveTinyInfiPaths(root).root, input),
-      auth_permission_trace: async (input) => createAuthPermissionTrace(resolveTinyInfiPaths(root).root, input),
-      error_transaction_map: async (input) => createErrorTransactionMap(resolveTinyInfiPaths(root).root, input),
-      test_impact_planner: async (input) => createTestImpactPlanner(resolveTinyInfiPaths(root).root, input),
-      worker_packet_optimizer: async (input) => createWorkerPacketOptimizer(resolveTinyInfiPaths(root).root, input),
+      api_contract_catalog: async (input) => createApiContractCatalog(resolveTinyChuPaths(root).root, input),
+      dto_schema_map: async (input) => createDtoSchemaMap(resolveTinyChuPaths(root).root, input),
+      redux_state_flow_map: async (input) => createReduxStateFlowMap(resolveTinyChuPaths(root).root, input),
+      auth_permission_trace: async (input) => createAuthPermissionTrace(resolveTinyChuPaths(root).root, input),
+      error_transaction_map: async (input) => createErrorTransactionMap(resolveTinyChuPaths(root).root, input),
+      test_impact_planner: async (input) => createTestImpactPlanner(resolveTinyChuPaths(root).root, input),
+      worker_packet_optimizer: async (input) => createWorkerPacketOptimizer(resolveTinyChuPaths(root).root, input),
       artifact_pack_manifest: async (input) => createArtifactPackManifest(input),
-      incremental_evidence_cache: async (input) => createIncrementalEvidenceCache(resolveTinyInfiPaths(root).root, input),
-      button_workflow_plan: async (input) => createButtonWorkflowPlan(resolveTinyInfiPaths(root).root, input),
+      incremental_evidence_cache: async (input) => createIncrementalEvidenceCache(resolveTinyChuPaths(root).root, input),
+      button_workflow_plan: async (input) => createButtonWorkflowPlan(resolveTinyChuPaths(root).root, input),
       button_worker_packet: async (input) => createButtonWorkerPacket(input),
-      button_workflow_dispatch: async (input) => dispatchButtonWorkflow(resolveTinyInfiPaths(root).root, input),
+      button_workflow_dispatch: async (input) => dispatchButtonWorkflow(resolveTinyChuPaths(root).root, input),
       markdown_envelope_check: async (input) => markdownEnvelopeCheck(input),
       button_worker_result_check: async (input) => buttonWorkerResultCheck(input),
       button_trace_aggregate: async (input) => aggregateButtonTraces(input),
       aggregation_drift_check: async (input) => aggregationDriftCheck(input),
-      atomic_markdown_write: async (input) => atomicMarkdownWrite(resolveTinyInfiPaths(root).root, input),
-      write_loop_guard: async (input) => writeLoopGuard(resolveTinyInfiPaths(root).root, input),
+      atomic_markdown_write: async (input) => atomicMarkdownWrite(resolveTinyChuPaths(root).root, input),
+      write_loop_guard: async (input) => writeLoopGuard(resolveTinyChuPaths(root).root, input),
       button_workflow_done_claim: async (input) => buttonWorkflowDoneClaim(input),
+      git_weekly_report: async (input) => createGitWeeklyReport(root, input),
       wiki_bundle: async (input) => wiki.bundle(Array.isArray(input.refs) ? input.refs.map(String) : []),
       orchestration_profile: async () => orchestrationProfile,
       qwen_retry_policy: async (input) => createQwenRetryPolicy(input),
       orchestration_health: async () => createOrchestrationHealth(root),
       rules_snapshot: async (input) => writeRulesSnapshot(root, input),
       tool_usage_plan: async (input) => createToolUsagePlan(input),
-      ui_layout_catalog: async (input) => createUiLayoutCatalog(resolveTinyInfiPaths(root).root, input),
-      ux_rationale_trace: async (input) => createUxRationaleTrace(resolveTinyInfiPaths(root).root, input),
-      ux_validation_matrix: async (input) => createUxValidationMatrix(resolveTinyInfiPaths(root).root, input),
-      layout_truth_update: async (input) => updateLayoutTruth(resolveTinyInfiPaths(root).root, input),
-      layout_truth_verify: async (input) => verifyLayoutTruth(resolveTinyInfiPaths(root).root, input),
-      layout_truth_report: async (input) => reportLayoutTruth(resolveTinyInfiPaths(root).root, input),
+      ui_layout_catalog: async (input) => createUiLayoutCatalog(resolveTinyChuPaths(root).root, input),
+      ux_rationale_trace: async (input) => createUxRationaleTrace(resolveTinyChuPaths(root).root, input),
+      ux_validation_matrix: async (input) => createUxValidationMatrix(resolveTinyChuPaths(root).root, input),
+      layout_truth_update: async (input) => updateLayoutTruth(resolveTinyChuPaths(root).root, input),
+      layout_truth_verify: async (input) => verifyLayoutTruth(resolveTinyChuPaths(root).root, input),
+      layout_truth_report: async (input) => reportLayoutTruth(resolveTinyChuPaths(root).root, input),
       ux_reverse_report: async (input) => createUxReverseReport(input),
       resume_packet: async (input) => {
         const task = await tasks.get(stringInput(input, "id"));
@@ -243,13 +174,20 @@ export function createTinyInfiPlugin(config: TinyInfiConfig = {}): TinyPluginMod
       }),
       mermaid_check: async (input) => checkMermaidMarkdown(await markdownInput(root, input)),
       mermaid_fix: async (input) => fixMermaidMarkdown(await markdownInput(root, input)),
-    },
+    };
+  registry = composeFeaturePackages(createDefaultTinyFeaturePackages(tools));
+
+  return {
+    name: "tiny-chu",
+    opencode: POWERSHELL_OPENCODE_RUNTIME,
+    registry,
+    tools: registry.tools,
     hooks: {
       async transformUserMessage(message, context) {
         if (!/\b(ulw|ultrawork)\b/i.test(message)) return message;
-        const packet = await buildContextPacket({ root: resolveTinyInfiPaths(root).root, targetPath: context?.targetPath ?? ".", maxChars: orchestrationProfile.packetStrategy.maxContextChars });
+        const packet = await buildContextPacket({ root: resolveTinyChuPaths(root).root, targetPath: context?.targetPath ?? ".", maxChars: orchestrationProfile.packetStrategy.maxContextChars });
         const compactGuide = renderCompactSmallContextGuide(orchestrationProfile);
-        return `${message}\n\n<tiny-infi-context>\n${JSON.stringify(packet, null, 2)}\n</tiny-infi-context>\n\n<tiny-infi-powershell-tooling>\n${renderCompactPowerShellToolingGuide()}\n</tiny-infi-powershell-tooling>\n\n<tiny-infi-small-context>\n${compactGuide.text}\n</tiny-infi-small-context>`;
+        return `${message}\n\n<tiny-chu-context>\n${JSON.stringify(packet, null, 2)}\n</tiny-chu-context>\n\n<tiny-chu-powershell-tooling>\n${renderCompactPowerShellToolingGuide()}\n</tiny-chu-powershell-tooling>\n\n<tiny-chu-small-context>\n${compactGuide.text}\n</tiny-chu-small-context>`;
       },
       async onSessionIdle(input) {
         if (!input.planRef) return { shouldContinue: false, reason: "no active plan" };

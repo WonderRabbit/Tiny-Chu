@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "tiny-chu": "file:./vendor/tiny-chu-vX.Y.Z-bundled.tgz"
+  }
+}

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { checkMermaidMarkdown, type MermaidDiagnostic } from "../markdown/mermaid.js";
-import { resolveTinyInfiPaths } from "../state/paths.js";
+import { resolveTinyChuPaths } from "../state/paths.js";
 import { resolvePathInsideRoot } from "../state/path-safety.js";
 
 export const ARTIFACT_TYPES = ["as_is", "ui_definition", "sequence_diagram", "flowchart", "user_story", "test_case", "erd", "ux_reverse_analysis"] as const;
@@ -120,7 +120,10 @@ export const ARTIFACT_CONTRACTS: readonly ArtifactContract[] = [
     requiredSections: ["Screen Summary", "Layout Inventory", "Layout Truth", "Existence Rationale", "Position Rationale", "Validation Matrix", "Messages", "Unknowns", "Evidence"],
     requiresMermaid: false,
     acceptedMermaidDeclarations: [],
-    validationRules: ["Explain layout existence and position only from source or layout-truth evidence; keep unsupported reasons Unknown or Needs Verification."],
+    validationRules: [
+      "Explain layout existence and position only from source or layout-truth evidence; keep unsupported reasons Unknown or Needs Verification.",
+      "Treat stale/missing layout truth as review targets and never present source-order-only or convention-only position rationale as Verified.",
+    ],
   },
 ];
 
@@ -153,7 +156,7 @@ export async function createArtifactFormatTemplate(root: string | undefined, inp
       diagnostics: [{ code: "unknown_artifact_type", message: `Unknown artifact type: ${rawType}` }],
     };
   }
-  const configuredRoot = resolveTinyInfiPaths(root).root;
+  const configuredRoot = resolveTinyChuPaths(root).root;
   const relativeTemplate = `.tiny/artifacts/templates/${type}.md`;
   const absolute = resolvePathInsideRoot(configuredRoot, relativeTemplate);
   const contract = contractFor(type);

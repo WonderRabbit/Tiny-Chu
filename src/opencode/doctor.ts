@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveTinyInfiPaths } from "../state/paths.js";
+import { resolveTinyChuPaths } from "../state/paths.js";
 import { TaskStore } from "../state/task-store.js";
 import { createEnvironmentDoctor } from "./extension-environment.js";
 import { createSessionPreflight } from "./session-preflight.js";
@@ -86,7 +86,7 @@ async function readJsonFiles(dir: string, section: string, name: string): Promis
 }
 
 async function runtimeChecks(root: string): Promise<DoctorCheck[]> {
-  const paths = resolveTinyInfiPaths(root);
+  const paths = resolveTinyChuPaths(root);
   const taskChecks = await readJsonFiles(paths.tasksDir, "runtime_state", "tasks_json");
   const jobChecks = await readJsonFiles(paths.publicJobsDir, "runtime_state", "public_jobs_json");
   return [...taskChecks, ...jobChecks];
@@ -126,7 +126,7 @@ function smallContextSession(input: DoctorInput, checks: readonly DoctorCheck[])
 }
 
 export async function createDoctor(root: string | undefined, input: DoctorInput = {}): Promise<DoctorResult> {
-  const configuredRoot = resolveTinyInfiPaths(root).root;
+  const configuredRoot = resolveTinyChuPaths(root).root;
   const environment = await createEnvironmentDoctor({ toolNames: input.toolNames, timeoutMs: input.timeoutMs });
   const checks: DoctorCheck[] = [
     ...environment.checks.map((check) => ({

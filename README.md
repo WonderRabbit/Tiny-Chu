@@ -1,6 +1,6 @@
-# Tiny Infi
+# Tiny-Chu
 
-Tiny Infi is a small, file-backed OpenCode-style orchestration shell inspired by the Light edition architecture in `oh-my-openagent`.
+Tiny-Chu is a small, file-backed OpenCode-style orchestration shell inspired by the Light edition architecture in `oh-my-openagent`.
 
 It deliberately keeps only the portable pieces needed for a local foreman model plus a single public worker API:
 
@@ -9,7 +9,7 @@ It deliberately keeps only the portable pieces needed for a local foreman model 
 - `.tiny/plans/*.md` checkbox-driven continuation state
 - `.tiny/public-jobs/*.json` public-worker queue packets
 - `.tiny/wiki/index.json` canonical wiki bundle selection
-- a thin `createTinyInfiPlugin()` shell exposing `task_*`, `public_*`, `context_bundle`, and `wiki_bundle` tools
+- a thin `createTinyChuPlugin()` shell exposing `task_*`, `public_*`, `context_bundle`, and `wiki_bundle` tools
 
 It intentionally does not include Team Mode, Hyperplan, Atlas/parallel hooks, or the original delegate-task engine.
 
@@ -20,12 +20,14 @@ npm run build
 npm test
 ```
 
+For installation in another OpenCode project, including closed-network installs, internal registry installs, and developer local checkout installs, use the canonical [INSTALL.md](./INSTALL.md) guide.
+
 ## Minimal plugin usage
 
 ```ts
-import { createTinyInfiPlugin } from "tiny-chu";
+import { createTinyChuPlugin } from "tiny-chu";
 
-const tiny = createTinyInfiPlugin({
+const tiny = createTinyChuPlugin({
   root: process.cwd(),
   publicDispatcher: {
     softRpm: 12,
@@ -57,7 +59,9 @@ The local shim imports the TypeScript plugin adapter directly:
 export { TinyChuOpenCodePlugin as TinyChu } from "../../src/opencode/plugin.ts";
 ```
 
-For another project, add Tiny-Chu to that project's `.opencode/package.json` and point a local plugin shim at the package subpath:
+For another project, copy the templates under `templates/opencode/` or follow [INSTALL.md](./INSTALL.md). Closed-network installs should use the offline bundle and local tarball dependency; the source checkout example below is for developer testing.
+
+For developer source testing, add Tiny-Chu to that project's `.opencode/package.json` and point a local plugin shim at the package subpath:
 
 ```json
 {
@@ -84,8 +88,83 @@ The OpenCode plugin exposes the same durable tools as the library shell:
 - `environment_doctor`, `api_contract_catalog`, `dto_schema_map`, `redux_state_flow_map`, `auth_permission_trace`, `error_transaction_map`, `test_impact_planner`, `worker_packet_optimizer`, `artifact_pack_manifest`, `incremental_evidence_cache`
 - `button_workflow_plan`, `button_worker_packet`, `button_workflow_dispatch`, `markdown_envelope_check`, `button_worker_result_check`, `button_trace_aggregate`, `aggregation_drift_check`, `atomic_markdown_write`, `write_loop_guard`, `button_workflow_done_claim`
 - `tool_usage_plan`, `resume_packet`, `chunked_write_plan`, `qwen_retry_policy`, `orchestration_health`, `rules_snapshot`
+- `git_weekly_report` writes the last 5 business days of Git activity to `.tiny/reports/git-weekly` with report, evidence, QA, index, and audit artifacts
 - `ui_layout_catalog`, `ux_rationale_trace`, `ux_validation_matrix`, `layout_truth_update`, `layout_truth_verify`, `layout_truth_report`, `ux_reverse_report`
 - `orchestration_profile`, `artifact_format_template`, `artifact_check`, `mermaid_check`, `mermaid_fix`
+
+### Git weekly reports
+
+`git_weekly_report` is a local-git evidence tool. It reports commits reachable
+from the selected `ref` and does not prove remote push events, pull requests,
+reviews, CI, deployments, or branch-protection state.
+
+Default input is `repoPath: "."`, `ref: "HEAD"`, `businessDays: 5`,
+`reportMode: "summary_only"`, and `includePatches: false`. The canonical
+period key is `YYYYMMDD_YYYYMMDD`; non-current refs add a sanitized ref suffix
+to the report id so same-period reports can coexist.
+
+Generated artifacts stay under `.tiny/reports/git-weekly/`:
+
+- `YYYYMMDD_YYYYMMDD.md` or `YYYYMMDD_YYYYMMDD_<ref>.md`
+- `evidence/YYYYMMDD_YYYYMMDD*.json`
+- `qa/YYYYMMDD_YYYYMMDD*.json`
+- `index.json`
+- `audit.jsonl`
+- `team-members.json`
+
+Identity mapping uses hashed email aliases:
+
+```json
+{
+  "version": 1,
+  "members": [
+    {
+      "id": "member-id",
+      "displayName": "Display Name",
+      "aliases": [{ "name": "Git Name", "emailHash": "sha256:<lowercase-email-sha256>" }]
+    }
+  ]
+}
+```
+
+When `team-members.json` is missing or incomplete, the tool still writes
+artifacts but sets `qa.valid=false` and lists unmapped redacted identities.
+Default markdown, evidence, QA, and audit output avoid raw emails, secret-like
+tokens, and raw patch bodies. `includePatches: true` stores redacted patch
+snippets only and marks QA/audit with elevated sensitivity metadata.
+
+The list above is now generated from internal `TinyFeaturePackage` descriptors instead of three hand-edited registries. The default package graph is composed in dependency-topological order and includes:
+
+- `tiny-chu.core-runtime`
+- `tiny-chu.shared-support`
+- `tiny-chu.legacy-analysis`
+- `tiny-chu.extension-utilities`
+- `tiny-chu.button-workflow-hardening`
+- `tiny-chu.small-model-resilience`
+- `tiny-chu.ux-reverse-engineering`
+- `tiny-chu.doctor-artifacts`
+- `tiny-chu.host-opencode`
+
+`createTinyChuPlugin().registry` is the single source for direct tools, OpenCode tool specs, package ownership metadata, install-check diagnostics, permission hints, small-model hints, resources, and instructions. The composer rejects duplicate package ids, duplicate tool names, missing dependencies, and dependency cycles before the OpenCode bridge exposes tools.
+
+To add a feature in phase 1, add or extend one package descriptor under `src/opencode/feature-packages/`, bind existing `TinyToolHandler` functions through `createDefaultTinyFeaturePackages()`, add focused composer/parity tests, and run `tiny_chu_install_check` or the registry smoke test. Do not hand-edit parallel tool arrays in `tiny-plugin.ts`, `plugin.ts`, and `install-check.ts`; those surfaces consume the generated registry.
+
+Phase 1 is intentionally internal. Tiny-Chu does not yet provide dynamic package discovery, npm subpackage loading, MCP server adapters, Figma API calls, provider API calls, or runtime disabling of default feature packages.
+
+## Stability and performance contracts
+
+Tiny-Chu keeps file-backed boundaries root-confined. Explicit user or index paths, such as wiki document refs and `git_weekly_report.repoPath`, fail closed when their real path escapes the configured root. Discovered context and rule files are bundled only when their real path stays inside root; outside-root symlinks are skipped, while inside-root symlinks remain allowed.
+
+Malformed runtime JSON in `.tiny/tasks/*.json` and `.tiny/public-jobs/*.json` fails closed with `Malformed JSON in <path>`. The normal runtime APIs do not silently skip, rewrite, or quarantine malformed state.
+
+Task IDs, public job IDs, and checkpoint sequence assignment are collision-resistant within one Node.js process. Cross-process file locking is not implemented; callers that run multiple processes against the same `.tiny` state should coordinate externally.
+
+Performance checks are characterization baselines, not SLAs. Use these commands to refresh observation artifacts with deterministic fixture counts and elapsed milliseconds:
+
+```bash
+node scripts/stability-performance-baseline.mjs --out .omo/evidence/stability-performance-baseline.json
+node scripts/stability-performance-baseline.mjs --section scanners --out .omo/evidence/scanner-performance-baseline.json
+```
 
 It also sets `TINY_CHU_ROOT` and `TINY_CHU_OPENCODE_PLUGIN` through the OpenCode `shell.env` hook, and adds a compact continuation reminder during OpenCode session compaction.
 
@@ -98,12 +177,12 @@ node --input-type=module -e "import { TinyChuOpenCodePlugin } from './dist/openc
 
 ## OpenCode shell runtime
 
-`createTinyInfiPlugin()` declares that OpenCode sessions should run on the PowerShell runtime. The exported runtime setting pins the shell name, executable, startup arguments, and PowerShell version so consumers can inspect or pass it through to their OpenCode configuration.
+`createTinyChuPlugin()` declares that OpenCode sessions should run on the PowerShell runtime. The exported runtime setting pins the shell name, executable, startup arguments, and PowerShell version so consumers can inspect or pass it through to their OpenCode configuration.
 
 ```ts
-import { POWERSHELL_OPENCODE_RUNTIME, createTinyInfiPlugin } from "tiny-chu";
+import { POWERSHELL_OPENCODE_RUNTIME, createTinyChuPlugin } from "tiny-chu";
 
-const tiny = createTinyInfiPlugin();
+const tiny = createTinyChuPlugin();
 
 console.log(tiny.opencode.shell);
 // { name: "powershell", executable: "pwsh", version: "7.6.2", args: ["-NoLogo", "-NoProfile"] }
@@ -114,7 +193,7 @@ console.log(POWERSHELL_OPENCODE_RUNTIME.shell.version);
 
 ## PowerShell native-tool profile
 
-Tiny Infi also exports a compact PowerShell tooling profile for small foreman models. The profile records the shell parsing rules and safe defaults that usually cause mistakes when Unix-oriented tools are called from `pwsh`:
+Tiny-Chu also exports a compact PowerShell tooling profile for small foreman models. The profile records the shell parsing rules and safe defaults that usually cause mistakes when Unix-oriented tools are called from `pwsh`:
 
 - use real native executables (`jq`, `yq`, `mdq`, `fd`, `ast-grep`, `rg`) instead of PowerShell aliases or Unix-only commands such as `grep -R`, `find -name`, and `xargs` pipelines
 - single-quote filters, selectors, regexes, and structural patterns so PowerShell does not expand `$`, `[]`, `{}`, `|`, or backticks before the native tool receives them
@@ -131,11 +210,11 @@ console.log(POWERSHELL_TOOLING_PROFILE.nativeTools.map((tool) => tool.name));
 console.log(renderPowerShellToolingGuide());
 ```
 
-When `transformUserMessage()` injects Tiny Infi context for `ulw`/`ultrawork` requests, it now appends a compact version of this guide in a `<tiny-infi-powershell-tooling>` block. The compact block keeps the quoting and shell-safety rules that small models commonly miss, while the full `renderPowerShellToolingGuide()` API remains available for explicit inspection.
+When `transformUserMessage()` injects Tiny-Chu context for `ulw`/`ultrawork` requests, it now appends a compact version of this guide in a `<tiny-chu-powershell-tooling>` block. The compact block keeps the quoting and shell-safety rules that small models commonly miss, while the full `renderPowerShellToolingGuide()` API remains available for explicit inspection.
 
 ## Small-context orchestration profile
 
-Tiny Infi now exposes an orchestration profile for a small local foreman model and a larger delegated analysis agent. It is designed for Windows 10, PowerShell 7.6, and OpenCode plugin sessions where the foreman should avoid reading whole repositories into context.
+Tiny-Chu now exposes an orchestration profile for a small local foreman model and a larger delegated analysis agent. It is designed for Windows 10, PowerShell 7.6, and OpenCode plugin sessions where the foreman should avoid reading whole repositories into context.
 
 ```ts
 const profile = await tiny.tools.orchestration_profile({});
@@ -181,7 +260,7 @@ The profile also exposes a 20-pass audit loop and artifact contracts for:
 
 Each pass follows a small-model-safe cycle: review the evidence map, plan one bounded improvement, apply or explicitly skip with evidence, validate the artifact/tool output, then checkpoint `passIndex`, `artifactType`, `evidenceRefs`, `verificationCommands`, `nextSteps`, and `openQuestions`.
 
-`transformUserMessage()` appends a compact operating brief in a `<tiny-infi-small-context>` block for `ulw`/`ultrawork` prompts. The injected brief includes `profileMode: compact`, model budgets, required first tools, omitted full-profile counts, checkpoint/retry reminders, and a pointer to call `orchestration_profile` only when full contract detail is needed.
+`transformUserMessage()` appends a compact operating brief in a `<tiny-chu-small-context>` block for `ulw`/`ultrawork` prompts. The injected brief includes `profileMode: compact`, model budgets, required first tools, omitted full-profile counts, checkpoint/retry reminders, and a pointer to call `orchestration_profile` only when full contract detail is needed.
 
 ## Small-model resilience tools
 
@@ -235,6 +314,8 @@ Use the UX reverse-engineering chain when the foreman must explain why search co
 6. `layout_truth_update` stores stronger evidence without downgrading verified layout truth.
 7. `layout_truth_report` renders `.tiny/ux/layout-truth.md` for review.
 
+For B2B admin web and mobile web work, screen composition follows `purpose -> state -> data -> action -> feedback -> record`. Run `layout_truth_verify before reuse`; stale/missing layout truth stays a review target. Source-order-only or convention-only position rationale must not be marked `Verified` without direct layout, cross-layer, or current layout-truth evidence.
+
 Figma is intentionally adapter-ready only in this first implementation. The UX report includes mapping keys such as `fileKey`, `nodeId`, `figmaNodeName`, `truthId`, `component`, and `variables`, but Tiny-Chu does not call Figma APIs or require tokens.
 
 Generated analysis deliverables should use `.analysis/` only when a caller explicitly asks for files. Tiny-Chu orchestration state remains under `.tiny/`.
@@ -274,9 +355,9 @@ await tiny.tools.task_checkpoint({
   artifactType: "as_is",
   passIndex: 3,
   nextSteps: ["run ast-grep over plugin tools", "ask Qwen for design risks"],
-  evidenceRefs: ["fd://src/**/*.ts", "rg://createTinyInfiPlugin"],
+  evidenceRefs: ["fd://src/**/*.ts", "rg://createTinyChuPlugin"],
   openQuestions: ["which docs need Mermaid diagrams?"],
-  verificationCommands: ["rg --json createTinyInfiPlugin src"],
+  verificationCommands: ["rg --json createTinyChuPlugin src"],
 });
 ```
 

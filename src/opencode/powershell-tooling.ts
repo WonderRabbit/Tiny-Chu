@@ -82,7 +82,7 @@ export const POWERSHELL_TOOLING_PROFILE: PowerShellToolingProfile = {
       prefer: ["--line-number --column --no-heading for parseable text matches", "--json for robust machine parsing", "--files for gitignore-aware file lists", "-g for include/exclude globs"],
       avoid: ["grep -R Unix syntax", "PowerShell Select-String when rg semantics are intended", "unquoted regexes containing $, {}, [], or |"],
       powershellNotes: ["Quote regexes with single quotes, for example rg --line-number 'export .*TaskStore' src.", "Use rg --files -g '*.ts' -g '!dist/**' instead of shell-expanded globs."],
-      examples: ["rg --line-number --column --no-heading 'createTinyInfiPlugin' src test", "rg --files -g '*.ts' -g '!dist/**'"],
+      examples: ["rg --line-number --column --no-heading 'createTinyChuPlugin' src test", "rg --files -g '*.ts' -g '!dist/**'"],
     },
   ],
 };

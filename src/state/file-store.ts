@@ -2,16 +2,34 @@ import { appendFile, mkdir, readFile, rename, unlink, writeFile } from "node:fs/
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+class MalformedJsonError extends Error {
+  readonly name = "MalformedJsonError";
+
+  constructor(readonly file: string, cause: SyntaxError) {
+    super(`Malformed JSON in ${file}`, { cause });
+  }
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+
 export async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
 }
 
 export async function readJsonFile<T>(file: string, fallback: T): Promise<T> {
+  let raw: string;
   try {
-    const raw = await readFile(file, "utf8");
-    return JSON.parse(raw) as T;
+    raw = await readFile(file, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return fallback;
+    if (hasErrorCode(error, "ENOENT")) return fallback;
+    throw error;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new MalformedJsonError(file, error);
     throw error;
   }
 }
@@ -40,7 +58,7 @@ export async function readJsonLines<T>(file: string, fallback: readonly T[]): Pr
   try {
     raw = await readFile(file, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [...fallback];
+    if (hasErrorCode(error, "ENOENT")) return [...fallback];
     throw error;
   }
   const records: T[] = [];
@@ -49,7 +67,7 @@ export async function readJsonLines<T>(file: string, fallback: readonly T[]): Pr
     const line = lines[index];
     if (!line) continue;
     try {
-      records.push(JSON.parse(line) as T);
+      records.push(JSON.parse(line));
     } catch (error) {
       throw new Error(`Malformed JSONL in ${file} at line ${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -62,7 +80,7 @@ export async function removeIfExists(file: string): Promise<boolean> {
     await unlink(file);
     return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    if (hasErrorCode(error, "ENOENT")) return false;
     throw error;
   }
 }

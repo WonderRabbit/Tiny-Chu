@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createTinyInfiPlugin } from "../dist/index.js";
+import { createTinyChuPlugin } from "../dist/index.js";
 
 async function put(root, relativePath, lines) {
   const absolute = path.join(root, relativePath);
@@ -77,7 +77,7 @@ async function fixture() {
 
 test("extension tools produce bounded JSON evidence for small-model analysis", async () => {
   const root = await fixture();
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const required = [
     "environment_doctor",
     "api_contract_catalog",
@@ -151,7 +151,7 @@ test("extension tools honor explicit small-model output caps", async () => {
       `private String field${index};`,
     ]);
   }
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
 
   const doctor = await plugin.tools.environment_doctor({ toolNames: ["node"], timeoutMs: 300 });
   assert.deepEqual(doctor.checks.map((check) => check.name), ["node"]);
@@ -229,7 +229,7 @@ test("redux and auth flow maps report omitted links for oversized linked data", 
       `if (!ctx.user().principal().containsKey('FEATURE_${index}')) { ctx.fail(403); return; }`,
     ]);
   }
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
 
   const redux = await plugin.tools.redux_state_flow_map({ targetPath: "src", maxItems: 40, maxLinks: 5 });
   assert.ok(redux.links.length <= 5);
@@ -244,7 +244,7 @@ test("evidence snapshot summarizes bounded evidence and tool plan reuse hints", 
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-evidence-snapshot-"));
   await put(root, ".omo/evidence/task-1.txt", ["src/a.ts:1", "ok"]);
   await put(root, ".omo/evidence/task-2.txt", ["src/b.ts:2", "ok"]);
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const snapshot = await plugin.tools.evidence_snapshot({ evidenceDir: ".omo/evidence", maxFiles: 1 });
   assert.equal(snapshot.files.length, 1);
   assert.equal(snapshot.omittedFiles, 1);
@@ -257,7 +257,7 @@ test("evidence snapshot summarizes bounded evidence and tool plan reuse hints", 
 
 test("button workflow dispatch is sequential by default and capped at two", async () => {
   const root = await fixture();
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const plan = await plugin.tools.button_workflow_plan({ targetPath: "src/ui/OrderPage.jsx", maxButtons: 10 });
   assert.equal(plan.workItems.length, 1);
   assert.equal(plan.workItems[0].label, "Submit Order");
@@ -293,7 +293,7 @@ test("seven button workflow stays one button per worker", async () => {
     "<button onClick={g}>G</button>",
     "</div>; }",
   ]);
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const plan = await plugin.tools.button_workflow_plan({ targetPath: "src/Page.jsx", maxButtons: 10 });
   assert.equal(plan.workItems.length, 7);
   assert.equal(new Set(plan.workItems.map((item) => item.buttonId)).size, 7);

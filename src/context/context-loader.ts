@@ -1,6 +1,6 @@
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
-import { isLexicallyInsideRoot } from "../state/path-safety.js";
+import { isLexicallyInsideRoot, resolveExistingPathInsideRoot } from "../state/path-safety.js";
 
 export interface ContextDocument {
   kind: "agents" | "rule";
@@ -19,12 +19,66 @@ export interface ContextBundle {
 const RULE_DIRS = [".tiny/rules", ".claude/rules", ".cursor/rules", ".github/instructions"] as const;
 const RULE_FILES = [".github/copilot-instructions.md"] as const;
 
+type MaybeSymlinkDirent = {
+  readonly isFile: () => boolean;
+  readonly isSymbolicLink?: () => boolean;
+};
+
 async function exists(file: string): Promise<boolean> {
   try {
     await access(file);
     return true;
   } catch {
     return false;
+  }
+}
+
+function isErrno(error: unknown, code: string): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+
+function isIgnorablePathError(error: unknown): boolean {
+  return isErrno(error, "ENOENT") || isErrno(error, "ENOTDIR") || isErrno(error, "EISDIR");
+}
+
+function isStatsFile(stats: object): boolean {
+  return "isFile" in stats && typeof stats.isFile === "function" && stats.isFile() === true;
+}
+
+function isStatsDirectory(stats: object): boolean {
+  return "isDirectory" in stats && typeof stats.isDirectory === "function" && stats.isDirectory() === true;
+}
+
+function isFileOrSymlink(entry: MaybeSymlinkDirent): boolean {
+  return entry.isFile() || entry.isSymbolicLink?.() === true;
+}
+
+async function resolveDiscoveredPath(root: string, file: string): Promise<string | undefined> {
+  if (!(await exists(file))) return undefined;
+  return resolveExistingPathInsideRoot(root, file);
+}
+
+async function readDiscoveredFile(root: string, file: string): Promise<string | undefined> {
+  const realFile = await resolveDiscoveredPath(root, file);
+  if (!realFile) return undefined;
+  try {
+    if (!isStatsFile(await stat(realFile))) return undefined;
+    return await readFile(realFile, "utf8");
+  } catch (error) {
+    if (isIgnorablePathError(error)) return undefined;
+    throw error;
+  }
+}
+
+async function readDiscoveredDirectory(root: string, dir: string): Promise<string[] | undefined> {
+  const realDir = await resolveDiscoveredPath(root, dir);
+  if (!realDir) return undefined;
+  try {
+    if (!isStatsDirectory(await stat(realDir))) return undefined;
+    return (await readdir(realDir, { withFileTypes: true })).filter(isFileOrSymlink).map((entry) => entry.name).sort();
+  } catch (error) {
+    if (isIgnorablePathError(error)) return undefined;
+    throw error;
   }
 }
 
@@ -37,8 +91,9 @@ async function collectAgentsFiles(root: string, targetPath: string): Promise<Con
   let distance = 0;
   while (isLexicallyInsideRoot(absoluteRoot, cursor)) {
     const file = path.join(cursor, "AGENTS.md");
-    if (await exists(file)) {
-      docs.push({ kind: "agents", path: path.relative(absoluteRoot, file), content: await readFile(file, "utf8"), precedence: distance });
+    const content = await readDiscoveredFile(absoluteRoot, file);
+    if (content !== undefined) {
+      docs.push({ kind: "agents", path: path.relative(absoluteRoot, file), content, precedence: distance });
     }
     if (cursor === absoluteRoot) break;
     cursor = path.dirname(cursor);
@@ -53,21 +108,25 @@ async function collectRuleFiles(root: string): Promise<ContextDocument[]> {
   let precedence = 100;
   for (const ruleDir of RULE_DIRS) {
     const dir = path.join(absoluteRoot, ruleDir);
-    if (!(await exists(dir))) {
+    const entries = await readDiscoveredDirectory(absoluteRoot, dir);
+    if (!entries) {
       precedence += 100;
       continue;
     }
-    const entries = (await readdir(dir, { withFileTypes: true })).filter((entry) => entry.isFile()).map((entry) => entry.name).sort();
     for (const entry of entries) {
       const file = path.join(dir, entry);
-      docs.push({ kind: "rule", path: path.relative(absoluteRoot, file), content: await readFile(file, "utf8"), precedence });
-      precedence += 1;
+      const content = await readDiscoveredFile(absoluteRoot, file);
+      if (content !== undefined) {
+        docs.push({ kind: "rule", path: path.relative(absoluteRoot, file), content, precedence });
+        precedence += 1;
+      }
     }
     precedence = Math.ceil(precedence / 100) * 100;
   }
   for (const ruleFile of RULE_FILES) {
     const file = path.join(absoluteRoot, ruleFile);
-    if (await exists(file)) docs.push({ kind: "rule", path: ruleFile, content: await readFile(file, "utf8"), precedence: 900 });
+    const content = await readDiscoveredFile(absoluteRoot, file);
+    if (content !== undefined) docs.push({ kind: "rule", path: ruleFile, content, precedence: 900 });
   }
   return docs.sort((a, b) => a.precedence - b.precedence || a.path.localeCompare(b.path));
 }

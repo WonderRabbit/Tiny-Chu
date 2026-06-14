@@ -2,11 +2,11 @@ export { loadContextBundle, type ContextBundle, type ContextDocument } from "./c
 export { buildContextPacket, type ContextPacket, type ContextPacketEvidence, type ContextPacketInput } from "./context/evidence-packet.js";
 export { PublicDispatcher, type PublicJob, type PublicJobBudget, type PublicJobStatus, type RateGateSnapshot } from "./dispatcher/public-job.js";
 export { appendJsonLine, ensureDir, readJsonFile, readJsonLines, removeIfExists, writeJsonAtomic, writeTextAtomic } from "./state/file-store.js";
-export { resolveTinyInfiPaths, type TinyInfiPaths } from "./state/paths.js";
+export { resolveTinyChuPaths, type TinyChuPaths } from "./state/paths.js";
 export { TaskStore, type TinyTask, type TaskStatus, type TaskCheckpoint } from "./state/task-store.js";
 export { parsePlanMarkdown, readPlanStatus, selectPlanFocus, writePlanTemplate, type PlanStatus, type PlanCheckbox, type PlanFocus } from "./ulw-loop/plan.js";
 export { WikiBundler, type WikiBundle, type WikiDocumentRef, type WikiIndex } from "./wiki/wiki-bundler.js";
-export { createTinyInfiPlugin, POWERSHELL_OPENCODE_RUNTIME, type OpenCodeRuntimeConfig, type OpenCodeShellRuntime, type TinyInfiConfig, type TinyPluginModule, type TinyToolContext } from "./opencode/tiny-plugin.js";
+export { createTinyChuPlugin, POWERSHELL_OPENCODE_RUNTIME, type OpenCodeRuntimeConfig, type OpenCodeShellRuntime, type TinyChuConfig, type TinyPluginModule, type TinyToolContext } from "./opencode/tiny-plugin.js";
 export { TinyChuOpenCodePlugin } from "./opencode/plugin.js";
 
 export { renderBudgetedOutput, type BudgetedOutput, type OutputBudgetMetadata } from "./opencode/output-budget.js";
@@ -30,6 +30,7 @@ export { createQwenRetryPolicy, QWEN_PUBLIC_LIMITS, type QwenPublicLimits, type 
 export { createOrchestrationHealth, type OrchestrationHealthResult, type StatusCount } from "./opencode/orchestration-health.js";
 export { writeRulesSnapshot, type RulesSnapshotResult } from "./opencode/rules-snapshot.js";
 export { createToolUsagePlan, type ToolPlanStep, type ToolUsagePlanResult } from "./opencode/tool-plan.js";
+export { createGitWeeklyReport, type GitWeeklyReportCommit, type GitWeeklyReportResult } from "./opencode/git-weekly-report.js";
 export { createClaimEvidenceCheck, type ClaimEvidenceCheckResult, type ClaimEvidenceDiagnostic } from "./opencode/claim-evidence-check.js";
 export { createDoctor, type DoctorCheck, type DoctorCheckStatus, type DoctorInput, type DoctorResult, type DoctorSectionSummary, type DoctorStatus } from "./opencode/doctor.js";
 export { aggregationDriftCheck, atomicMarkdownWrite, buttonWorkerResultCheck, buttonWorkflowDoneClaim, createButtonWorkerPacket, createButtonWorkflowPlan, dispatchButtonWorkflow, aggregateButtonTraces, markdownEnvelopeCheck, writeLoopGuard, type ButtonWorkerResultCheckResult, type ButtonWorkflowPlan, type ButtonWorkItem, type MarkdownEnvelopeCheckResult } from "./opencode/button-workflow.js";

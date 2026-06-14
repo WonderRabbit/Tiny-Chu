@@ -1,4 +1,5 @@
 import type { PowerShellToolingProfile } from "./powershell-tooling.js";
+import type { TinyComposedRegistry } from "./feature-package.js";
 
 export interface OpenCodeShellRuntime {
   name: "powershell";
@@ -12,7 +13,7 @@ export interface OpenCodeRuntimeConfig {
   tooling: PowerShellToolingProfile;
 }
 
-export interface TinyInfiConfig {
+export interface TinyChuConfig {
   root?: string;
   publicDispatcher?: {
     softRpm?: number;
@@ -31,8 +32,9 @@ export interface TinyToolContext {
 export type TinyToolHandler = (input: Record<string, unknown>, context?: TinyToolContext) => Promise<unknown>;
 
 export interface TinyPluginModule {
-  name: "tiny-infi";
+  name: "tiny-chu";
   opencode: OpenCodeRuntimeConfig;
+  registry: TinyComposedRegistry;
   tools: Record<string, TinyToolHandler>;
   hooks: {
     transformUserMessage(message: string, context?: TinyToolContext): Promise<string>;

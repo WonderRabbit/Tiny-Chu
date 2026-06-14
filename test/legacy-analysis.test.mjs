@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createTinyInfiPlugin } from "../dist/index.js";
+import { createTinyChuPlugin } from "../dist/index.js";
 
 async function writeFixtureFile(root, relativePath, lines) {
   const absolute = path.join(root, relativePath);
@@ -98,7 +98,7 @@ async function createLegacyFixture() {
 
 test("legacy analysis tools trace a button to backend integrations when evidence exists", async () => {
   const root = await createLegacyFixture();
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
 
   const repoIndex = await plugin.tools.legacy_repo_index({ maxFiles: 80 });
   assert.ok(repoIndex.facts.some((fact) => fact.kind === "react_component" && fact.file === "src/ui/OrderPage.jsx"));
@@ -147,7 +147,7 @@ test("legacy analysis tools trace a button to backend integrations when evidence
 
 test("legacy analysis marks missing links unknown and evidence QA flags hallucinated symbols", async () => {
   const root = await createLegacyFixture();
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const repoIndex = await plugin.tools.legacy_repo_index({ maxFiles: 80 });
 
   const apiTrace = await plugin.tools.api_backend_trace({ method: "DELETE", path: "/api/orders/404", index: repoIndex });
@@ -190,7 +190,7 @@ test("legacy analysis does not link unrelated API clients from a saga worker", a
     "export const orphanAction = () => ({ type: ORPHAN_ACTION });",
   ]);
 
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const trace = await plugin.tools.ui_action_trace({ label: "Orphan", maxFiles: 120 });
   assert.equal(trace.rows[0].sagaWorker.symbol, "orphanWorker");
   assert.equal(trace.rows[0].apiClient.symbol, "Unknown");
@@ -220,7 +220,7 @@ test("legacy analysis does not link mapper or RFC calls from unrelated services"
     "}",
   ]);
 
-  const plugin = createTinyInfiPlugin({ root });
+  const plugin = createTinyChuPlugin({ root });
   const trace = await plugin.tools.api_backend_trace({ method: "POST", path: "/api/cancel", maxFiles: 120 });
   assert.equal(trace.status, "matched");
   assert.equal(trace.backendEntry.symbol, "cancelOrder");

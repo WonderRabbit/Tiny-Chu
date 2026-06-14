@@ -1,6 +1,6 @@
 import path from "node:path";
 
-export interface TinyInfiPaths {
+export interface TinyChuPaths {
   root: string;
   tasksDir: string;
   plansDir: string;
@@ -12,7 +12,7 @@ export interface TinyInfiPaths {
   wikiIndexFile: string;
 }
 
-export function resolveTinyInfiPaths(root = process.cwd()): TinyInfiPaths {
+export function resolveTinyChuPaths(root = process.cwd()): TinyChuPaths {
   const absoluteRoot = path.resolve(root);
   const tinyDir = path.join(absoluteRoot, ".tiny");
   const wikiDir = path.join(tinyDir, "wiki");

@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { resolvePathInsideRoot } from "../state/path-safety.js";
+import { readFile, writeFile } from "node:fs/promises";
+import { resolveExistingPathInsideRoot, resolvePathInsideRoot } from "../state/path-safety.js";
 import { nestedRecord, recordsInput, stringField } from "./legacy-input.js";
 import { bounded, type EvidenceStatus } from "./extension-scan.js";
 import { uxSourceFingerprint, type LayoutTruthRecord, type UxRationaleText } from "./ux-reverse-analysis.js";
+import { ensureSafeUxTarget, relativeToRoot, truthJsonPath } from "./layout-truth-paths.js";
+import { renderLayoutTruthReport } from "./layout-truth-report.js";
 
 export interface LayoutTruthUpdateResult {
   readonly path: string;
@@ -26,23 +27,6 @@ export interface LayoutTruthReportResult {
   readonly markdownPath: string;
   readonly markdown: string;
   readonly evidenceRefs: readonly string[];
-}
-
-function truthJsonPath(root: string, candidate?: unknown): string {
-  const relative = typeof candidate === "string" && candidate.trim() !== "" ? candidate : ".tiny/ux/layout-truth.json";
-  const resolved = resolvePathInsideRoot(root, relative);
-  if (!resolved) throw new Error(`Layout truth path is outside configured root: ${relative}`);
-  const uxRoot = resolvePathInsideRoot(root, ".tiny/ux");
-  if (!uxRoot) throw new Error("Layout truth root is outside configured root");
-  const fromUx = path.relative(uxRoot, resolved);
-  if (fromUx === ".." || fromUx.startsWith("../") || fromUx.startsWith("..\\")) {
-    throw new Error(`Layout truth path is outside .tiny/ux: ${relative}`);
-  }
-  return resolved;
-}
-
-function relativeToRoot(root: string, absolute: string): string {
-  return path.relative(root, absolute).replace(/\\/g, "/");
 }
 
 function statusRank(status: EvidenceStatus): number {
@@ -101,8 +85,8 @@ async function readRecords(filePath: string): Promise<readonly LayoutTruthRecord
   });
 }
 
-async function writeRecords(filePath: string, records: readonly LayoutTruthRecord[]): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
+async function writeRecords(root: string, filePath: string, records: readonly LayoutTruthRecord[]): Promise<void> {
+  await ensureSafeUxTarget(root, filePath);
   await writeFile(filePath, `${JSON.stringify(records, null, 2)}\n`, "utf8");
 }
 
@@ -124,6 +108,23 @@ function recordEvidenceRefs(record: LayoutTruthRecord): readonly string[] {
   ]);
 }
 
+function isUnsupportedVerifiedPosition(rationale: UxRationaleText): boolean {
+  if (rationale.status !== "Verified") return false;
+  const sourceOrderReason = /\bsource[-\s]*order\b|\bappears?\s+(?:before|after)\b|\b(?:jsx|tsx|source|markup)\b.*\bfirst\b|\bfirst\b.*\b(?:jsx|tsx|source|markup)\b/i.test(rationale.reason);
+  const conventionReason = /\bconvention(?:al|s)?\b|\b(?:normally|usually|typically|standard|customary|traditional)\b/i.test(rationale.reason);
+  return sourceOrderReason || conventionReason;
+}
+
+function demoteUnsupportedVerifiedPosition(record: LayoutTruthRecord): LayoutTruthRecord {
+  if (!isUnsupportedVerifiedPosition(record.positionRationale)) return record;
+  const positionRationale: UxRationaleText = {
+    ...record.positionRationale,
+    status: "Needs Verification",
+    reason: `${record.positionRationale.reason} Source-order-only or convention-only position rationale cannot be Verified without direct layout or cross-layer evidence.`,
+  };
+  return { ...record, positionRationale, lifecycle: "needs_review" };
+}
+
 function mergeRecord(existing: LayoutTruthRecord | undefined, incoming: LayoutTruthRecord): LayoutTruthRecord {
   if (!existing) return { ...incoming, lifecycle: incoming.lifecycle === "candidate" ? "needs_review" : incoming.lifecycle };
   const existenceRationale = stronger(existing.existenceRationale, incoming.existenceRationale);
@@ -143,10 +144,13 @@ function mergeRecord(existing: LayoutTruthRecord | undefined, incoming: LayoutTr
 }
 
 async function fingerprintForRef(root: string, evidenceRef: string): Promise<string | undefined> {
-  const match = evidenceRef.match(/^(.+):(\d+)$/);
+  const match = evidenceRef.match(/^([\s\S]+):(\d+)$/);
   if (!match?.[1] || !match[2]) return undefined;
-  const absolute = resolvePathInsideRoot(root, match[1]);
-  if (!absolute || !existsSync(absolute)) return undefined;
+  const absolute = await resolveExistingPathInsideRoot(root, match[1]).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!absolute) return undefined;
   const lineNumber = Number.parseInt(match[2], 10);
   const lines = (await readFile(absolute, "utf8")).split(/\r?\n/);
   const text = lines[lineNumber - 1];
@@ -165,40 +169,56 @@ async function currentFingerprint(root: string, record: LayoutTruthRecord): Prom
 
 export async function updateLayoutTruth(root: string, input: Record<string, unknown>): Promise<LayoutTruthUpdateResult> {
   const filePath = truthJsonPath(root, input.path);
-  const current = new Map((await readRecords(filePath)).map((record) => [record.truthId, record]));
+  await ensureSafeUxTarget(root, filePath);
   const rejected: string[] = [];
+  const current = new Map<string, LayoutTruthRecord>();
+  for (const existing of await readRecords(filePath)) {
+    const record = demoteUnsupportedVerifiedPosition(existing);
+    if (!await currentFingerprint(root, record)) {
+      rejected.push(`existing record missing evidence-backed fingerprint for ${record.truthId}`);
+      continue;
+    }
+    current.set(record.truthId, record);
+  }
   for (const record of recordsInput(input.records)) {
     const normalized = normalize(record);
     if (!normalized) {
       rejected.push("missing truthId or elementName");
       continue;
     }
-    const incoming = { ...normalized, lifecycle: normalized.lifecycle === "candidate" ? "needs_review" : normalized.lifecycle };
-    const merged = mergeRecord(current.get(normalized.truthId), incoming);
+    const incoming = demoteUnsupportedVerifiedPosition({ ...normalized, lifecycle: normalized.lifecycle === "candidate" ? "needs_review" : normalized.lifecycle });
+    const merged = demoteUnsupportedVerifiedPosition(mergeRecord(current.get(normalized.truthId), incoming));
     const refreshed = await currentFingerprint(root, merged);
-    current.set(normalized.truthId, { ...merged, sourceFingerprint: refreshed ?? merged.sourceFingerprint });
+    if (!refreshed) {
+      rejected.push(`missing evidence-backed fingerprint for ${normalized.truthId}`);
+      continue;
+    }
+    current.set(normalized.truthId, { ...merged, sourceFingerprint: refreshed });
   }
   const records = bounded([...current.values()].sort((left, right) => left.truthId.localeCompare(right.truthId)), input.maxRecords, 200);
-  await writeRecords(filePath, records);
+  await writeRecords(root, filePath, records);
   return { path: relativeToRoot(root, filePath), records, rejected };
 }
 
 export async function verifyLayoutTruth(root: string, input: Record<string, unknown>): Promise<LayoutTruthVerifyResult> {
   const filePath = truthJsonPath(root, input.path);
+  await ensureSafeUxTarget(root, filePath);
   const records = await readRecords(filePath);
   const verified: LayoutTruthRecord[] = [];
   const stale: LayoutTruthRecord[] = [];
   const missing: LayoutTruthRecord[] = [];
   for (const record of records) {
-    const current = await currentFingerprint(root, record);
-    if (!current) missing.push({ ...record, lifecycle: "needs_review" });
-    else if (current === record.sourceFingerprint) verified.push({ ...record, lifecycle: "verified" });
-    else stale.push({ ...record, lifecycle: "stale" });
+    const normalized = demoteUnsupportedVerifiedPosition(record);
+    const unsupported = normalized.positionRationale.status !== record.positionRationale.status;
+    const current = await currentFingerprint(root, normalized);
+    if (!current || unsupported) missing.push({ ...normalized, lifecycle: "needs_review" });
+    else if (current === normalized.sourceFingerprint) verified.push({ ...normalized, lifecycle: "verified" });
+    else stale.push({ ...normalized, lifecycle: "stale" });
   }
   const verificationPath = resolvePathInsideRoot(root, `.tiny/ux/verification/${Date.now()}.json`);
   if (!verificationPath) throw new Error("Layout truth verification path is outside configured root");
   const result = { path: relativeToRoot(root, filePath), verified, stale, missing, reviewTargets: [...stale, ...missing], verificationPath: relativeToRoot(root, verificationPath) };
-  await mkdir(path.dirname(verificationPath), { recursive: true });
+  await ensureSafeUxTarget(root, verificationPath);
   await writeFile(verificationPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   return result;
 }
@@ -207,31 +227,8 @@ export async function reportLayoutTruth(root: string, input: Record<string, unkn
   const filePath = truthJsonPath(root, input.path);
   const verification = await verifyLayoutTruth(root, input);
   const records = [...verification.verified, ...verification.stale, ...verification.missing].sort((left, right) => left.truthId.localeCompare(right.truthId));
-  const markdownPath = resolvePathInsideRoot(root, ".tiny/ux/layout-truth.md");
-  if (!markdownPath) throw new Error("Layout truth report path is outside configured root");
-  const evidenceRefs = records.flatMap((record) => record.evidenceRefs);
-  const reviewTargets = verification.reviewTargets.length > 0 ? verification.reviewTargets.map((record) => `- ${record.elementName}: ${record.lifecycle}`) : ["- None"];
-  const staleCommands = verification.stale.length > 0 ? verification.stale.map((record) => `- ${record.elementName}: rg -n "${record.elementName}" ${record.evidenceRefs.map((ref) => ref.replace(/:\d+$/, "")).join(" ")}`) : ["- None"];
-  const markdown = [
-    "# Layout Truth",
-    "",
-    `Source: ${relativeToRoot(root, filePath)}`,
-    `Verified: ${verification.verified.length}`,
-    `Stale: ${verification.stale.length}`,
-    `Unknown/Missing: ${verification.missing.length}`,
-    "",
-    "| Truth ID | Element | Lifecycle | Existence | Position | Evidence |",
-    "| --- | --- | --- | --- | --- | --- |",
-    ...records.map((record) => `| ${record.truthId} | ${record.elementName} | ${record.lifecycle} | ${record.existenceRationale.status} | ${record.positionRationale.status} | ${record.evidenceRefs.join(", ")} |`),
-    "",
-    "## Review Targets",
-    ...reviewTargets,
-    "## Stale Evidence Commands",
-    ...staleCommands,
-    "## Rule Candidates",
-    ...records.map((record) => `- ${record.elementName}: existence=${record.existenceRationale.status}; position=${record.positionRationale.status}; validation=${record.validationRationale.status}; message=${record.messageRationale.status}`),
-  ].join("\n");
-  await mkdir(path.dirname(markdownPath), { recursive: true });
-  await writeFile(markdownPath, `${markdown}\n`, "utf8");
-  return { path: relativeToRoot(root, filePath), markdownPath: relativeToRoot(root, markdownPath), markdown, evidenceRefs };
+  const rendered = renderLayoutTruthReport(root, filePath, verification, records);
+  await ensureSafeUxTarget(root, rendered.markdownPath);
+  await writeFile(rendered.markdownPath, `${rendered.markdown}\n`, "utf8");
+  return { path: relativeToRoot(root, filePath), markdownPath: rendered.markdownPathRelative, markdown: rendered.markdown, evidenceRefs: rendered.evidenceRefs };
 }

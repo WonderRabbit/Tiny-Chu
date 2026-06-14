@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createDefaultAgentModelTemplates, createTinyInfiPlugin, recommendModelOptionControls, validateAgentModelTemplate } from "../dist/index.js";
+import { createDefaultAgentModelTemplates, createTinyChuPlugin, recommendModelOptionControls, validateAgentModelTemplate } from "../dist/index.js";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
 
 test("agent model option templates expose all roles and validate defaults", async () => {
@@ -18,7 +18,7 @@ test("agent model option templates expose all roles and validate defaults", asyn
   for (const template of Object.values(templates)) {
     assert.equal(validateAgentModelTemplate(template).valid, true, template.agentKind);
   }
-  const profile = await createTinyInfiPlugin().tools.orchestration_profile({});
+  const profile = await createTinyChuPlugin().tools.orchestration_profile({});
   assert.deepEqual(Object.keys(profile.agentTemplates).sort(), Object.keys(templates).sort());
 });
 
@@ -55,7 +55,7 @@ test("model option control recommendations are data-only", () => {
 });
 
 test("tool usage plan recommends agent templates and OpenCode budgets profile output", async () => {
-  const plugin = createTinyInfiPlugin();
+  const plugin = createTinyChuPlugin();
   const plan = await plugin.tools.tool_usage_plan({ objective: "listen to changes and plan wireframe validation controls" });
   assert.equal(plan.agentKind, "wireframe_planner");
   assert.ok(plan.modelOptionValidation.valid);

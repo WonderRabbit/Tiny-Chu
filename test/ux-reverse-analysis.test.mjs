@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { ARTIFACT_TYPES, checkArtifactMarkdown, createTinyInfiPlugin } from "../dist/index.js";
+import { ARTIFACT_TYPES, checkArtifactMarkdown, createTinyChuPlugin, uxSourceFingerprint } from "../dist/index.js";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
 
 async function writeFixture(root, relative, lines) {
@@ -59,7 +59,7 @@ test("source-code-first UX reverse analysis produces evidence-backed report", as
   assert.ok(ARTIFACT_TYPES.includes("ux_reverse_analysis"));
   const root = await createUxFixture();
   try {
-    const tiny = createTinyInfiPlugin({ root });
+    const tiny = createTinyChuPlugin({ root });
     const toolPlan = await tiny.tools.tool_usage_plan({ objective: "reverse engineer screen UX layout rationale", artifactType: "ux_reverse_analysis" });
     assert.equal(toolPlan.steps[0].tinyTool, "ui_layout_catalog");
     assert.ok(toolPlan.verification.requiredTools.includes("layout_truth_verify"));
@@ -136,7 +136,7 @@ test("UX rationale stays conservative when only UI source order exists", async (
       "  return <section data-screen=\"UiOnly\"><label>Keyword<input name=\"keyword\" /></label><label>Status<select name=\"status\"><option value=\"A\">A</option></select></label></section>;",
       "}",
     ]);
-    const tiny = createTinyInfiPlugin({ root });
+    const tiny = createTinyChuPlugin({ root });
     const catalog = await tiny.tools.ui_layout_catalog({ targetPath: ".", maxFiles: 5, maxElements: 10 });
     const rationale = await tiny.tools.ux_rationale_trace({ catalog, maxRationales: 10 });
     const keyword = rationale.rationales.find((item) => item.elementName === "keyword");
@@ -147,10 +147,338 @@ test("UX rationale stays conservative when only UI source order exists", async (
   }
 });
 
+test("layout truth update rejects records without evidence-backed fingerprints", async () => {
+  const root = await createUxFixture();
+  try {
+    const tiny = createTinyChuPlugin({ root });
+    const result = await tiny.tools.layout_truth_update({
+      records: [
+        {
+          truthId: "screen.order-search.no-evidence",
+          screenId: "OrderSearch",
+          elementId: "no-evidence",
+          elementName: "No Evidence",
+          area: "search_condition",
+          existenceRationale: { status: "Verified", reason: "Claim without a source line", evidenceRefs: [] },
+          positionRationale: { status: "Verified", reason: "Claim without a source line", evidenceRefs: [] },
+          validationRationale: { status: "Unknown", reason: "No validation evidence", evidenceRefs: [] },
+          messageRationale: { status: "Unknown", reason: "No message evidence", evidenceRefs: [] },
+          sourceFingerprint: "",
+          evidenceRefs: [],
+          lifecycle: "verified",
+          version: 1,
+        },
+      ],
+      maxRecords: 20,
+    });
+    assert.match(result.rejected.join("\n"), /evidence/i);
+    assert.equal(result.records.some((item) => item.truthId === "screen.order-search.no-evidence"), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("layout truth update refuses source-order-only verified position rationale", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-source-order-"));
+  try {
+    await writeFixture(root, "src/ui/UiOnly.jsx", [
+      "export function UiOnly() {",
+      "  return <section data-screen=\"UiOnly\"><label>Keyword<input name=\"keyword\" /></label><label>Status<select name=\"status\"><option value=\"A\">A</option></select></label></section>;",
+      "}",
+    ]);
+    const tiny = createTinyChuPlugin({ root });
+    const result = await tiny.tools.layout_truth_update({
+      records: [
+        {
+          truthId: "ui-only.keyword",
+          screenId: "UiOnly",
+          elementId: "keyword",
+          elementName: "keyword",
+          area: "search_condition",
+          existenceRationale: { status: "Needs Verification", reason: "Only UI label/input source exists", evidenceRefs: ["src/ui/UiOnly.jsx:2"] },
+          positionRationale: { status: "Verified", reason: "First because of source order only", evidenceRefs: ["src/ui/UiOnly.jsx:2"] },
+          validationRationale: { status: "Unknown", reason: "No backend validation evidence", evidenceRefs: [] },
+          messageRationale: { status: "Unknown", reason: "No message evidence", evidenceRefs: [] },
+          sourceFingerprint: "",
+          evidenceRefs: ["src/ui/UiOnly.jsx:2"],
+          lifecycle: "verified",
+          version: 1,
+        },
+      ],
+      maxRecords: 20,
+    });
+    const keyword = result.records.find((item) => item.truthId === "ui-only.keyword");
+    assert.notEqual(keyword?.positionRationale.status, "Verified");
+    assert.equal(keyword?.lifecycle, "needs_review");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("layout truth update refuses semantic source-order or convention verified position rationale", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-semantic-source-order-"));
+  try {
+    await writeFixture(root, "src/ui/UiOnly.jsx", [
+      "export function UiOnly() {",
+      "  return <section data-screen=\"UiOnly\"><label>Keyword<input name=\"keyword\" /></label><label>Status<select name=\"status\"><option value=\"A\">A</option></select></label></section>;",
+      "}",
+    ]);
+    const tiny = createTinyChuPlugin({ root });
+    const result = await tiny.tools.layout_truth_update({
+      records: [
+        {
+          truthId: "ui-only.keyword.semantic",
+          screenId: "UiOnly",
+          elementId: "keyword",
+          elementName: "keyword",
+          area: "search_condition",
+          existenceRationale: { status: "Needs Verification", reason: "Only UI label/input source exists", evidenceRefs: ["src/ui/UiOnly.jsx:2"] },
+          positionRationale: { status: "Verified", reason: "First because the input appears before Status in the JSX source and admin search forms normally put keyword first.", evidenceRefs: ["src/ui/UiOnly.jsx:2"] },
+          validationRationale: { status: "Unknown", reason: "No backend validation evidence", evidenceRefs: [] },
+          messageRationale: { status: "Unknown", reason: "No message evidence", evidenceRefs: [] },
+          sourceFingerprint: "",
+          evidenceRefs: ["src/ui/UiOnly.jsx:2"],
+          lifecycle: "verified",
+          version: 1,
+        },
+      ],
+      maxRecords: 20,
+    });
+    const keyword = result.records.find((item) => item.truthId === "ui-only.keyword.semantic");
+    assert.notEqual(keyword?.positionRationale.status, "Verified");
+    assert.equal(keyword?.lifecycle, "needs_review");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("layout truth verify treats unsupported verified position rationale as review target", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-verify-policy-"));
+  try {
+    await writeFixture(root, "src/ui/UiOnly.jsx", [
+      "export function UiOnly() {",
+      "  return <section data-screen=\"UiOnly\"><label>Keyword<input name=\"keyword\" /></label></section>;",
+      "}",
+    ]);
+    await mkdir(path.join(root, ".tiny", "ux"), { recursive: true });
+    const text = "  return <section data-screen=\"UiOnly\"><label>Keyword<input name=\"keyword\" /></label></section>;";
+    const fingerprint = `src/ui/UiOnly.jsx:2=${uxSourceFingerprint("src/ui/UiOnly.jsx", 2, text)}`;
+    await writeFile(path.join(root, ".tiny", "ux", "layout-truth.json"), `${JSON.stringify([
+      {
+        truthId: "ui-only.keyword.verify",
+        screenId: "UiOnly",
+        elementId: "keyword",
+        elementName: "keyword",
+        area: "search_condition",
+        existenceRationale: { status: "Needs Verification", reason: "Only UI label/input source exists", evidenceRefs: ["src/ui/UiOnly.jsx:2"] },
+        positionRationale: { status: "Verified", reason: "First because the input appears before other fields in source and admin forms normally put keyword first.", evidenceRefs: ["src/ui/UiOnly.jsx:2"] },
+        validationRationale: { status: "Unknown", reason: "No backend validation evidence", evidenceRefs: [] },
+        messageRationale: { status: "Unknown", reason: "No message evidence", evidenceRefs: [] },
+        sourceFingerprint: fingerprint,
+        evidenceRefs: ["src/ui/UiOnly.jsx:2"],
+        lifecycle: "verified",
+        version: 1,
+      },
+    ], null, 2)}\n`, "utf8");
+
+    const tiny = createTinyChuPlugin({ root });
+    const verified = await tiny.tools.layout_truth_verify({});
+    assert.equal(verified.verified.some((item) => item.truthId === "ui-only.keyword.verify"), false);
+    assert.ok(verified.reviewTargets.some((item) => item.truthId === "ui-only.keyword.verify" && item.positionRationale.status !== "Verified"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("layout truth update drops existing records without evidence-backed fingerprints", async () => {
+  const root = await createUxFixture();
+  try {
+    await mkdir(path.join(root, ".tiny", "ux"), { recursive: true });
+    await writeFile(path.join(root, ".tiny", "ux", "layout-truth.json"), `${JSON.stringify([
+      {
+        truthId: "legacy.invalid",
+        screenId: "OrderSearch",
+        elementId: "legacy",
+        elementName: "legacy",
+        area: "search_condition",
+        existenceRationale: { status: "Verified", reason: "Old invalid record", evidenceRefs: ["src/ui/DoesNotExist.jsx:1"] },
+        positionRationale: { status: "Verified", reason: "Old invalid position", evidenceRefs: ["src/ui/DoesNotExist.jsx:1"] },
+        validationRationale: { status: "Unknown", reason: "No validation evidence", evidenceRefs: [] },
+        messageRationale: { status: "Unknown", reason: "No message evidence", evidenceRefs: [] },
+        sourceFingerprint: "stale",
+        evidenceRefs: ["src/ui/DoesNotExist.jsx:1"],
+        lifecycle: "verified",
+        version: 1,
+      },
+    ], null, 2)}\n`, "utf8");
+
+    const tiny = createTinyChuPlugin({ root });
+    const result = await tiny.tools.layout_truth_update({ records: [], maxRecords: 20 });
+    assert.match(result.rejected.join("\n"), /existing.*legacy\.invalid/i);
+    assert.equal(result.records.some((item) => item.truthId === "legacy.invalid"), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("layout truth rejects symlink evidence refs that escape root", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-evidence-symlink-"));
+  const root = path.join(parent, "repo");
+  const outside = path.join(parent, "outside");
+  try {
+    await mkdir(path.join(root, "src"), { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(path.join(outside, "secret.ts"), "export const secret = true;\n", "utf8");
+    await symlink(path.join(outside, "secret.ts"), path.join(root, "src", "secret.ts"));
+    const tiny = createTinyChuPlugin({ root });
+    const result = await tiny.tools.layout_truth_update({
+      records: [
+        {
+          truthId: "escape.secret",
+          screenId: "Escape",
+          elementId: "secret",
+          elementName: "secret",
+          area: "search_condition",
+          existenceRationale: { status: "Verified", reason: "Symlink evidence should not count", evidenceRefs: ["src/secret.ts:1"] },
+          positionRationale: { status: "Inferred", reason: "Not relevant", evidenceRefs: ["src/secret.ts:1"] },
+          validationRationale: { status: "Unknown", reason: "No validation evidence", evidenceRefs: [] },
+          messageRationale: { status: "Unknown", reason: "No message evidence", evidenceRefs: [] },
+          sourceFingerprint: "",
+          evidenceRefs: ["src/secret.ts:1"],
+          lifecycle: "verified",
+          version: 1,
+        },
+      ],
+      maxRecords: 20,
+    });
+    assert.match(result.rejected.join("\n"), /fingerprint|evidence/i);
+    assert.equal(result.records.some((item) => item.truthId === "escape.secret"), false);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("layout truth rejects symlinked storage targets that escape root", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-storage-symlink-"));
+  const root = path.join(parent, "repo");
+  const outside = path.join(parent, "outside");
+  try {
+    await mkdir(path.join(root, ".tiny"), { recursive: true });
+    await mkdir(path.join(outside, "ux"), { recursive: true });
+    await symlink(path.join(outside, "ux"), path.join(root, ".tiny", "ux"));
+    const tiny = createTinyChuPlugin({ root });
+    await assert.rejects(() => tiny.tools.layout_truth_update({ records: [] }), /outside.*root|outside configured root/i);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("layout truth rejects symlinked layout truth files that escape root", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-file-symlink-"));
+  const root = path.join(parent, "repo");
+  const outside = path.join(parent, "outside");
+  try {
+    await mkdir(path.join(root, ".tiny", "ux"), { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(path.join(outside, "layout-truth.json"), "[]\n", "utf8");
+    await symlink(path.join(outside, "layout-truth.json"), path.join(root, ".tiny", "ux", "layout-truth.json"));
+    const tiny = createTinyChuPlugin({ root });
+    await assert.rejects(() => tiny.tools.layout_truth_update({ records: [] }), /outside.*root|outside configured root/i);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("layout truth rejects dangling symlinked layout truth files before write", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-dangling-file-symlink-"));
+  const root = path.join(parent, "repo");
+  const outside = path.join(parent, "outside");
+  try {
+    await mkdir(path.join(root, ".tiny", "ux"), { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await symlink(path.join(outside, "missing-layout-truth.json"), path.join(root, ".tiny", "ux", "layout-truth.json"));
+    const tiny = createTinyChuPlugin({ root });
+    await assert.rejects(() => tiny.tools.layout_truth_update({ records: [] }), /symlink|outside.*root|outside configured root/i);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("layout truth rejects intermediate symlink under ux without outside side effects", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-intermediate-symlink-"));
+  const root = path.join(parent, "repo");
+  const outside = path.join(parent, "outside");
+  try {
+    await mkdir(path.join(root, ".tiny", "ux"), { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await symlink(outside, path.join(root, ".tiny", "ux", "link"));
+    const tiny = createTinyChuPlugin({ root });
+    await assert.rejects(
+      () => tiny.tools.layout_truth_update({ path: ".tiny/ux/link/sub/layout-truth.json", records: [] }),
+      /symlink|outside.*root|outside configured root/i,
+    );
+    await assert.rejects(() => readdir(path.join(outside, "sub")), /ENOENT/);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("layout truth report emits PowerShell-safe stale commands", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-pwsh-report-"));
+  const evidencePath = "src/screen';\nsemi.ts";
+  const evidenceLine = "export const customer = true;";
+  const elementName = "customer'; Write-Host PWNED; '\nnext";
+  const evidenceRef = `${evidencePath}:1`;
+  try {
+    await writeFixture(root, evidencePath, [evidenceLine]);
+    await mkdir(path.join(root, ".tiny", "ux"), { recursive: true });
+    await writeFile(path.join(root, ".tiny", "ux", "layout-truth.json"), `${JSON.stringify([
+      {
+        truthId: "hostile.command",
+        screenId: "Hostile",
+        elementId: "hostile",
+        elementName,
+        area: "search_condition",
+        existenceRationale: { status: "Verified", reason: "Direct source evidence", evidenceRefs: [evidenceRef] },
+        positionRationale: { status: "Verified", reason: "Direct rendered layout evidence", evidenceRefs: [evidenceRef] },
+        validationRationale: { status: "Unknown", reason: "No validation evidence", evidenceRefs: [] },
+        messageRationale: { status: "Unknown", reason: "No message evidence", evidenceRefs: [] },
+        sourceFingerprint: `stale:${uxSourceFingerprint(evidencePath, 1, evidenceLine)}`,
+        evidenceRefs: [evidenceRef],
+        lifecycle: "verified",
+        version: 1,
+      },
+    ], null, 2)}\n`, "utf8");
+    const tiny = createTinyChuPlugin({ root });
+    const report = await tiny.tools.layout_truth_report({});
+    const staleLine = report.markdown.split(/\r?\n/).find((line) => line.includes("rg -n --"));
+    assert.ok(staleLine);
+    assert.doesNotMatch(staleLine, /'\\''/);
+    assert.match(staleLine, /'customer''; Write-Host PWNED; ''\\nnext'/);
+    assert.match(staleLine, /'src\/screen'';\\nsemi\.ts'/);
+    assert.equal(report.markdown.split(/\r?\n/).some((line) => line.startsWith("next")), false);
+    assert.equal(report.markdown.split(/\r?\n/).some((line) => line.startsWith("semi.ts")), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("UI UX policy docs define layout truth update rules", async () => {
+  const repoRoot = path.resolve(".");
+  const architecture = await readFile(path.join(repoRoot, ".tiny/rules/architecture-patterns.md"), "utf8");
+  const usage = await readFile(path.join(repoRoot, "HOW_TO_USE.md"), "utf8");
+  const policyDocs = `${architecture}\n${usage}`;
+  assert.match(policyDocs, /purpose -> state -> data -> action -> feedback -> record/);
+  assert.match(policyDocs, /layout_truth_verify before reuse/);
+  assert.match(policyDocs, /stale\/missing.*review targets/i);
+  assert.match(policyDocs, /source-order-only.*Verified/i);
+  assert.match(policyDocs, /convention-only.*Verified/i);
+});
+
 test("layout truth memory verifies, marks stale, and rejects unsafe paths", async () => {
   const root = await createUxFixture();
   try {
-    const tiny = createTinyInfiPlugin({ root });
+    const tiny = createTinyChuPlugin({ root });
     const catalog = await tiny.tools.ui_layout_catalog({ targetPath: ".", maxFiles: 20, maxElements: 20 });
     const rationale = await tiny.tools.ux_rationale_trace({ catalog, maxRationales: 20 });
     const first = await tiny.tools.layout_truth_update({ records: rationale.rationales, maxRecords: 20 });

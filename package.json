@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Tiny Infi OpenCode shell and file-backed orchestration primitives.",
+  "description": "Tiny-Chu OpenCode shell and file-backed orchestration primitives.",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "test": "npm run build && node --test test/*.test.mjs",
+    "pack:check": "npm run build && node --test test/install-package.test.mjs",
+    "release:offline": "node scripts/release/build-offline-bundle.mjs",
+    "verify:offline": "node scripts/release/verify-offline-bundle.mjs"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -14,8 +17,14 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "HOW_TO_USE.md",
+    "INSTALL.md",
+    "templates"
   ],
+  "engines": {
+    "node": ">=20.18.0"
+  },
   "devDependencies": {
     "typescript": "^6.0.3"
   },

@@ -1,3 +1,11 @@
 dist/
 node_modules/
 npm-debug.log*
+
+.omc/
+.omo/
+.claude/
+.opencode/
+.git/
+
+
