@@ -7,6 +7,8 @@ It deliberately keeps only the portable pieces needed for a local foreman model 
 - nearest `AGENTS.md` and project rules context bundling
 - `.tiny/tasks/*.json` task persistence
 - `.tiny/plans/*.md` checkbox-driven continuation state
+- `.tiny/workflows/runs/*.json` workflow run state as the JSON source of truth
+- `.tiny/workflows/reports/**/*.md` per-stage workflow reports
 - `.tiny/public-jobs/*.json` public-worker queue packets
 - `.tiny/wiki/index.json` canonical wiki bundle selection
 - a thin `createTinyChuPlugin()` shell exposing `task_*`, `public_*`, `context_bundle`, and `wiki_bundle` tools
@@ -81,13 +83,14 @@ export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 The OpenCode plugin exposes the same durable tools as the library shell:
 
 - `task_create`, `task_get`, `task_list`, `task_update`, `task_checkpoint`
-- `public_dispatch`, `public_collect`, `public_checkpoint`, `public_retry`, `public_cancel`, `public_complete`
+- `public_dispatch`, `public_collect`, `public_checkpoint`, `public_retry`, `public_cancel`, `public_complete`, `public_job_resume_packet`
 - `context_bundle`, `context_packet`, `context_digest`, `repo_map`, `business_logic_map`, `wiki_bundle`
 - `legacy_repo_index`, `ui_action_trace`, `api_backend_trace`, `integration_catalog`, `traceability_matrix`, `evidence_qa`, `evidence_snapshot`
 - `doctor`, `claim_evidence_check`, `session_preflight`, `task_focus_packet`, `powershell_command_guard`, `trace_diagram_render`, `tiny_chu_install_check`
 - `environment_doctor`, `api_contract_catalog`, `dto_schema_map`, `redux_state_flow_map`, `auth_permission_trace`, `error_transaction_map`, `test_impact_planner`, `worker_packet_optimizer`, `artifact_pack_manifest`, `incremental_evidence_cache`
 - `button_workflow_plan`, `button_worker_packet`, `button_workflow_dispatch`, `markdown_envelope_check`, `button_worker_result_check`, `button_trace_aggregate`, `aggregation_drift_check`, `atomic_markdown_write`, `write_loop_guard`, `button_workflow_done_claim`
-- `tool_usage_plan`, `resume_packet`, `chunked_write_plan`, `qwen_retry_policy`, `orchestration_health`, `rules_snapshot`
+- `tool_usage_plan`, `resume_packet`, `chunked_write_plan`, `qwen_retry_policy`, `orchestration_health`, `rules_snapshot`, `provider_endpoint_preflight`, `tool_call_conformance_probe`, `context_budget_simulation`, `evidence_gate`, `small_model_replay`
+- `analysis_workflow_start`, `workflow_create`, `workflow_status`, `workflow_checkpoint`, `workflow_resume_packet`, `workflow_packet_fit_check`, `workflow_next`, `workflow_progress_heartbeat`, `workflow_sot_audit`
 - `git_weekly_report` writes the last 5 business days of Git activity to `.tiny/reports/git-weekly` with report, evidence, QA, index, and audit artifacts
 - `ui_layout_catalog`, `ux_rationale_trace`, `ux_validation_matrix`, `layout_truth_update`, `layout_truth_verify`, `layout_truth_report`, `ux_reverse_report`
 - `orchestration_profile`, `artifact_format_template`, `artifact_check`, `mermaid_check`, `mermaid_fix`
@@ -157,6 +160,7 @@ The list above is now generated from internal `TinyFeaturePackage` descriptors i
 - `tiny-chu.extension-utilities`
 - `tiny-chu.button-workflow-hardening`
 - `tiny-chu.small-model-resilience`
+- `tiny-chu.workflow-orchestration`
 - `tiny-chu.ux-reverse-engineering`
 - `tiny-chu.doctor-artifacts`
 - `tiny-chu.host-opencode`
@@ -165,7 +169,43 @@ The list above is now generated from internal `TinyFeaturePackage` descriptors i
 
 To add a feature in phase 1, add or extend one package descriptor under `src/opencode/feature-packages/`, bind existing `TinyToolHandler` functions through `createDefaultTinyFeaturePackages()`, add focused composer/parity tests, and run `tiny_chu_install_check` or the registry smoke test. Do not hand-edit parallel tool arrays in `tiny-plugin.ts`, `plugin.ts`, and `install-check.ts`; those surfaces consume the generated registry.
 
-Phase 1 is intentionally internal. Tiny-Chu does not yet provide dynamic package discovery, npm subpackage loading, MCP server adapters, Figma API calls, provider API calls, or runtime disabling of default feature packages.
+Phase 1 is intentionally internal. Tiny-Chu does not yet provide dynamic package discovery, npm subpackage loading, MCP server adapters, Figma API calls, provider chat/generate/completion calls, or runtime disabling of default feature packages. The only provider-facing exception is `provider_endpoint_preflight`, an explicitly enabled metadata probe for readiness checks.
+
+## Workflow orchestration
+
+Use `analysis_workflow_start` when the user asks a small local model to analyze a repository path. It creates both a Tiny-Chu task and an `analysis` workflow run, then returns the next workflow command and the required first tools. Use `workflow_create` when the foreman needs to run a named multi-stage workflow without creating a task. The direct library helper is `createWorkflow`, and the built-in workflow id is `analysis`.
+
+The workflow run JSON under `.tiny/workflows/runs/<runId>.json` is the JSON source of truth. Markdown files under `.tiny/plans/` and `.tiny/workflows/reports/` are projections for people and re-entry prompts; they are regenerated from the JSON state and must not be treated as authoritative state.
+
+Core command sequence:
+
+1. `analysis_workflow_start({ objective, targetPath, workerAgent })`
+2. `provider_endpoint_preflight({ endpoint, networkMode: "disabled" })`
+3. `tool_call_conformance_probe({ fixture, allowedTools })`
+4. `context_budget_simulation({ model, packets, maxContextTokens })`
+5. `workflow_packet_fit_check({ packet, workerAgent })`
+6. `workflow_next({ runId, workerAgent })`
+7. `workflow_checkpoint({ runId, nodeId, summary, evidenceRefs, nextSteps, status: "done" })`
+8. `workflow_progress_heartbeat({ runId })`
+9. `evidence_gate({ required, checks })`
+10. `workflow_sot_audit({ runId, finalResponse, evidenceGate })`
+
+Every completed stage should stop with `workflow_checkpoint(..., status: "done")` before the foreman asks for the next packet. Use `status: "checkpointed"` for a temporary pause that should resume the same phase. After interruption or compaction, call `workflow_resume_packet` first, then `workflow_next` to continue from the newest checkpoint. If the pause came from a public worker, call `public_job_resume_packet` before retrying or collecting. Oversized packets are split before worker dispatch, `workerAgent.config.maxContextTokens` drives static context-window estimation, workers are serial-only, and UI packets stay separate from backend/API/DAO/SQL packets.
+
+The built-in `analysis` workflow phases are:
+
+1. `project_init`
+2. `architecture_map`
+3. `development_rules`
+4. `web_route_inventory`
+5. `page_layout_flow`
+6. `api_backend_trace`
+7. `dao_sql_business_logic`
+8. `final_deliverables`
+
+`provider_endpoint_preflight` is metadata-only and defaults to `networkMode: "disabled"`. It never proves readiness by sending a chat or generation prompt. Enable `loopback_only` only when the operator explicitly wants to probe a local Ollama, LM Studio, vLLM, llama.cpp, or OpenAI-compatible metadata endpoint.
+
+`workflow_progress_heartbeat` is the anti-stall check: it tells the foreman whether to continue, wait, recover, or stop instead of silently waiting for model output. `workflow_sot_audit` is the final-answer gate: the answer must cite the workflow run and JSON stateRef, and the evidence gate must pass before Tiny-Chu accepts completion.
 
 ## Stability and performance contracts
 
@@ -346,7 +386,7 @@ For multi-button legacy UI analysis, use the button workflow tools instead of se
 
 Use `artifact_format_template` before drafting AS-IS, UI, story, testcase, Mermaid, ERD, or UX reverse artifacts. A project may override built-ins with `.tiny/artifacts/templates/<artifactType>.md`; templates are preparation inputs and are not counted as produced artifacts by `artifact_pack_manifest`.
 
-Agent model option templates are exposed on `orchestration_profile.agentTemplates` with data-only helpers for provider capability validation and UI control recommendations. OpenAI and Anthropic entries are adapter-ready validation metadata only; Tiny-Chu makes no live provider API calls.
+Agent model option templates are exposed on `orchestration_profile.agentTemplates` with data-only helpers for provider capability validation and UI control recommendations. OpenAI and Anthropic entries are adapter-ready validation metadata only; Tiny-Chu does not perform provider generation calls.
 
 Use `qwen_retry_policy` whenever `qwen3.6-35b-a3b` delegation may hit the shared public limit. The encoded limit is 20 requests/min and 20000 tokens/min; the policy returns spacing, retry delays, minimum chunk count, and a non-stop recovery protocol.
 

@@ -15,7 +15,7 @@ Tiny-Chu 아키텍처의 척춄는 단일 문장으로 요약됩니다:
 ```text
 createTinyChuPlugin()                         src/opencode/tiny-plugin.ts:61
   │
-  ├─ ① 평평한 tools 맵 정의 (60+ 핸들러)
+  ├─ ① 평평한 tools 맵 정의 (기본 85개 핸들러)
   │     const tools: Record<string, TinyToolHandler> = {
   │       task_create: async (input) => ...,
   │       public_dispatch: async (input) => ...,
@@ -255,6 +255,6 @@ Tiny-Chu의 해법:
 
 ## 다음 읽을 문서
 
-- → [03-feature-packages.md](./03-feature-packages.md): 9+2 패키지의 실제 의존성 그래프와 위상 정렬 결과를 봅니다.
-- → [04-tool-catalog.md](./04-tool-catalog.md): 각 패키지가 담고 있는 60+ 툴의 카탈로그.
+- → [03-feature-packages.md](./03-feature-packages.md): 기본 10개 패키지와 옵션 패키지의 실제 의존성 그래프와 위상 정렬 결과를 봅니다.
+- → [04-tool-catalog.md](./04-tool-catalog.md): 각 패키지가 담고 있는 기본 85개 툴의 카탈로그.
 - → [05-plugin-and-hooks.md](./05-plugin-and-hooks.md): 소비 지점 2(OpenCode 브리지)의 출력 예산과 훅 상세.
