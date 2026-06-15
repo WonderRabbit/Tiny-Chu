@@ -93,9 +93,13 @@ export function createChunkedWritePlan(input: Record<string, unknown>): ChunkedW
   const markdown = requiredText(input.markdown, "markdown");
   const maxChunkChars = positiveInteger(input.maxChunkChars, 2000);
   const chunks: WriteChunk[] = [];
-  for (let start = 0; start < markdown.length; start += maxChunkChars) {
-    const text = markdown.slice(start, start + maxChunkChars);
+  for (let start = 0; start < markdown.length;) {
+    const maxEnd = Math.min(start + maxChunkChars, markdown.length);
+    const newlineIndex = maxEnd < markdown.length ? markdown.lastIndexOf("\n", maxEnd - 1) : -1;
+    const end = newlineIndex >= start ? newlineIndex + 1 : maxEnd;
+    const text = markdown.slice(start, end);
     chunks.push({ index: chunks.length + 1, start, end: start + text.length, text });
+    start = end;
   }
   return { path: targetPath, totalChars: markdown.length, maxChunkChars, chunks };
 }

@@ -1,5 +1,7 @@
 import type { ArtifactType } from "./artifact-contract.js";
 import { createDefaultAgentModelTemplates, type AgentKind, validateAgentModelTemplate, type AgentModelTemplateValidation } from "./agent-model-options.js";
+import { DETERMINISTIC_CAPS, type DeterministicToolCap } from "./tool-plan-caps.js";
+import { BASE_STOP_RULES, repositoryAnalysisStopRules, smallContextCorrectionStopRules } from "./tool-plan-stop-rules.js";
 
 export interface ToolPlanStep {
   readonly order: number;
@@ -8,12 +10,6 @@ export interface ToolPlanStep {
   readonly tinyTool?: string;
   readonly command?: string;
   readonly outputBudget: string;
-}
-
-export interface DeterministicToolCap {
-  readonly name: string;
-  readonly maxItems: number;
-  readonly purpose: string;
 }
 
 export interface ToolUsagePlanResult {
@@ -43,20 +39,6 @@ export interface ToolUsagePlanResult {
 }
 
 const MAX_VISIBLE_STEPS = 8;
-
-const DETERMINISTIC_CAPS: readonly DeterministicToolCap[] = [
-  { name: "fd", maxItems: 80, purpose: "file inventory paths returned to the foreman model" },
-  { name: "ripgrep", maxItems: 20, purpose: "text evidence matches returned per query" },
-  { name: "ast-grep", maxItems: 20, purpose: "structural matches returned per pattern" },
-  { name: "context_digest", maxItems: 12, purpose: "cited snippets returned instead of full file reads" },
-  { name: "evidence_snapshot", maxItems: 20, purpose: "existing evidence files summarized for reuse" },
-  { name: "redux_state_flow_map", maxItems: 80, purpose: "state facts and linked flow rows after pre-link bounding" },
-  { name: "auth_permission_trace", maxItems: 80, purpose: "permission conditions and linked rows after pre-link bounding" },
-  { name: "worker_packet_optimizer", maxItems: 6, purpose: "Qwen packets produced before public_dispatch" },
-  { name: "chunked_write_plan", maxItems: 2000, purpose: "characters per generated artifact write chunk" },
-  { name: "safe_patch_check", maxItems: 20, purpose: "source files checked per allowlisted patch before safe_patch_apply" },
-  { name: "artifact_publish_manifest", maxItems: 20, purpose: "artifact files published through stale-target manifests" },
-];
 
 function textInput(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
@@ -106,6 +88,10 @@ function needsSmallContextCorrection(objective: string): boolean {
   return /\b(small-context|small context|operating-mode|operating mode|small model optimization|provider call)\b/i.test(objective);
 }
 
+function needsRepositoryAnalysisWorkflow(objective: string): boolean {
+  return /\b(repository|repo|opencode|gemma4|gemma|tiny-chu)\b/i.test(objective);
+}
+
 function artifactTemplateStep(): ToolPlanStep {
   return { order: 1, goal: "load required artifact format template", tinyTool: "artifact_format_template", outputBudget: "template sections, validation rules, and source only" };
 }
@@ -150,6 +136,18 @@ function coreSteps(objective: string, type: ArtifactType | undefined): ToolPlanS
   const qwen = needsQwenPolicy(objective);
   const mermaid = mermaidStep(type);
   const template = type ? artifactTemplateStep() : undefined;
+  if (needsRepositoryAnalysisWorkflow(objective)) {
+    return [
+      { order: 1, goal: "create analysis workflow source of truth", tinyTool: "analysis_workflow_start", outputBudget: "task id, run id, stateRef, nextCommand" },
+      { order: 2, goal: "preflight local provider metadata without chat generation", tinyTool: "provider_endpoint_preflight", outputBudget: "status, requestAttempted, diagnostics" },
+      { order: 3, goal: "probe tool-call conformance from a fixture or loopback metadata-safe path", tinyTool: "tool_call_conformance_probe", outputBudget: "valid calls and diagnostics only" },
+      { order: 4, goal: "simulate context budget before handing work to small models", tinyTool: "context_budget_simulation", outputBudget: "fit decision and split diagnostics" },
+      { order: 5, goal: "get next bounded workflow packet", tinyTool: "workflow_next", outputBudget: "agent packet or blocked/done reason" },
+      { order: 6, goal: "report progress heartbeat before waiting or finalizing", tinyTool: "workflow_progress_heartbeat", outputBudget: "statusLine, shouldContinue, sotRefs" },
+      { order: 7, goal: "gate evidence before accepting model conclusions", tinyTool: "evidence_gate", outputBudget: "pass/fail and missing required checks" },
+      { order: 8, goal: "audit final response against workflow source of truth", tinyTool: "workflow_sot_audit", outputBudget: "pass/fail and SOT diagnostics" },
+    ];
+  }
   if (needsSmallContextCorrection(objective)) {
     return [
       { order: 1, goal: "check canonical small-context readiness gate", tinyTool: "doctor", outputBudget: "status, smallContextRun, sections, and remediation only" },
@@ -196,6 +194,7 @@ function coreSteps(objective: string, type: ArtifactType | undefined): ToolPlanS
 }
 
 function verificationTools(objective: string, type: ArtifactType | undefined): readonly string[] {
+  if (needsRepositoryAnalysisWorkflow(objective)) return ["evidence_gate", "workflow_sot_audit", "task_checkpoint"];
   if (needsSmallContextCorrection(objective)) return ["claim_evidence_check", "artifact_pack_manifest", "task_checkpoint"];
   if (needsUxReverse(objective, type)) return ["layout_truth_verify", "artifact_check", "claim_evidence_check", "task_checkpoint"];
   if (needsLegacyTrace(objective)) return ["evidence_qa", "claim_evidence_check", "artifact_check", "task_checkpoint"];
@@ -242,22 +241,9 @@ export function createToolUsagePlan(input: Record<string, unknown>): ToolUsagePl
       requiredEvidence: ["tool output JSON", "artifact_check or evidence_qa result", "task_checkpoint id"],
     },
     stopRules: [
-      ...(needsSmallContextCorrection(objective) ? [
-        "no live provider calls are proof for this workflow; Tiny-Chu must stay local and packet-only",
-        "call worker_packet_optimizer with dispatch:false before any public Qwen queue path",
-        "do not treat incremental_evidence_cache as git dirtiness; run git status --short and git diff -- <file> outside library code",
-      ] : []),
-      "do not read full files when repo_map or context_digest can answer",
-      "do not ask the model to infer variables columns or comparisons before business_logic_map",
-      "do not abandon public Qwen failures; use qwen_retry_policy then public_retry",
-      "use worker_packet_optimizer before public_dispatch when evidence packets may exceed the small-model budget",
-      "run orchestration_health after retries, interruptions, or failed worker jobs",
-      "run claim_evidence_check before accepting named APIs, classes, tables, or RFCs in an artifact",
-      "for source edits, preview or construct a patch, run safe_patch_check, then use safe_patch_apply only with expected hashes",
-      "for generated docs or reports, prepare an artifact workspace, create artifact_publish_manifest, then publish with artifact_publish_apply",
-      "do not produce artifact claims without evidenceRefs",
-      "do not stop after implementation; run the verification tools from the verification block",
-      "checkpoint before delegation, long commands, compaction, and final output",
+      ...repositoryAnalysisStopRules(needsRepositoryAnalysisWorkflow(objective)),
+      ...smallContextCorrectionStopRules(needsSmallContextCorrection(objective)),
+      ...BASE_STOP_RULES,
     ],
   };
 }

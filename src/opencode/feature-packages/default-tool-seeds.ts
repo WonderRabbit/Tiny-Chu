@@ -1,4 +1,4 @@
-import { markdown, readJson, writeMarkdown, writeSource, writeState, type ToolSeed } from "./tool-seed.js";
+import { markdown, readJson, readJsonOptionalNetwork, writeMarkdown, writeSource, writeState, type ToolSeed } from "./tool-seed.js";
 
 const STRING_SCHEMA = { type: "string" } as const;
 const STRING_ARRAY_SCHEMA = { type: "array", items: STRING_SCHEMA } as const;
@@ -16,6 +16,7 @@ export const CORE_RUNTIME_TOOLS: readonly ToolSeed[] = [
   writeState("public_retry", "Move a public worker job to retry_wait with backoff metadata."),
   writeState("public_cancel", "Cancel a public worker job packet."),
   writeState("public_complete", "Complete a public worker job after result validation."),
+  readJson("public_job_resume_packet", "Build a bounded resume packet for a checkpointed public worker job."),
   readJson("context_bundle", "Bundle nearest AGENTS.md and project rule context for a target path."),
   readJson("context_packet", "Return bounded context and evidence refs for small-context resume."),
   readJson("wiki_bundle", "Bundle canonical Tiny-Chu wiki documents by reference."),
@@ -59,13 +60,30 @@ export const BUTTON_WORKFLOW_TOOLS: readonly ToolSeed[] = [
   readJson("button_workflow_done_claim", "Validate the final button workflow done claim."),
 ];
 
+export const WORKFLOW_ORCHESTRATION_TOOLS: readonly ToolSeed[] = [
+  writeState("analysis_workflow_start", "Start an analysis workflow with a task and source-of-truth run state."),
+  writeState("workflow_create", "Create a durable workflow run and initial stop point."),
+  readJson("workflow_status", "Read workflow run status, checkpoints, and resume command metadata."),
+  writeState("workflow_checkpoint", "Checkpoint workflow node progress with evidence and next steps."),
+  readJson("workflow_resume_packet", "Return the bounded resume packet for a workflow run."),
+  readJson("workflow_packet_fit_check", "Check whether a workflow worker packet fits the target worker budget."),
+  readJson("workflow_next", "Return the next workflow command, gate, or worker packet."),
+  readJson("workflow_progress_heartbeat", "Report whether a workflow should continue, wait, or recover from a stall."),
+  readJson("workflow_sot_audit", "Audit a final answer against workflow source-of-truth and evidence gates."),
+];
+
 export const SMALL_MODEL_TOOLS: readonly ToolSeed[] = [
+  readJson("context_budget_simulation", "Estimate static packet token budget before small-model execution."),
   readJson("context_digest", "Return bounded file evidence snippets with citations for small-context models.", ["rg"]),
+  readJson("evidence_gate", "Aggregate required evidence checks into a pass, warning, or fail decision."),
   readJson("session_preflight", "Return latest task checkpoint, verification tools, and small-context budget ledger."),
   readJson("orchestration_profile", "Return the small-context OpenCode orchestration profile."),
+  readJsonOptionalNetwork("provider_endpoint_preflight", "Safely preflight local provider metadata endpoints without chat generation."),
   readJson("qwen_retry_policy", "Return qwen3.6-35b-a3b public rate-limit retry and chunking guidance."),
   readJson("orchestration_health", "Summarize task and public-worker health with recovery steps that preserve progress."),
   writeState("rules_snapshot", "Write current Tiny-Chu architecture implementation patterns to .tiny/rules."),
+  readJson("small_model_replay", "Replay small-model fixtures and score deterministic output and citation compliance."),
+  readJson("tool_call_conformance_probe", "Check structured tool-call output conformance without live provider calls."),
   readJson("tool_usage_plan", "Choose a small-model-safe command and Tiny-Chu tool sequence for a task."),
   readJson("resume_packet", "Return the active task goal, latest checkpoint, next steps, and open questions."),
   readJson("task_focus_packet", "Return the current task plus plan focus and latest checkpoint."),

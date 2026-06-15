@@ -52,7 +52,7 @@ export interface ModelOptionControlRecommendation {
   readonly diagnostic?: string;
 }
 
-const DEFAULT_RULES = ["no live provider API calls", "validate provider-specific options before dispatch"] as const;
+const DEFAULT_RULES = ["no provider generation calls", "validate provider-specific options before dispatch"] as const;
 
 function template(agentKind: AgentKind, provider: ModelProvider, model: string, capabilities: readonly string[], generation: AgentModelTemplate["generation"]): AgentModelTemplate {
   return { agentKind, modelRef: { provider, model }, generation, capabilities, validationRules: DEFAULT_RULES };

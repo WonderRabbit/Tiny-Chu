@@ -28,7 +28,7 @@ test("agent model validation rejects unsupported provider options", () => {
     modelRef: { provider: "openai-responses", model: "gpt-5.1" },
     generation: { sampling: { topK: 10 } },
     capabilities: ["fact_research"],
-    validationRules: ["no live provider API calls"],
+    validationRules: ["no provider generation calls"],
   });
   assert.equal(openai.valid, false);
   assert.ok(openai.diagnostics.some((diagnostic) => diagnostic.fieldPath === "generation.sampling.topK"));
@@ -38,7 +38,7 @@ test("agent model validation rejects unsupported provider options", () => {
     modelRef: { provider: "anthropic-messages", model: "claude-opus-4-8" },
     generation: { sampling: { temperature: 0.2, topP: 0.8, topK: 20 }, reasoning: { openaiEffort: "high" } },
     capabilities: ["implementation"],
-    validationRules: ["no live provider API calls"],
+    validationRules: ["no provider generation calls"],
   });
   assert.equal(anthropic.valid, false);
   assert.ok(anthropic.diagnostics.some((diagnostic) => diagnostic.action === "reject" || diagnostic.action === "omit"));

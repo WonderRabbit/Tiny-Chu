@@ -5,6 +5,7 @@ export type TinyFeatureCategory =
   | "legacy-analysis"
   | "extension-utilities"
   | "workflow-hardening"
+  | "workflow-orchestration"
   | "small-model-resilience"
   | "safe-tooling"
   | "ux-reverse-engineering"

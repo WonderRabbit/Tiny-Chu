@@ -8,6 +8,7 @@ import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
 
 const EXPECTED_TOOL_NAMES = [
   "aggregation_drift_check",
+  "analysis_workflow_start",
   "api_backend_trace",
   "api_contract_catalog",
   "artifact_check",
@@ -24,6 +25,7 @@ const EXPECTED_TOOL_NAMES = [
   "button_workflow_plan",
   "chunked_write_plan",
   "claim_evidence_check",
+  "context_budget_simulation",
   "context_bundle",
   "context_digest",
   "context_packet",
@@ -31,6 +33,7 @@ const EXPECTED_TOOL_NAMES = [
   "dto_schema_map",
   "environment_doctor",
   "error_transaction_map",
+  "evidence_gate",
   "evidence_qa",
   "evidence_snapshot",
   "git_weekly_report",
@@ -46,11 +49,13 @@ const EXPECTED_TOOL_NAMES = [
   "orchestration_health",
   "orchestration_profile",
   "powershell_command_guard",
+  "provider_endpoint_preflight",
   "public_cancel",
   "public_checkpoint",
   "public_collect",
   "public_complete",
   "public_dispatch",
+  "public_job_resume_packet",
   "public_retry",
   "qwen_retry_policy",
   "redux_state_flow_map",
@@ -58,6 +63,7 @@ const EXPECTED_TOOL_NAMES = [
   "resume_packet",
   "rules_snapshot",
   "session_preflight",
+  "small_model_replay",
   "task_checkpoint",
   "task_create",
   "task_focus_packet",
@@ -66,6 +72,7 @@ const EXPECTED_TOOL_NAMES = [
   "task_update",
   "test_impact_planner",
   "tiny_chu_install_check",
+  "tool_call_conformance_probe",
   "tool_usage_plan",
   "trace_diagram_render",
   "traceability_matrix",
@@ -76,6 +83,14 @@ const EXPECTED_TOOL_NAMES = [
   "ux_validation_matrix",
   "wiki_bundle",
   "worker_packet_optimizer",
+  "workflow_checkpoint",
+  "workflow_create",
+  "workflow_next",
+  "workflow_packet_fit_check",
+  "workflow_progress_heartbeat",
+  "workflow_resume_packet",
+  "workflow_sot_audit",
+  "workflow_status",
   "write_loop_guard",
 ];
 
@@ -97,15 +112,18 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
 
   assert.equal(typeof tiny.tools.git_weekly_report, "function");
   assert.equal(typeof hooks.tool.git_weekly_report?.execute, "function");
-  assert.equal(directToolNames.length, 70);
-  assert.equal(bridgeToolNames.length, 70);
-  assert.equal(tiny.registry.packages.length, 9);
-  assert.equal(tiny.registry.toolSpecs.length, 70);
-  assert.equal(new Set(tiny.registry.toolSpecs.map((spec) => spec.packageId)).size, 7);
+  assert.equal(directToolNames.length, 85);
+  assert.equal(bridgeToolNames.length, 85);
+  assert.equal(tiny.registry.packages.length, 10);
+  assert.equal(tiny.registry.toolSpecs.length, 85);
+  assert.equal(new Set(tiny.registry.toolSpecs.map((spec) => spec.packageId)).size, 8);
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.legacy-analysis"));
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.button-workflow-hardening"));
+  assert.ok(tiny.registry.packageIds.includes("tiny-chu.workflow-orchestration"));
   assert.equal(tiny.registry.packageIds.includes("tiny-chu.workflow-hardening"), false);
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "button_workflow_plan")?.packageId, "tiny-chu.button-workflow-hardening");
+  assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "workflow_next")?.packageId, "tiny-chu.workflow-orchestration");
+  assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "provider_endpoint_preflight")?.permission?.network, "optional");
   assert.ok(tiny.registry.toolSpecs.every((spec) => spec.smallModel?.deterministic === true));
   assert.equal(tiny.registry.packages.find((item) => item.id === "tiny-chu.core-runtime")?.compatibility?.manifestVersion, 1);
   assert.equal(tiny.registry.packages.find((item) => item.id === "tiny-chu.host-opencode")?.compatibility?.hostApiVersion, "opencode-plugin-v1");
@@ -115,7 +133,7 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
     "experimental.session.compacting",
     "shell.env",
   ]);
-  assert.equal(install.requiredTools.length, 70);
+  assert.equal(install.requiredTools.length, 85);
   assert.equal(install.packageName, "tiny-chu");
   assert.equal(install.opencodeEntrypoint, "./dist/opencode/plugin.js");
   assert.equal(install.status, "ready");

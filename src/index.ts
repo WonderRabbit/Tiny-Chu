@@ -4,6 +4,10 @@ export { PublicDispatcher, type PublicJob, type PublicJobBudget, type PublicJobS
 export { appendJsonLine, ensureDir, readJsonFile, readJsonLines, removeIfExists, writeJsonAtomic, writeTextAtomic } from "./state/file-store.js";
 export { resolveTinyChuPaths, type TinyChuPaths } from "./state/paths.js";
 export { TaskStore, type TinyTask, type TaskStatus, type TaskCheckpoint } from "./state/task-store.js";
+export { ANALYSIS_WORKFLOW_PHASE_IDS, createAnalysisWorkflowDefinition, createWorkflowDefinition, createWorkflowDefinitionNodes } from "./state/workflow-definitions.js";
+export { createWorkflow, createWorkflowCheckpoint, createWorkflowNextPacket, createWorkflowPacketFitCheck, createWorkflowResumePacket, createWorkflowStatus } from "./state/workflow-helpers.js";
+export { WorkflowStore } from "./state/workflow-store.js";
+export type { WorkflowCheckpoint, WorkflowCheckpointInput, WorkflowCheckpointRequest, WorkflowContextFit, WorkflowContextFitSource, WorkflowCreateInput, WorkflowCreateResult, WorkflowCreateRunInput, WorkflowDefinition, WorkflowDefinitionPhase, WorkflowEvent, WorkflowEventType, WorkflowNextPacket, WorkflowNextPacketInput, WorkflowNode, WorkflowNodeInput, WorkflowNodeStatus, WorkflowPacketDiagnostic, WorkflowPacketDiagnosticSeverity, WorkflowPacketFitInput, WorkflowPacketFitResult, WorkflowPacketInput, WorkflowPacketKind, WorkflowPacketRequiredAction, WorkflowPacketScopeKind, WorkflowResumePacket, WorkflowResumePacketInput, WorkflowRun, WorkflowRunStatus, WorkflowSplitCandidate, WorkflowStatusInput, WorkflowStatusResult, WorkflowStopPoint, WorkflowStoreOptions, WorkflowTokenEstimateMode, WorkflowToolCommand, WorkflowWorkerAgent, WorkflowWorkerAgentConfig, WorkflowWorkerExecution } from "./state/workflow-types.js";
 export { parsePlanMarkdown, readPlanStatus, selectPlanFocus, writePlanTemplate, type PlanStatus, type PlanCheckbox, type PlanFocus } from "./ulw-loop/plan.js";
 export { WikiBundler, type WikiBundle, type WikiDocumentRef, type WikiIndex } from "./wiki/wiki-bundler.js";
 export { createTinyChuPlugin, POWERSHELL_OPENCODE_RUNTIME, type OpenCodeRuntimeConfig, type OpenCodeShellRuntime, type TinyChuConfig, type TinyPluginModule, type TinyToolContext } from "./opencode/tiny-plugin.js";
@@ -30,6 +34,10 @@ export { createQwenRetryPolicy, QWEN_PUBLIC_LIMITS, type QwenPublicLimits, type 
 export { createOrchestrationHealth, type OrchestrationHealthResult, type StatusCount } from "./opencode/orchestration-health.js";
 export { writeRulesSnapshot, type RulesSnapshotResult } from "./opencode/rules-snapshot.js";
 export { createToolUsagePlan, type ToolPlanStep, type ToolUsagePlanResult } from "./opencode/tool-plan.js";
+export type { DeterministicToolCap } from "./opencode/tool-plan-caps.js";
+export { createProviderEndpointPreflight, type ProviderEndpointPreflightDiagnostic, type ProviderEndpointPreflightResult, type ProviderEndpointPreflightStatus, type ProviderNetworkMode } from "./opencode/provider-endpoint-preflight.js";
+export { createContextBudgetSimulation, createEvidenceGate, createSmallModelReplay, createToolCallConformanceProbe, type ContextBudgetSimulationResult, type EvidenceGateResult, type SmallModelDiagnostic, type SmallModelGateStatus, type SmallModelReplayResult, type ToolCallConformanceResult } from "./opencode/small-model-reliability.js";
+export { createAnalysisWorkflowStart, createPublicJobResumePacket, createWorkflowProgressHeartbeat, createWorkflowSotAudit, type AnalysisWorkflowStartResult, type PublicJobResumePacketResult, type WorkflowProgressHeartbeatResult, type WorkflowReliabilityStatus, type WorkflowSotAuditResult } from "./opencode/workflow-reliability.js";
 export { createGitWeeklyReport, type GitWeeklyReportCommit, type GitWeeklyReportResult } from "./opencode/git-weekly-report.js";
 export { createClaimEvidenceCheck, type ClaimEvidenceCheckResult, type ClaimEvidenceDiagnostic } from "./opencode/claim-evidence-check.js";
 export { createDoctor, type DoctorCheck, type DoctorCheckStatus, type DoctorInput, type DoctorResult, type DoctorSectionSummary, type DoctorStatus } from "./opencode/doctor.js";

@@ -72,6 +72,34 @@ test("chunked_write_plan returns chunks bounded by maxChunkChars", async () => {
   assert.equal(plan.chunks.map((chunk) => chunk.text).join(""), markdown);
 });
 
+test("chunked_write_plan prefers newline boundaries for resumable Markdown chunks", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-chunked-plan-newlines-"));
+  const plugin = createTinyChuPlugin({ root });
+  const markdown = [
+    "# Plan",
+    "",
+    "- [ ] gather context",
+    "- [ ] write red test",
+    "- [ ] update source",
+    "- [ ] verify build",
+    "",
+  ].join("\n");
+  const plan = await plugin.tools.chunked_write_plan({
+    path: ".tiny/plans/RELEASE.md",
+    markdown,
+    maxChunkChars: 32,
+  });
+
+  const intermediateChunks = plan.chunks.slice(0, -1);
+  assert.ok(intermediateChunks.length > 1);
+  assert.ok(plan.chunks.every((chunk) => chunk.text.length <= 32));
+  assert.equal(plan.chunks.map((chunk) => chunk.text).join(""), markdown);
+  assert.ok(
+    intermediateChunks.every((chunk) => chunk.text.endsWith("\n")),
+    `intermediate chunk ${intermediateChunks.find((chunk) => !chunk.text.endsWith("\n"))?.index} should end at a newline`,
+  );
+});
+
 test("atomic markdown write prevents empty overwrite and bak churn", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-atomic-write-"));
   const plugin = createTinyChuPlugin({ root });

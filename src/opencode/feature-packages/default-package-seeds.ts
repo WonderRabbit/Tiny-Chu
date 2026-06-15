@@ -1,4 +1,4 @@
-import { BUTTON_WORKFLOW_TOOLS, CORE_RUNTIME_TOOLS, DOCTOR_ARTIFACT_TOOLS, EXTENSION_UTILITY_TOOLS, LEGACY_ANALYSIS_TOOLS, NATIVE_PREVIEW_TOOLS, SAFE_TOOLING_TOOLS, SMALL_MODEL_TOOLS, UX_REVERSE_ENGINEERING_TOOLS } from "./default-tool-seeds.js";
+import { BUTTON_WORKFLOW_TOOLS, CORE_RUNTIME_TOOLS, DOCTOR_ARTIFACT_TOOLS, EXTENSION_UTILITY_TOOLS, LEGACY_ANALYSIS_TOOLS, NATIVE_PREVIEW_TOOLS, SAFE_TOOLING_TOOLS, SMALL_MODEL_TOOLS, UX_REVERSE_ENGINEERING_TOOLS, WORKFLOW_ORCHESTRATION_TOOLS } from "./default-tool-seeds.js";
 import { instruction, resource, type PackageSeed } from "./tool-seed.js";
 
 export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
@@ -47,6 +47,13 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
     tools: BUTTON_WORKFLOW_TOOLS,
   },
   {
+    id: "tiny-chu.workflow-orchestration",
+    title: "Workflow Orchestration",
+    category: "workflow-orchestration",
+    dependsOn: ["tiny-chu.core-runtime", "tiny-chu.shared-support"],
+    tools: WORKFLOW_ORCHESTRATION_TOOLS,
+  },
+  {
     id: "tiny-chu.small-model-resilience",
     title: "Small Model Resilience",
     category: "small-model-resilience",
@@ -76,6 +83,7 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
       "tiny-chu.extension-utilities",
       "tiny-chu.button-workflow-hardening",
       "tiny-chu.ux-reverse-engineering",
+      "tiny-chu.workflow-orchestration",
     ],
     tools: [],
     resources: [resource("opencode-adapter", "OpenCode bridge, output budget wrapper, install-check, and host hooks.", "src/opencode/plugin.ts")],

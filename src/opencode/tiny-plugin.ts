@@ -27,11 +27,13 @@ import { createTinyChuInstallCheck } from "./install-check.js";
 import { createLegacyRepoIndex } from "./legacy-repo-index.js";
 import { createOrchestrationHealth } from "./orchestration-health.js";
 import { POWERSHELL_TOOLING_PROFILE, renderCompactPowerShellToolingGuide } from "./powershell-tooling.js";
+import { createProviderEndpointPreflight } from "./provider-endpoint-preflight.js";
 import { createQwenRetryPolicy } from "./qwen-retry-policy.js";
 import { createRepoMap } from "./repo-map.js";
 import { writeRulesSnapshot } from "./rules-snapshot.js";
 import { renderCompactSmallContextGuide } from "./small-context-compact.js";
 import { createSmallContextOrchestrationProfile } from "./small-context-profile.js";
+import { createContextBudgetSimulation, createEvidenceGate, createSmallModelReplay, createToolCallConformanceProbe } from "./small-model-reliability.js";
 import { createSafeToolHandlers } from "./safe-tool-handlers.js";
 import { createChunkedWritePlan, createContextDigest, createResumePacket } from "./small-model-tools.js";
 import { createSessionPreflight } from "./session-preflight.js";
@@ -45,6 +47,8 @@ import type { OpenCodeRuntimeConfig, TinyChuConfig, TinyPluginModule, TinyToolCo
 import { reportLayoutTruth, updateLayoutTruth, verifyLayoutTruth } from "./layout-truth.js";
 import { createUiLayoutCatalog, createUxRationaleTrace, createUxValidationMatrix } from "./ux-reverse-analysis.js";
 import { createUxReverseReport } from "./ux-reverse-report.js";
+import { createAnalysisWorkflowStart, createPublicJobResumePacket, createWorkflowProgressHeartbeat, createWorkflowSotAudit } from "./workflow-reliability.js";
+import { createWorkflowToolHandlers } from "./workflow-tool-handlers.js";
 
 export type { OpenCodeRuntimeConfig, OpenCodeShellRuntime, TinyChuConfig, TinyPluginModule, TinyToolContext, TinyToolHandler } from "./tiny-plugin-types.js";
 
@@ -64,6 +68,7 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
   const dispatcher = new PublicDispatcher({ root, ...config.publicDispatcher });
   const wiki = new WikiBundler(root);
   const orchestrationProfile = createSmallContextOrchestrationProfile(POWERSHELL_OPENCODE_RUNTIME);
+  const workflowTools = createWorkflowToolHandlers(root);
   let registry: TinyComposedRegistry;
 
   const tools: Record<string, TinyToolHandler> = {
@@ -104,8 +109,10 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       public_retry: async (input) => dispatcher.retry(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
       public_cancel: async (input) => dispatcher.cancel(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
       public_complete: async (input) => dispatcher.complete(stringInput(input, "id"), stringInput(input, "result")),
+      public_job_resume_packet: async (input) => createPublicJobResumePacket(root, input),
       context_bundle: async (input, context) => loadContextBundle(root, typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? "."),
       context_packet: async (input, context) => buildContextPacket({ root: resolveTinyChuPaths(root).root, targetPath: typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? ".", maxChars: numberInput(input, "maxChars"), evidenceRefs: stringListInput(input, "evidenceRefs"), notes: stringListInput(input, "notes") }),
+      context_budget_simulation: async (input) => createContextBudgetSimulation(input),
       context_digest: async (input) => createContextDigest(resolveTinyChuPaths(root).root, input),
       repo_map: async (input) => createRepoMap(resolveTinyChuPaths(root).root, input),
       business_logic_map: async (input) => createBusinessLogicMap(resolveTinyChuPaths(root).root, input),
@@ -115,9 +122,12 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       integration_catalog: async (input) => createIntegrationCatalog(resolveTinyChuPaths(root).root, input),
       traceability_matrix: async (input) => createTraceabilityMatrix(input),
       evidence_qa: async (input) => createEvidenceQa(input),
+      evidence_gate: async (input) => createEvidenceGate(input),
       evidence_snapshot: async (input) => createEvidenceSnapshot(resolveTinyChuPaths(root).root, input),
       doctor: async (input) => createDoctor(root, input),
       claim_evidence_check: async (input) => createClaimEvidenceCheck(input),
+      provider_endpoint_preflight: async (input) => createProviderEndpointPreflight(input),
+      tool_call_conformance_probe: async (input) => createToolCallConformanceProbe(input),
       session_preflight: async (input) => {
         const task = await tasks.get(stringInput(input, "id"));
         if (!task) throw new Error(`Task not found: ${stringInput(input, "id")}`);
@@ -168,6 +178,7 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       },
       task_focus_packet: async (input) => createTaskFocusPacket(root, tasks, input),
       chunked_write_plan: async (input) => createChunkedWritePlan(input),
+      small_model_replay: async (input) => createSmallModelReplay(input),
       artifact_format_template: async (input) => createArtifactFormatTemplate(root, input),
       artifact_check: async (input) => checkArtifactMarkdown({
         artifactType: stringInput(input, "artifactType"),
@@ -176,6 +187,10 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       }),
       mermaid_check: async (input) => checkMermaidMarkdown(await markdownInput(root, input)),
       mermaid_fix: async (input) => fixMermaidMarkdown(await markdownInput(root, input)),
+      analysis_workflow_start: async (input) => createAnalysisWorkflowStart(root, input),
+      workflow_progress_heartbeat: async (input) => createWorkflowProgressHeartbeat(root, input),
+      workflow_sot_audit: async (input) => createWorkflowSotAudit(root, input),
+      ...workflowTools,
     };
   registry = composeFeaturePackages(createDefaultTinyFeaturePackages(tools, {
     safeTooling: config.safeTooling,

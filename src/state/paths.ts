@@ -8,6 +8,11 @@ export interface TinyChuPaths {
   tinyDir: string;
   publicJobsDir: string;
   memoryDir: string;
+  workflowsDir: string;
+  workflowDefinitionsDir: string;
+  workflowRunsDir: string;
+  workflowPacketsDir: string;
+  workflowReportsDir: string;
   wikiDir: string;
   wikiIndexFile: string;
 }
@@ -15,6 +20,7 @@ export interface TinyChuPaths {
 export function resolveTinyChuPaths(root = process.cwd()): TinyChuPaths {
   const absoluteRoot = path.resolve(root);
   const tinyDir = path.join(absoluteRoot, ".tiny");
+  const workflowsDir = path.join(tinyDir, "workflows");
   const wikiDir = path.join(tinyDir, "wiki");
   return {
     root: absoluteRoot,
@@ -24,6 +30,11 @@ export function resolveTinyChuPaths(root = process.cwd()): TinyChuPaths {
     tinyDir,
     publicJobsDir: path.join(tinyDir, "public-jobs"),
     memoryDir: path.join(tinyDir, "memory"),
+    workflowsDir,
+    workflowDefinitionsDir: path.join(workflowsDir, "definitions"),
+    workflowRunsDir: path.join(workflowsDir, "runs"),
+    workflowPacketsDir: path.join(workflowsDir, "packets"),
+    workflowReportsDir: path.join(workflowsDir, "reports"),
     wikiDir,
     wikiIndexFile: path.join(wikiDir, "index.json"),
   };

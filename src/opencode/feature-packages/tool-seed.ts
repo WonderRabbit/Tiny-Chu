@@ -14,6 +14,7 @@ export interface PackageSeed {
 }
 
 const READ_ONLY: TinyPermissionHint = { readOnly: true, network: "none" };
+const READ_ONLY_OPTIONAL_NETWORK: TinyPermissionHint = { readOnly: true, network: "optional" };
 const STATE_WRITE: TinyPermissionHint = { readOnly: false, writesState: true, network: "none" };
 const ARTIFACT_WRITE: TinyPermissionHint = { readOnly: false, writesArtifacts: true, network: "none" };
 const SOURCE_WRITE: TinyPermissionHint = { readOnly: false, writesSource: true, network: "none" };
@@ -22,6 +23,10 @@ const MARKDOWN_HINT: TinySmallModelHint = { outputMode: "markdown", deterministi
 
 export function readJson(name: string, description: string, requiredNativeTools: readonly string[] = []): ToolSeed {
   return { name, description, permission: READ_ONLY, smallModel: JSON_HINT, requiredNativeTools };
+}
+
+export function readJsonOptionalNetwork(name: string, description: string, requiredNativeTools: readonly string[] = []): ToolSeed {
+  return { name, description, permission: READ_ONLY_OPTIONAL_NETWORK, smallModel: JSON_HINT, requiredNativeTools };
 }
 
 export function writeState(name: string, description: string): ToolSeed {

@@ -12,6 +12,15 @@ declare class Buffer extends Uint8Array {
   static from(value: string): Buffer;
 }
 
+declare class URL {
+  constructor(input: string, base?: string);
+  protocol: string;
+  hostname: string;
+  pathname: string;
+  search: string;
+  hash: string;
+}
+
 declare namespace NodeJS {
   interface ErrnoException extends Error {
     code?: string;
@@ -71,6 +80,35 @@ declare module "node:child_process" {
     args: readonly string[],
     options: { cwd?: string; shell?: boolean; env?: Record<string, string | undefined>; stdio?: readonly ["pipe", "pipe", "pipe"] },
   ): ChildProcessLike;
+}
+
+declare module "node:http" {
+  export interface IncomingMessage {
+    readonly statusCode?: number;
+    setEncoding(encoding: "utf8"): void;
+    destroy(error?: Error): void;
+    on(event: "data", callback: (chunk: string) => void): void;
+    on(event: "error", callback: (error: Error) => void): void;
+    on(event: "end", callback: () => void): void;
+  }
+  export interface ClientRequest {
+    on(event: "timeout", callback: () => void): void;
+    on(event: "error", callback: (error: Error) => void): void;
+    destroy(error?: Error): void;
+    end(): void;
+  }
+  const http: {
+    request(url: URL, options: { method: "GET"; timeout: number }, callback: (response: IncomingMessage) => void): ClientRequest;
+  };
+  export default http;
+}
+
+declare module "node:https" {
+  import type { ClientRequest, IncomingMessage } from "node:http";
+  const https: {
+    request(url: URL, options: { method: "GET"; timeout: number }, callback: (response: IncomingMessage) => void): ClientRequest;
+  };
+  export default https;
 }
 
 declare module "node:fs" {
