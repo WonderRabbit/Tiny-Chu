@@ -91,15 +91,18 @@ async function buildStagePackageJson(stagingDir, packageJson) {
   await writeJson(path.join(stagingDir, "package.json"), releasePackageJson);
 }
 
-async function installProductionDependencies(stagingDir) {
-  const cacheDir = process.env.npm_config_cache ?? path.join(os.tmpdir(), "tiny-chu-release-npm-cache");
+function npmEnv(cacheDir) {
+  return { ...process.env, npm_config_audit: "false", npm_config_fund: "false", npm_config_cache: cacheDir };
+}
+
+async function installProductionDependencies(stagingDir, cacheDir) {
   try {
     await execFileAsync(
       "npm",
       ["install", "--omit=dev", "--cache", cacheDir, "--ignore-scripts", "--no-audit", "--fund=false"],
       {
         cwd: stagingDir,
-        env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
+        env: npmEnv(cacheDir),
         maxBuffer,
       },
     );
@@ -130,20 +133,26 @@ async function main() {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-offline-build-"));
   const stagingDir = path.join(tempRoot, "package");
   const bundleDir = path.join(tempRoot, bundleName);
+  const cacheDir = process.env.TINY_CHU_RELEASE_NPM_CACHE
+    ? path.resolve(process.env.TINY_CHU_RELEASE_NPM_CACHE)
+    : path.join(tempRoot, "npm-cache");
+  const packCacheDir = path.join(tempRoot, "npm-pack-cache");
 
   try {
     await execFileAsync("npm", ["run", "build"], { cwd: repoRoot, maxBuffer });
     await mkdir(args.out, { recursive: true });
+    await mkdir(cacheDir, { recursive: true });
+    await mkdir(packCacheDir, { recursive: true });
     await mkdir(stagingDir, { recursive: true });
     await mkdir(path.join(bundleDir, "vendor"), { recursive: true });
 
     await copyReleaseInputs(stagingDir);
     await buildStagePackageJson(stagingDir, packageJson);
-    await installProductionDependencies(stagingDir);
+    await installProductionDependencies(stagingDir, cacheDir);
 
-    const packResult = await execFileAsync("npm", ["pack", "--json", "--pack-destination", path.join(bundleDir, "vendor")], {
+    const packResult = await execFileAsync("npm", ["pack", "--json", "--pack-destination", path.join(bundleDir, "vendor"), "--cache", packCacheDir], {
       cwd: stagingDir,
-      env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
+      env: npmEnv(packCacheDir),
       maxBuffer,
     });
     const packed = JSON.parse(packResult.stdout);
@@ -161,6 +170,7 @@ async function main() {
     const distHashes = {
       "dist/index.js": await hashFile(path.join(stagingDir, "dist", "index.js")),
       "dist/opencode/plugin.js": await hashFile(path.join(stagingDir, "dist", "opencode", "plugin.js")),
+      "dist/opencode/tui-plugin.js": await hashFile(path.join(stagingDir, "dist", "opencode", "tui-plugin.js")),
     };
     const manifest = {
       name: "tiny-chu-offline-bundle",
@@ -176,7 +186,7 @@ async function main() {
       dependencyStrategy: { bundleDependencies: true, materializedFrom: "staging-npm-install", omit: "dev" },
       dependencyClosure,
       distHashes,
-      verifiedEntrypoints: [".", "./opencode"],
+      verifiedEntrypoints: [".", "./opencode", "./tui"],
     };
     await writeJson(path.join(bundleDir, "manifest.json"), manifest);
     await writeInnerChecksums(bundleDir);

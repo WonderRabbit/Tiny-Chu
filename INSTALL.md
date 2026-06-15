@@ -51,8 +51,10 @@ tiny-chu-offline-vX.Y.Z/
   templates/
     opencode/
       package.json
+      tui.json
       plugins/
         tiny-chu.ts
+        tiny-chu-tui.ts
 ```
 
 Verify the release asset before copying it into the target network:
@@ -107,8 +109,10 @@ The target project should now look like this:
 target-project/
   .opencode/
     package.json
+    tui.json
     plugins/
       tiny-chu.ts
+      tiny-chu-tui.ts
     vendor/
       tiny-chu-vX.Y.Z-bundled.tgz
 ```
@@ -130,7 +134,7 @@ If your bundle includes installer scripts, you can use them instead of the manua
 .\install-offline.ps1 -TargetProject C:\path\to\target-project
 ```
 
-## OpenCode Shim
+## OpenCode Shims
 
 Tiny-Chu is loaded through a project-local OpenCode plugin shim, not through a runtime plugin download.
 
@@ -151,6 +155,22 @@ Tiny-Chu is loaded through a project-local OpenCode plugin shim, not through a r
 ```ts
 export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 ```
+
+`target-project/.opencode/tui.json` should enable the TUI shim:
+
+```json
+{
+  "plugin": ["./plugins/tiny-chu-tui.ts"]
+}
+```
+
+`target-project/.opencode/plugins/tiny-chu-tui.ts` should export the TUI plugin from the package subpath:
+
+```ts
+export { default } from "tiny-chu/tui";
+```
+
+The TUI plugin is the home-screen `home_logo` surface; enabling it replaces that OpenCode logo with `TinyChu`.
 
 The copyable templates in `templates/opencode/` use the same shape. Replace `X.Y.Z` with the release version or with the bundled tarball filename shipped in your release asset.
 
@@ -215,9 +235,10 @@ After installation, run a package import smoke test from `target-project/.openco
 ```bash
 node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; console.log(typeof createTinyChuPlugin)"
 node --input-type=module -e "import { TinyChuOpenCodePlugin } from 'tiny-chu/opencode'; console.log(typeof TinyChuOpenCodePlugin)"
+node --input-type=module -e "const m = await import('tiny-chu/tui'); console.log(m.default.id, typeof m.default.tui)"
 ```
 
-Both commands should print `function`.
+The first two commands should print `function`. The TUI command should print `tiny-chu.logo function`.
 
 To inspect Tiny-Chu's own install metadata:
 
@@ -230,6 +251,9 @@ Expected OpenCode startup behavior:
 - OpenCode starts from the target project root.
 - OpenCode discovers `.opencode/plugins/tiny-chu.ts`.
 - The shim imports `TinyChuOpenCodePlugin` from `tiny-chu/opencode`.
+- OpenCode reads `.opencode/tui.json` and enables `.opencode/plugins/tiny-chu-tui.ts`.
+- The TUI shim imports the logo plugin from `tiny-chu/tui`.
+- When the TUI plugin is enabled, the OpenCode home-screen `home_logo` is replaced with `TinyChu`.
 - Tiny-Chu tools, including `tiny_chu_install_check`, are exposed in the OpenCode tool list.
 
 ## Troubleshooting

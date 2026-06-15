@@ -8,6 +8,11 @@ npm-debug.log*
 .omc/
 .omo/
 .claude/
-.opencode/
+.opencode/*
+!.opencode/package.json
+!.opencode/plugins/
+.opencode/plugins/*
+!.opencode/plugins/tiny-chu.ts
+!.opencode/plugins/tiny-chu-tui.ts
+!.opencode/tui.json
 .git/
-

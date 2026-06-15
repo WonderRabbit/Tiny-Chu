@@ -63,6 +63,7 @@ async function runSmoke(opencodeDir) {
   const smoke = `
 import { createTinyChuPlugin } from "tiny-chu";
 import { TinyChuOpenCodePlugin } from "tiny-chu/opencode";
+import TinyChuOpenCodeTuiPlugin from "tiny-chu/tui";
 const root = process.cwd();
 const tiny = createTinyChuPlugin({ root });
 const install = await tiny.tools.tiny_chu_install_check({});
@@ -76,6 +77,8 @@ const hooks = await TinyChuOpenCodePlugin({
 console.log(JSON.stringify({
   createTinyChuPlugin: typeof createTinyChuPlugin,
   TinyChuOpenCodePlugin: typeof TinyChuOpenCodePlugin,
+  TinyChuOpenCodeTuiPluginId: TinyChuOpenCodeTuiPlugin.id,
+  TinyChuOpenCodeTuiPluginTui: typeof TinyChuOpenCodeTuiPlugin.tui,
   packageName: install.packageName,
   installDocs: install.installDocs,
   installModes: install.installModes,
@@ -87,6 +90,8 @@ console.log(JSON.stringify({
   const parsed = JSON.parse(result.stdout.trim());
   if (parsed.createTinyChuPlugin !== "function") throw new Error("root package import did not expose createTinyChuPlugin");
   if (parsed.TinyChuOpenCodePlugin !== "function") throw new Error("opencode subpath import did not expose TinyChuOpenCodePlugin");
+  if (parsed.TinyChuOpenCodeTuiPluginId !== "tiny-chu.logo") throw new Error("tui subpath import did not expose Tiny-Chu TUI plugin id");
+  if (parsed.TinyChuOpenCodeTuiPluginTui !== "function") throw new Error("tui subpath import did not expose a TUI function");
   if (parsed.packageName !== "tiny-chu") throw new Error("install check returned the wrong package name");
   if (parsed.installDocs !== "INSTALL.md") throw new Error("install check did not expose INSTALL.md");
   if (!Array.isArray(parsed.installModes) || !parsed.installModes.includes("offline-bundle")) {
