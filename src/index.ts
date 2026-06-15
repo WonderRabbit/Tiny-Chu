@@ -33,6 +33,8 @@ export { createTraceabilityMatrix, type TraceabilityMatrixResult, type Traceabil
 export { createUiActionTrace, type UiActionTraceResult, type UiActionTraceRow } from "./opencode/ui-action-trace.js";
 export { createQwenRetryPolicy, QWEN_PUBLIC_LIMITS, type QwenPublicLimits, type QwenRetryPolicyResult } from "./opencode/qwen-retry-policy.js";
 export { createOrchestrationHealth, type OrchestrationHealthResult, type StatusCount } from "./opencode/orchestration-health.js";
+export { createDashboardSnapshot, type DashboardSnapshotContextBudget, type DashboardSnapshotEvidence, type DashboardSnapshotInput, type DashboardSnapshotInterrupt, type DashboardSnapshotProvider, type DashboardSnapshotPublicJobs, type DashboardSnapshotResult, type DashboardSnapshotTask, type DashboardSnapshotWorkflow } from "./opencode/dashboard-snapshot.js";
+export { isWorkerRuntimeMode, normalizeTinyChuRuntimeMode, TinyChuModeDispatchError, TinyChuRuntimeModeError, type TinyChuRuntimeMode, type TinyChuRuntimeModeInput } from "./opencode/runtime-mode.js";
 export { writeRulesSnapshot, type RulesSnapshotResult } from "./opencode/rules-snapshot.js";
 export { createToolUsagePlan, type ToolPlanStep, type ToolUsagePlanResult } from "./opencode/tool-plan.js";
 export type { DeterministicToolCap } from "./opencode/tool-plan-caps.js";

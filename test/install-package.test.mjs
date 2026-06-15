@@ -37,6 +37,7 @@ test("package metadata exposes offline install assets and commands", async () =>
   assert.equal(packageJson.scripts["verify:offline"], "node scripts/release/verify-offline-bundle.mjs");
   assert.equal(packageJson.exports["./tui"], "./dist/opencode/tui-plugin.js");
   assert.equal(packageJson.dependencies["@opentui/solid"], "^0.3.4");
+  assert.equal(packageJson.dependencies["solid-js"], undefined);
   assert.ok(packageJson.files.includes("INSTALL.md"));
   assert.ok(packageJson.files.includes("HOW_TO_USE.md"));
   assert.ok(packageJson.files.includes("templates"));

@@ -10,6 +10,12 @@ export const CORE_RUNTIME_TOOLS: readonly ToolSeed[] = [
   readJson("task_list", "List Tiny-Chu tasks, optionally filtered by status."),
   writeState("task_update", "Update Tiny-Chu task metadata."),
   writeState("task_checkpoint", "Append a resume checkpoint with pass, artifact, evidence, and verification metadata."),
+  readJson("context_bundle", "Bundle nearest AGENTS.md and project rule context for a target path."),
+  readJson("context_packet", "Return bounded context and evidence refs for small-context resume."),
+  readJson("wiki_bundle", "Bundle canonical Tiny-Chu wiki documents by reference."),
+];
+
+export const PUBLIC_QUEUE_TOOLS: readonly ToolSeed[] = [
   writeState("public_dispatch", "Queue a public worker job packet for delegated analysis or artifact drafting."),
   readJson("public_collect", "Read a public worker job packet by id."),
   writeState("public_checkpoint", "Mark a public worker job checkpointed with partial result metadata."),
@@ -17,9 +23,6 @@ export const CORE_RUNTIME_TOOLS: readonly ToolSeed[] = [
   writeState("public_cancel", "Cancel a public worker job packet."),
   writeState("public_complete", "Complete a public worker job after result validation."),
   readJson("public_job_resume_packet", "Build a bounded resume packet for a checkpointed public worker job."),
-  readJson("context_bundle", "Bundle nearest AGENTS.md and project rule context for a target path."),
-  readJson("context_packet", "Return bounded context and evidence refs for small-context resume."),
-  readJson("wiki_bundle", "Bundle canonical Tiny-Chu wiki documents by reference."),
 ];
 
 export const LEGACY_ANALYSIS_TOOLS: readonly ToolSeed[] = [
@@ -47,10 +50,9 @@ export const EXTENSION_UTILITY_TOOLS: readonly ToolSeed[] = [
   writeState("incremental_evidence_cache", "Detect stale repository evidence with hash-based invalidation."),
 ];
 
-export const BUTTON_WORKFLOW_TOOLS: readonly ToolSeed[] = [
+export const BUTTON_WORKFLOW_LOCAL_TOOLS: readonly ToolSeed[] = [
   readJson("button_workflow_plan", "Plan one work item per detected UI button/control.", ["rg", "ast-grep"]),
   readJson("button_worker_packet", "Build a JSON-only public worker packet for exactly one button."),
-  writeState("button_workflow_dispatch", "Dispatch one-button worker packets sequentially by default."),
   readJson("markdown_envelope_check", "Reject Markdown masquerading as JSON-only worker output."),
   readJson("button_worker_result_check", "Validate one-button worker result evidence before completion."),
   readJson("button_trace_aggregate", "Aggregate validated one-button trace rows."),
@@ -58,6 +60,10 @@ export const BUTTON_WORKFLOW_TOOLS: readonly ToolSeed[] = [
   writeMarkdown("atomic_markdown_write", "Write generated Markdown atomically inside the configured root."),
   readJson("write_loop_guard", "Guard generated Markdown writes against loops, empties, and identical churn."),
   readJson("button_workflow_done_claim", "Validate the final button workflow done claim."),
+];
+
+export const BUTTON_WORKFLOW_DISPATCH_TOOLS: readonly ToolSeed[] = [
+  writeState("button_workflow_dispatch", "Dispatch one-button worker packets sequentially by default."),
 ];
 
 export const WORKFLOW_ORCHESTRATION_TOOLS: readonly ToolSeed[] = [
@@ -81,6 +87,7 @@ export const SMALL_MODEL_TOOLS: readonly ToolSeed[] = [
   readJsonOptionalNetwork("provider_endpoint_preflight", "Safely preflight local provider metadata endpoints without chat generation."),
   readJson("qwen_retry_policy", "Return qwen3.6-35b-a3b public rate-limit retry and chunking guidance."),
   readJson("orchestration_health", "Summarize task and public-worker health with recovery steps that preserve progress."),
+  readJson("dashboard_snapshot", "Return a bounded Tiny-Chu task, workflow, provider, context, evidence, and job status dashboard snapshot."),
   writeState("rules_snapshot", "Write current Tiny-Chu architecture implementation patterns to .tiny/rules."),
   readJson("small_model_replay", "Replay small-model fixtures and score deterministic output and citation compliance."),
   readJson("tool_call_conformance_probe", "Check structured tool-call output conformance without live provider calls."),

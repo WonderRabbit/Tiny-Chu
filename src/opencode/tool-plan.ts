@@ -1,8 +1,9 @@
 import type { ArtifactType } from "./artifact-contract.js";
 import { createDefaultAgentModelTemplates, type AgentKind, validateAgentModelTemplate, type AgentModelTemplateValidation } from "./agent-model-options.js";
+import type { TinyChuRuntimeMode } from "./runtime-mode.js";
 import { DETERMINISTIC_CAPS, type DeterministicToolCap } from "./tool-plan-caps.js";
+import { applyToolPlanRuntimeMode } from "./tool-plan-runtime-mode.js";
 import { BASE_STOP_RULES, repositoryAnalysisStopRules, smallContextCorrectionStopRules } from "./tool-plan-stop-rules.js";
-
 export interface ToolPlanStep {
   readonly order: number;
   readonly goal: string;
@@ -213,7 +214,7 @@ function agentKind(objective: string): AgentKind | undefined {
   return undefined;
 }
 
-export function createToolUsagePlan(input: Record<string, unknown>): ToolUsagePlanResult {
+export function createToolUsagePlan(input: Record<string, unknown>, runtimeMode: TinyChuRuntimeMode = "orchestrator_worker"): ToolUsagePlanResult {
   const objective = textInput(input.objective, "analyze repository with bounded evidence");
   const type = artifactType(input.artifactType);
   const ordered = coreSteps(objective, type)
@@ -222,7 +223,7 @@ export function createToolUsagePlan(input: Record<string, unknown>): ToolUsagePl
   const recommendedAgentKind = agentKind(objective);
   const templates = createDefaultAgentModelTemplates();
   const template = recommendedAgentKind ? templates[recommendedAgentKind] : undefined;
-  return {
+  return applyToolPlanRuntimeMode({
     objective,
     ...(type ? { artifactType: type } : {}),
     modelBudget: { maxInputTokens: 1800, maxOutputTokens: 700, maxOpenFiles: 3 },
@@ -245,5 +246,5 @@ export function createToolUsagePlan(input: Record<string, unknown>): ToolUsagePl
       ...smallContextCorrectionStopRules(needsSmallContextCorrection(objective)),
       ...BASE_STOP_RULES,
     ],
-  };
+  }, runtimeMode);
 }

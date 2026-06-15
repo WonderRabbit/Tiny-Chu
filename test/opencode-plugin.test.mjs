@@ -27,6 +27,7 @@ test("OpenCode plugin entrypoint exposes Tiny-Chu tools", async () => {
   });
   assert.ok(hooks.tool);
   assert.equal(typeof hooks.tool.context_bundle.execute, "function");
+  assert.equal(typeof hooks.tool.dashboard_snapshot.execute, "function");
   assert.equal(typeof hooks.tool.git_weekly_report?.execute, "function");
   assert.equal(typeof hooks.tool.task_create.execute, "function");
   assert.equal(typeof hooks.tool.tiny_chu_install_check.execute, "function");

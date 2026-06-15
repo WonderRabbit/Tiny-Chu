@@ -1,6 +1,17 @@
 import type { PowerShellToolingProfile } from "./powershell-tooling.js";
 import type { TinyComposedRegistry } from "./feature-package.js";
 
+export type TinyChuRuntimeMode = "worker" | "orchestrator_worker";
+export type TinyChuRuntimeModeInput =
+  | TinyChuRuntimeMode
+  | 1
+  | 2
+  | "1"
+  | "2"
+  | "mode1"
+  | "mode2"
+  | "worker_only";
+
 export interface OpenCodeShellRuntime {
   name: "powershell";
   executable: "pwsh";
@@ -15,6 +26,7 @@ export interface OpenCodeRuntimeConfig {
 
 export interface TinyChuConfig {
   root?: string;
+  mode?: TinyChuRuntimeModeInput;
   safeTooling?: boolean;
   nativePreviews?: boolean;
   publicDispatcher?: {
@@ -35,6 +47,7 @@ export type TinyToolHandler = (input: Record<string, unknown>, context?: TinyToo
 
 export interface TinyPluginModule {
   name: "tiny-chu";
+  runtimeMode: TinyChuRuntimeMode;
   opencode: OpenCodeRuntimeConfig;
   registry: TinyComposedRegistry;
   tools: Record<string, TinyToolHandler>;

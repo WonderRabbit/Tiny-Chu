@@ -1,17 +1,27 @@
 import { FeaturePackageError, type TinyFeaturePackage, type TinyToolDescriptor } from "../feature-package.js";
+import { isWorkerRuntimeMode, normalizeTinyChuRuntimeMode, type TinyChuRuntimeModeInput } from "../runtime-mode.js";
 import type { TinyToolHandler } from "../tiny-plugin-types.js";
 import { DEFAULT_PACKAGE_SEEDS, SAFE_TOOLING_PACKAGE_SEEDS } from "./default-package-seeds.js";
 import { hookNames, type PackageSeed, type ToolSeed } from "./tool-seed.js";
 
 export interface DefaultFeaturePackageOptions {
+  readonly mode?: TinyChuRuntimeModeInput;
   readonly safeTooling?: boolean;
   readonly nativePreviews?: boolean;
 }
 
+const WORKER_MODE_EXCLUDED_PACKAGE_IDS = new Set([
+  "tiny-chu.public-worker-queue",
+  "tiny-chu.button-workflow-dispatch",
+  "tiny-chu.workflow-orchestration",
+]);
+
 export function createDefaultTinyFeaturePackages(handlers: Readonly<Record<string, TinyToolHandler>>, options: DefaultFeaturePackageOptions = {}): readonly TinyFeaturePackage[] {
+  const runtimeMode = normalizeTinyChuRuntimeMode(options.mode);
+  const defaultSeeds = defaultPackageSeedsForMode(runtimeMode);
   const seeds = options.safeTooling === true
-    ? [...DEFAULT_PACKAGE_SEEDS, ...SAFE_TOOLING_PACKAGE_SEEDS.filter((seed) => seed.id !== "tiny-chu.native-previews" || options.nativePreviews === true)]
-    : DEFAULT_PACKAGE_SEEDS;
+    ? [...defaultSeeds, ...SAFE_TOOLING_PACKAGE_SEEDS.filter((seed) => seed.id !== "tiny-chu.native-previews" || options.nativePreviews === true)]
+    : defaultSeeds;
   return seeds.map((seed) => ({
     id: seed.id,
     version: 1,
@@ -37,6 +47,18 @@ export function createDefaultTinyFeaturePackages(handlers: Readonly<Record<strin
     instructions: seed.instructions ?? [],
     hooks: seed.hooks,
   }));
+}
+
+function defaultPackageSeedsForMode(runtimeMode: ReturnType<typeof normalizeTinyChuRuntimeMode>): readonly PackageSeed[] {
+  if (!isWorkerRuntimeMode(runtimeMode)) return DEFAULT_PACKAGE_SEEDS;
+  return DEFAULT_PACKAGE_SEEDS.flatMap((seed) => {
+    if (WORKER_MODE_EXCLUDED_PACKAGE_IDS.has(seed.id)) return [];
+    if (seed.id !== "tiny-chu.host-opencode") return [seed];
+    return [{
+      ...seed,
+      dependsOn: (seed.dependsOn ?? []).filter((packageId) => !WORKER_MODE_EXCLUDED_PACKAGE_IDS.has(packageId)),
+    }];
+  });
 }
 
 function bindToolHandler(seed: PackageSeed, tool: ToolSeed, handlers: Readonly<Record<string, TinyToolHandler>>): TinyToolDescriptor {

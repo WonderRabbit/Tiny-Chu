@@ -1,5 +1,6 @@
 import { ARTIFACT_CONTRACTS, type ArtifactContract } from "./artifact-contract.js";
 import { createDefaultAgentModelTemplates, type AgentKind, type AgentModelTemplate } from "./agent-model-options.js";
+import type { TinyChuRuntimeMode } from "./runtime-mode.js";
 import { createSmallContextRunGate, DEFAULT_SMALL_CONTEXT_MODELS, type SmallContextRunGate } from "./small-context-run.js";
 
 export { renderSmallContextGuide } from "./small-context-guide.js";
@@ -19,6 +20,7 @@ export interface SmallContextModelProfile {
 }
 
 export interface SmallContextOrchestrationProfile {
+  readonly runtimeMode: TinyChuRuntimeMode;
   readonly runtime: {
     readonly shell: {
       readonly name: string;
@@ -89,14 +91,37 @@ const CONTEXT_TOOLS: readonly NativeWorkflowTool[] = [
   { name: "mermaid-cli", command: "mmdc -i diagram.mmd -o diagram.svg", purpose: "Validate Mermaid diagrams through the real renderer before publishing." },
 ];
 
-export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot): SmallContextOrchestrationProfile {
+function modeSafeText(values: readonly string[], runtimeMode: TinyChuRuntimeMode): readonly string[] {
+  if (runtimeMode !== "worker") return values;
+  return values.flatMap((value) => {
+    const safe = value
+      .replace(/\bpublic_dispatch\b/g, "worker_packet_optimizer with dispatch:false")
+      .replace(/\bpublic delegation\b/gi, "local packet planning")
+      .replace(/\bpublic limit\b/gi, "retry limit")
+      .replace(/\bshared Qwen limit\b/gi, "Qwen retry limit");
+    return /\b(public|workflow_next|analysis_workflow_start|workflow_sot_audit)\b/i.test(safe) ? [] : [safe];
+  });
+}
+
+function modeSafeSmallContextRun(gate: SmallContextRunGate, runtimeMode: TinyChuRuntimeMode): SmallContextRunGate {
+  if (runtimeMode !== "worker") return gate;
+  return {
+    ...gate,
+    correctionWorkflow: gate.correctionWorkflow.map((step) => step.tinyTool === "worker_packet_optimizer"
+      ? { ...step, purpose: "shape Qwen packets locally with dispatch:false; worker mode never writes queue state" }
+      : step),
+  };
+}
+
+export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot, runtimeMode: TinyChuRuntimeMode = "orchestrator_worker"): SmallContextOrchestrationProfile {
   const models = DEFAULT_SMALL_CONTEXT_MODELS;
   return {
+    runtimeMode,
     runtime: {
       shell: runtime.shell,
     },
     models,
-    smallContextRun: createSmallContextRunGate(models),
+    smallContextRun: modeSafeSmallContextRun(createSmallContextRunGate(models), runtimeMode),
     agentTemplates: createDefaultAgentModelTemplates(),
     packetStrategy: {
       tools: ["context_packet", "task_focus_packet"],
@@ -106,7 +131,7 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
     },
     contextStrategy: {
       nativeTools: CONTEXT_TOOLS,
-      passes: [
+      passes: modeSafeText([
         "start with tool_usage_plan to choose the smallest safe command/tool sequence",
         "run environment_doctor when entering a new Windows/OpenCode/Ollama target repository",
         "inventory with fd before opening files",
@@ -121,7 +146,7 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
         "use context_digest for bounded cited snippets instead of full-file reads",
         "use context_packet and task_focus_packet before resuming after compaction or interruption",
         "slice JSON/YAML/Markdown with jq, yq, and mdq instead of full-file prompts",
-        "call qwen_retry_policy before or after public delegation when the shared Qwen limit may be hit",
+        "call qwen_retry_policy before or after delegated packet planning when the shared Qwen retry limit may be hit",
         "use worker_packet_optimizer to split Qwen packets before public_dispatch",
         "delegate only compact packets with objective, files, evidence, and must-return fields",
         "use incremental_evidence_cache before reusing old repo-map or trace evidence",
@@ -134,7 +159,7 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
         "after work is produced, run the tool_usage_plan verification block even when the visible step list is capped",
         "call artifact_format_template before artifact generation, then artifact_check after generation",
         "checkpoint every completed pass with summary, nextSteps, evidenceRefs, and openQuestions",
-      ],
+      ], runtimeMode),
     },
     auditLoop: {
       totalPasses: 20,
@@ -148,7 +173,7 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
     },
     artifacts: ARTIFACT_CONTRACTS,
     antiHallucination: {
-      rules: [
+      rules: modeSafeText([
         "Every claim must cite a file path with line, a command transcript, or an evidenceRef.",
         "If evidence is missing, write an uncertainty or openQuestion instead of guessing.",
         "Use context_digest before claiming repository facts from source files.",
@@ -165,12 +190,12 @@ export function createSmallContextOrchestrationProfile(runtime: RuntimeSnapshot)
         "Use business_logic_map before claiming detailed business rules, variable relationships, or column comparisons.",
         "Use tool_usage_plan when unsure which native command or Tiny-Chu tool should run next.",
         "Never treat a bounded step list as complete until its verification.requiredTools have run.",
-        "Use qwen_retry_policy for qwen3.6-35b-a3b delegation; the public limit is 20 requests/min and 20000 tokens/min.",
+        "Use qwen_retry_policy for qwen3.6-35b-a3b delegation; the retry limit is 20 requests/min and 20000 tokens/min.",
         "Use orchestration_health before declaring a stopped or failed run unrecoverable.",
         "Never accept AS-IS, UI, UX reverse, story, testcase, sequence, flowchart, or ERD output until artifact_check is valid.",
         "Call artifact_format_template before drafting an artifact so format requirements are explicit.",
         "Prefer jq, yq, mdq, fd, ast-grep, and rg outputs over model-only summaries for repository facts.",
-      ],
+      ], runtimeMode),
     },
     delegatePacket: {
       mustInclude: ["objective", "artifactType", "boundedFiles", "evidenceRefs", "knownUncertainties", "mustReturn"],

@@ -1,4 +1,4 @@
-import { BUTTON_WORKFLOW_TOOLS, CORE_RUNTIME_TOOLS, DOCTOR_ARTIFACT_TOOLS, EXTENSION_UTILITY_TOOLS, LEGACY_ANALYSIS_TOOLS, NATIVE_PREVIEW_TOOLS, SAFE_TOOLING_TOOLS, SMALL_MODEL_TOOLS, UX_REVERSE_ENGINEERING_TOOLS, WORKFLOW_ORCHESTRATION_TOOLS } from "./default-tool-seeds.js";
+import { BUTTON_WORKFLOW_DISPATCH_TOOLS, BUTTON_WORKFLOW_LOCAL_TOOLS, CORE_RUNTIME_TOOLS, DOCTOR_ARTIFACT_TOOLS, EXTENSION_UTILITY_TOOLS, LEGACY_ANALYSIS_TOOLS, NATIVE_PREVIEW_TOOLS, PUBLIC_QUEUE_TOOLS, SAFE_TOOLING_TOOLS, SMALL_MODEL_TOOLS, UX_REVERSE_ENGINEERING_TOOLS, WORKFLOW_ORCHESTRATION_TOOLS } from "./default-tool-seeds.js";
 import { instruction, resource, type PackageSeed } from "./tool-seed.js";
 
 export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
@@ -26,6 +26,13 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
     instructions: [instruction("shared-boundary-rule", "Shared support may depend on core but must not import feature or host adapters.")],
   },
   {
+    id: "tiny-chu.public-worker-queue",
+    title: "Public Worker Queue",
+    category: "core-runtime",
+    dependsOn: ["tiny-chu.core-runtime", "tiny-chu.shared-support"],
+    tools: PUBLIC_QUEUE_TOOLS,
+  },
+  {
     id: "tiny-chu.legacy-analysis",
     title: "Legacy Analysis",
     category: "legacy-analysis",
@@ -44,7 +51,14 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
     title: "Button Workflow Hardening",
     category: "workflow-hardening",
     dependsOn: ["tiny-chu.core-runtime", "tiny-chu.shared-support", "tiny-chu.legacy-analysis"],
-    tools: BUTTON_WORKFLOW_TOOLS,
+    tools: BUTTON_WORKFLOW_LOCAL_TOOLS,
+  },
+  {
+    id: "tiny-chu.button-workflow-dispatch",
+    title: "Button Workflow Dispatch",
+    category: "workflow-hardening",
+    dependsOn: ["tiny-chu.public-worker-queue", "tiny-chu.button-workflow-hardening"],
+    tools: BUTTON_WORKFLOW_DISPATCH_TOOLS,
   },
   {
     id: "tiny-chu.workflow-orchestration",
@@ -82,6 +96,7 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
       "tiny-chu.doctor-artifacts",
       "tiny-chu.extension-utilities",
       "tiny-chu.button-workflow-hardening",
+      "tiny-chu.button-workflow-dispatch",
       "tiny-chu.ux-reverse-engineering",
       "tiny-chu.workflow-orchestration",
     ],

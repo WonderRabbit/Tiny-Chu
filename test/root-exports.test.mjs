@@ -17,8 +17,10 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "QWEN_PUBLIC_LIMITS",
   "SAFE_TOOLING_LIMITS",
   "TaskStore",
+  "TinyChuModeDispatchError",
   "TinyChuOpenCodePlugin",
   "TinyChuOpenCodeTuiPlugin",
+  "TinyChuRuntimeModeError",
   "WikiBundler",
   "WorkflowStore",
   "acquireSafeToolingLock",
@@ -50,6 +52,7 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "createClaimEvidenceCheck",
   "createContextBudgetSimulation",
   "createContextDigest",
+  "createDashboardSnapshot",
   "createDefaultAgentModelTemplates",
   "createDefaultSmallContextRunGate",
   "createDoctor",
@@ -111,10 +114,12 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "fixMermaidMarkdown",
   "hashSourceTarget",
   "isPathInsideRoot",
+  "isWorkerRuntimeMode",
   "loadContextBundle",
   "markdownEnvelopeCheck",
   "normalizeMermaidMarkdown",
   "normalizeSafeRelativePath",
+  "normalizeTinyChuRuntimeMode",
   "parsePlanMarkdown",
   "readJsonFile",
   "readJsonLines",
@@ -154,7 +159,8 @@ test("root module keeps the public ABI stable", async () => {
   assert.equal(tinyRoot.TinyChuOpenCodeTuiPlugin, TinyChuOpenCodeTuiPlugin);
   assert.equal(tinyRoot.POWERSHELL_OPENCODE_RUNTIME.shell.executable, "pwsh");
   const directInstall = tinyRoot.createTinyChuInstallCheck();
-  assert.equal(directInstall.requiredTools.length, 85);
+  assert.equal(directInstall.requiredTools.length, 86);
+  assert.equal(directInstall.runtimeMode, "orchestrator_worker");
   assert.equal(directInstall.packageName, "tiny-chu");
   assert.equal(directInstall.opencodeEntrypoint, "./dist/opencode/plugin.js");
   assert.equal(directInstall.opencodeTuiEntrypoint, "./dist/opencode/tui-plugin.js");

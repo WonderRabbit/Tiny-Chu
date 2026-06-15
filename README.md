@@ -44,7 +44,7 @@ await tiny.tools.task_create({ title: "Refactor auth boundary" });
 
 ## Use in OpenCode
 
-This repository uses two project-local OpenCode plugin surfaces: the server plugin shim for Tiny-Chu tools, and the TUI plugin config for the home-screen `home_logo`.
+This repository uses two project-local OpenCode plugin surfaces: the server plugin shim for Tiny-Chu tools, and the TUI plugin config for compact status dashboard slots.
 
 ```text
 .opencode/
@@ -55,7 +55,7 @@ This repository uses two project-local OpenCode plugin surfaces: the server plug
     tiny-chu-tui.ts
 ```
 
-OpenCode automatically loads the server shim from `.opencode/plugins/tiny-chu.ts`, so starting OpenCode from this repository root activates Tiny-Chu tools without editing `opencode.json`. The TUI config at `.opencode/tui.json` enables `.opencode/plugins/tiny-chu-tui.ts`, which replaces the OpenCode home-screen `home_logo` with `TinyChu`.
+OpenCode automatically loads the server shim from `.opencode/plugins/tiny-chu.ts`, so starting OpenCode from this repository root activates Tiny-Chu tools without editing `opencode.json`. The TUI config at `.opencode/tui.json` enables `.opencode/plugins/tiny-chu-tui.ts`, which keeps `home_logo` as `TinyChu` and fills `home_prompt_right`, `sidebar_title`, `sidebar_content`, `sidebar_footer`, and `home_bottom` with task, workflow, job, context, evidence, and health status.
 
 The local server shim imports the TypeScript plugin adapter directly:
 
@@ -88,7 +88,7 @@ For developer source testing, add Tiny-Chu to that project's `.opencode/package.
 export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 ```
 
-Enable the TUI `home_logo` plugin with `.opencode/tui.json` and a TUI shim:
+Enable the TUI dashboard plugin with `.opencode/tui.json` and a TUI shim:
 
 ```json
 {
@@ -100,6 +100,37 @@ Enable the TUI `home_logo` plugin with `.opencode/tui.json` and a TUI shim:
 export { default } from "tiny-chu/tui";
 ```
 
+The dashboard is backed by the OpenCode-visible `dashboard_snapshot` tool. It summarizes existing `.tiny` task, public job, workflow, evidence, and context state without creating a new dashboard state store. Provider/network preflight is not performed by default; it runs only when `includeProviderPreflight` is explicitly set.
+
+Runtime mode is selected through Tiny-Chu plugin options, not OpenCode's top-level mode object. OpenCode config can pin worker mode or the default orchestrator-worker mode like this:
+
+```json
+{
+  "plugin": [["tiny-chu", { "mode": 1 }]]
+}
+```
+
+```json
+{
+  "plugin": [["tiny-chu", { "mode": 2 }]]
+}
+```
+
+For a local shim, forward the OpenCode options and pin the mode in the Tiny-Chu adapter:
+
+```ts
+export const TinyChu = (input, options) => TinyChuOpenCodePlugin(input, { ...options, mode: 1 });
+```
+
+Library construction also accepts named modes:
+
+```ts
+createTinyChuPlugin({ mode: "worker" });
+createTinyChuPlugin({ mode: "orchestrator_worker" });
+```
+
+Mode 2 is the default.
+
 The OpenCode plugin exposes the same durable tools as the library shell:
 
 - `task_create`, `task_get`, `task_list`, `task_update`, `task_checkpoint`
@@ -109,7 +140,7 @@ The OpenCode plugin exposes the same durable tools as the library shell:
 - `doctor`, `claim_evidence_check`, `session_preflight`, `task_focus_packet`, `powershell_command_guard`, `trace_diagram_render`, `tiny_chu_install_check`
 - `environment_doctor`, `api_contract_catalog`, `dto_schema_map`, `redux_state_flow_map`, `auth_permission_trace`, `error_transaction_map`, `test_impact_planner`, `worker_packet_optimizer`, `artifact_pack_manifest`, `incremental_evidence_cache`
 - `button_workflow_plan`, `button_worker_packet`, `button_workflow_dispatch`, `markdown_envelope_check`, `button_worker_result_check`, `button_trace_aggregate`, `aggregation_drift_check`, `atomic_markdown_write`, `write_loop_guard`, `button_workflow_done_claim`
-- `tool_usage_plan`, `resume_packet`, `chunked_write_plan`, `qwen_retry_policy`, `orchestration_health`, `rules_snapshot`, `provider_endpoint_preflight`, `tool_call_conformance_probe`, `context_budget_simulation`, `evidence_gate`, `small_model_replay`
+- `tool_usage_plan`, `resume_packet`, `chunked_write_plan`, `qwen_retry_policy`, `orchestration_health`, `dashboard_snapshot`, `rules_snapshot`, `provider_endpoint_preflight`, `tool_call_conformance_probe`, `context_budget_simulation`, `evidence_gate`, `small_model_replay`
 - `analysis_workflow_start`, `workflow_create`, `workflow_status`, `workflow_checkpoint`, `workflow_resume_packet`, `workflow_packet_fit_check`, `workflow_next`, `workflow_progress_heartbeat`, `workflow_sot_audit`
 - `git_weekly_report` writes the last 5 business days of Git activity to `.tiny/reports/git-weekly` with report, evidence, QA, index, and audit artifacts
 - `ui_layout_catalog`, `ux_rationale_trace`, `ux_validation_matrix`, `layout_truth_update`, `layout_truth_verify`, `layout_truth_report`, `ux_reverse_report`

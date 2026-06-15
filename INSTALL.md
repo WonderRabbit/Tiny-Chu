@@ -170,7 +170,37 @@ export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 export { default } from "tiny-chu/tui";
 ```
 
-The TUI plugin is the home-screen `home_logo` surface; enabling it replaces that OpenCode logo with `TinyChu`.
+The TUI plugin renders the Tiny-Chu status dashboard. It keeps `home_logo` as `TinyChu` and uses `home_prompt_right`, `sidebar_title`, `sidebar_content`, `sidebar_footer`, and `home_bottom` for task, workflow, public job, context/evidence, and health status.
+
+The dashboard is backed by the OpenCode-visible `dashboard_snapshot` tool. It reads existing `.tiny` task, public-job, workflow, evidence, and context state; it does not create a separate dashboard state store. Provider network preflight is disabled by default and only runs when `includeProviderPreflight` is explicitly enabled.
+
+Runtime mode is selected through Tiny-Chu plugin options, not OpenCode's deprecated top-level `mode` object. Mode 1 is worker-only; mode 2 is the existing orchestrator + worker surface and is the default.
+
+```json
+{
+  "plugin": [["tiny-chu", { "mode": 1 }]]
+}
+```
+
+```json
+{
+  "plugin": [["tiny-chu", { "mode": 2 }]]
+}
+```
+
+Local shims may pin the same option while preserving other OpenCode options:
+
+```ts
+export const TinyChu = (input, options) =>
+  TinyChuOpenCodePlugin(input, { ...options, mode: 1 });
+```
+
+Direct library construction accepts the normalized names:
+
+```ts
+createTinyChuPlugin({ mode: "worker" });
+createTinyChuPlugin({ mode: "orchestrator_worker" });
+```
 
 The copyable templates in `templates/opencode/` use the same shape. Replace `X.Y.Z` with the release version or with the bundled tarball filename shipped in your release asset.
 
@@ -252,9 +282,9 @@ Expected OpenCode startup behavior:
 - OpenCode discovers `.opencode/plugins/tiny-chu.ts`.
 - The shim imports `TinyChuOpenCodePlugin` from `tiny-chu/opencode`.
 - OpenCode reads `.opencode/tui.json` and enables `.opencode/plugins/tiny-chu-tui.ts`.
-- The TUI shim imports the logo plugin from `tiny-chu/tui`.
-- When the TUI plugin is enabled, the OpenCode home-screen `home_logo` is replaced with `TinyChu`.
-- Tiny-Chu tools, including `tiny_chu_install_check`, are exposed in the OpenCode tool list.
+- The TUI shim imports the dashboard plugin from `tiny-chu/tui`.
+- When the TUI plugin is enabled, `home_logo` shows `TinyChu` and the dashboard slots render through `home_prompt_right`, `sidebar_content`, and the related sidebar/home status slots.
+- Tiny-Chu tools, including `tiny_chu_install_check` and `dashboard_snapshot`, are exposed in the OpenCode tool list.
 
 ## Troubleshooting
 

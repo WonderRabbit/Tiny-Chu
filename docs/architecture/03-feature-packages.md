@@ -30,7 +30,7 @@ export interface TinyFeaturePackage {
 
 | 카테고리 | 의미 |
 |---------|------|
-| `core-runtime` | 핵심 상태 원시 기능 (task, public job, context, wiki) |
+| `core-runtime` | 핵심 상태 원시 기능 (task, context, wiki) 및 public worker queue package |
 | `legacy-analysis` | 레거시 코드 추적성 분석 (FE→BE→DB→RFC) |
 | `extension-utilities` | 분석 확장 도구 |
 | `workflow-hardening` | 버튼 워크플로 강화 |
@@ -41,17 +41,19 @@ export interface TinyFeaturePackage {
 | `doctor-artifacts` | 준비 게이트와 산출물 가드 |
 | `support` | 공유 지원 / 호스트 어댑터 |
 
-## 기본 패키지 그래프 (10개)
+## 기본 패키지 그래프 (mode 2 기준 12개)
 
-`DEFAULT_PACKAGE_SEEDS`(`default-package-seeds.ts:4`)는 항상 포함되는 10개 패키지를 정의합니다. 의존성 관계는 다음과 같습니다:
+`DEFAULT_PACKAGE_SEEDS`(`default-package-seeds.ts:4`)는 mode 2에서 포함되는 12개 패키지를 정의합니다. mode 1(worker)은 `tiny-chu.public-worker-queue`, `tiny-chu.button-workflow-dispatch`, `tiny-chu.workflow-orchestration`을 제외해 OpenCode tool registry에서 delegated queue/workflow write surface를 숨깁니다. 의존성 관계는 다음과 같습니다:
 
 ```mermaid
 flowchart TD
-    core["tiny-chu.core-runtime<br/><i>Core Runtime</i><br/><br/>task_*, public_*,<br/>context_*, wiki_*"]
+    core["tiny-chu.core-runtime<br/><i>Core Runtime</i><br/><br/>task_*, context_*, wiki_*"]
+    public["tiny-chu.public-worker-queue<br/><i>Public Worker Queue</i><br/><br/>public_*"]
     support["tiny-chu.shared-support<br/><i>Shared Support</i><br/><br/>(툴 없음, 리소스만)"]
     legacy["tiny-chu.legacy-analysis<br/><i>Legacy Analysis</i><br/><br/>repo_map, trace_*,<br/>evidence_qa ..."]
     ext["tiny-chu.extension-utilities<br/><i>Analysis Extensions</i><br/><br/>dto_schema_map,<br/>auth_permission_trace ..."]
-    button["tiny-chu.button-workflow-hardening<br/><i>Button Workflow</i><br/><br/>button_*,<br/>atomic_markdown_write ..."]
+    button["tiny-chu.button-workflow-hardening<br/><i>Button Workflow Local</i><br/><br/>button plan/packet/result,<br/>atomic_markdown_write ..."]
+    buttonDispatch["tiny-chu.button-workflow-dispatch<br/><i>Button Dispatch</i><br/><br/>button_workflow_dispatch"]
     workflow["tiny-chu.workflow-orchestration<br/><i>Workflow Orchestration</i><br/><br/>workflow_*,<br/>analysis_workflow_start ..."]
     small["tiny-chu.small-model-resilience<br/><i>Small Model</i><br/><br/>orchestration_*,<br/>resume_packet, rules_snapshot ..."]
     ux["tiny-chu.ux-reverse-engineering<br/><i>UX Reverse</i><br/><br/>ui_layout_catalog,<br/>layout_truth_* ..."]
@@ -59,6 +61,8 @@ flowchart TD
     host["tiny-chu.host-opencode<br/><i>OpenCode Host Adapter</i><br/><br/>(툴 없음, 호스트 훅)"]
 
     core --> support
+    core --> public
+    support --> public
     core --> legacy
     support --> legacy
     core --> ext
@@ -69,6 +73,8 @@ flowchart TD
     core --> button
     support --> button
     legacy --> button
+    public --> buttonDispatch
+    button --> buttonDispatch
     core --> small
     support --> small
     core --> ux
@@ -78,8 +84,10 @@ flowchart TD
     support --> doctor
     small --> doctor
     doctor --> host
+    public --> host
     ext --> host
     button --> host
+    buttonDispatch --> host
     workflow --> host
     ux --> host
 ```
@@ -88,16 +96,18 @@ flowchart TD
 
 | 패키지 id | 카테고리 | dependsOn | 툴 수 | 역할 |
 |-----------|---------|-----------|-------|------|
-| `tiny-chu.core-runtime` | core-runtime | (없음, 루트) | 15 | task/public/context/wiki 원시 기능. 다른 모든 패키지의 기반 |
+| `tiny-chu.core-runtime` | core-runtime | (없음, 루트) | 8 | task/context/wiki 원시 기능. 다른 모든 패키지의 기반 |
 | `tiny-chu.shared-support` | support | core-runtime | **0** | 툴 없음. 공유 스캐너·마크다운·PowerShell 헬퍼를 **리소스로** 선언만. 다른 패키지가 의존하는 경계 규칙 담당 |
+| `tiny-chu.public-worker-queue` | core-runtime | core-runtime, shared-support | 7 | public_dispatch, public_collect, retry/cancel/complete, public_job_resume_packet |
 | `tiny-chu.legacy-analysis` | legacy-analysis | core-runtime, shared-support | 8 | FE→BE→DB→RFC 추적성 (repo_map, trace, evidence_qa) |
 | `tiny-chu.extension-utilities` | extension-utilities | +legacy-analysis | 11 | dto_schema_map, auth_permission_trace, worker_packet_optimizer 등 심층 분석 |
-| `tiny-chu.button-workflow-hardening` | workflow-hardening | +legacy-analysis | 10 | 버튼별 워크플로, 원자적 마크다운 쓰기 |
+| `tiny-chu.button-workflow-hardening` | workflow-hardening | +legacy-analysis | 9 | 버튼별 local plan/packet/result, 원자적 마크다운 쓰기 |
+| `tiny-chu.button-workflow-dispatch` | workflow-hardening | public-worker-queue, button-workflow-hardening | 1 | button_workflow_dispatch public queue write surface |
 | `tiny-chu.workflow-orchestration` | workflow-orchestration | core-runtime, shared-support | 9 | analysis_workflow_start, workflow_next, heartbeat, SOT audit |
-| `tiny-chu.small-model-resilience` | small-model-resilience | core-runtime, shared-support | 16 | provider preflight, context budget, evidence gate, replay, resume_packet 등 |
+| `tiny-chu.small-model-resilience` | small-model-resilience | core-runtime, shared-support | 17 | dashboard_snapshot, provider preflight, context budget, evidence gate, replay, resume_packet 등 |
 | `tiny-chu.ux-reverse-engineering` | ux-reverse-engineering | +legacy-analysis | 7 | ui_layout_catalog, layout_truth_* |
 | `tiny-chu.doctor-artifacts` | doctor-artifacts | +small-model-resilience | 9 | doctor, artifact_check, mermaid_check/fix |
-| `tiny-chu.host-opencode` | support | doctor, ext, button, workflow, ux | **0** | 툴 없음. OpenCode 호스트 훅(beforeRun) 선언. **위상 정렬의 끝(leaf)** |
+| `tiny-chu.host-opencode` | support | doctor, ext, button, button-dispatch, public queue, workflow, ux | **0** | 툴 없음. OpenCode 호스트 훅(beforeRun) 선언. **위상 정렬의 끝(leaf)** |
 
 > **`shared-support`과 `host-opencode`는 툴이 0개입니다.** 둘 다 `support` 카테고리이지만 역할이 다릅니다:
 > - `shared-support`는 의존성 그래프의 **중간 허브** — 다른 분석 패키지들이 공통으로 의존하는 경계 규칙을 표현.
@@ -197,21 +207,23 @@ export interface TinyCompatibilitySpec {
 
 **결정성의 핵심**: `ready` 큐와 `dependents`를 조작할 때마다 `.sort()`를 호출합니다 (`:62`, `:68`, `:73`). 동일한 디스크립터 집합은 항상 동일한 `orderedIds`를 생성합니다. 이것이 테스트가 정확한 순서를 단언(assert)할 수 있는 이유입니다.
 
-### 실제 정렬 결과 (기본 10패키지)
+### 실제 정렬 결과 (mode 2 기본 12패키지)
 
 의존성 그래프를 위상 정렬하면 대략 다음 순서가 됩니다 (동일 indegree 내에서는 id 알파벳순):
 
 ```text
 1. tiny-chu.core-runtime          (indegree 0, 루트)
 2. tiny-chu.shared-support        (core만 의존)
-3. tiny-chu.legacy-analysis       (core + support)
-4. tiny-chu.button-workflow-hardening
-5. tiny-chu.extension-utilities
-6. tiny-chu.small-model-resilience
-7. tiny-chu.doctor-artifacts      (small-model-resilience 의존)
-8. tiny-chu.ux-reverse-engineering
-9. tiny-chu.workflow-orchestration
-10. tiny-chu.host-opencode        (마지막, 모든 기능 패키지 의존)
+3. tiny-chu.public-worker-queue   (core + support)
+4. tiny-chu.legacy-analysis       (core + support)
+5. tiny-chu.button-workflow-hardening
+6. tiny-chu.button-workflow-dispatch
+7. tiny-chu.extension-utilities
+8. tiny-chu.small-model-resilience
+9. tiny-chu.doctor-artifacts      (small-model-resilience 의존)
+10. tiny-chu.ux-reverse-engineering
+11. tiny-chu.workflow-orchestration
+12. tiny-chu.host-opencode        (마지막, 모든 기능 패키지 의존)
 ```
 
 > 정확한 순서는 동점(tie) 처리에 따라 달라질 수 있지만, **core-runtime이 항상 1번, host-opencode가 항상 마지막**이라는 제약은 의존성 그래프가 보장합니다.
@@ -242,5 +254,5 @@ export interface TinyFeatureHooks {
 
 ## 다음 읽을 문서
 
-- → [04-tool-catalog.md](./04-tool-catalog.md): 각 패키지가 담고 있는 기본 85개 툴의 전체 카탈로그와 책임.
+- → [04-tool-catalog.md](./04-tool-catalog.md): 각 패키지가 담고 있는 기본 86개 툴의 전체 카탈로그와 책임.
 - → [09-extending-guide.md](./09-extending-guide.md): 새 패키지/툴을 이 그래프에 추가하는 절차.

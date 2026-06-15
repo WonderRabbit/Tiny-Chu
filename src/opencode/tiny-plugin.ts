@@ -23,6 +23,7 @@ import { composeFeaturePackages, type TinyComposedRegistry } from "./feature-pac
 import { createDefaultTinyFeaturePackages } from "./feature-packages/default-packages.js";
 import { createGitWeeklyReport } from "./git-weekly-report.js";
 import { createIntegrationCatalog } from "./integration-catalog.js";
+import { createDashboardSnapshot } from "./dashboard-snapshot.js";
 import { createTinyChuInstallCheck } from "./install-check.js";
 import { createLegacyRepoIndex } from "./legacy-repo-index.js";
 import { createOrchestrationHealth } from "./orchestration-health.js";
@@ -30,6 +31,7 @@ import { POWERSHELL_TOOLING_PROFILE, renderCompactPowerShellToolingGuide } from 
 import { createProviderEndpointPreflight } from "./provider-endpoint-preflight.js";
 import { createQwenRetryPolicy } from "./qwen-retry-policy.js";
 import { createRepoMap } from "./repo-map.js";
+import { isWorkerRuntimeMode, normalizeTinyChuRuntimeMode, TinyChuModeDispatchError } from "./runtime-mode.js";
 import { writeRulesSnapshot } from "./rules-snapshot.js";
 import { renderCompactSmallContextGuide } from "./small-context-compact.js";
 import { createSmallContextOrchestrationProfile } from "./small-context-profile.js";
@@ -64,10 +66,15 @@ export const POWERSHELL_OPENCODE_RUNTIME: OpenCodeRuntimeConfig = {
 
 export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModule {
   const root = config.root;
+  const runtimeMode = normalizeTinyChuRuntimeMode(config.mode);
   const tasks = new TaskStore({ root });
-  const dispatcher = new PublicDispatcher({ root, ...config.publicDispatcher });
+  let dispatcher: PublicDispatcher | undefined;
+  const publicDispatcher = (): PublicDispatcher => {
+    if (!dispatcher) dispatcher = new PublicDispatcher({ root, ...config.publicDispatcher });
+    return dispatcher;
+  };
   const wiki = new WikiBundler(root);
-  const orchestrationProfile = createSmallContextOrchestrationProfile(POWERSHELL_OPENCODE_RUNTIME);
+  const orchestrationProfile = createSmallContextOrchestrationProfile(POWERSHELL_OPENCODE_RUNTIME, runtimeMode);
   const workflowTools = createWorkflowToolHandlers(root);
   let registry: TinyComposedRegistry;
 
@@ -93,7 +100,7 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
         const id = stringInput(input, "id");
         return tasks.update(id, taskPatchInput(input));
       },
-      public_dispatch: async (input) => dispatcher.dispatch({
+      public_dispatch: async (input) => publicDispatcher().dispatch({
         taskId: typeof input.taskId === "string" ? input.taskId : undefined,
         prompt: stringInput(input, "prompt"),
         rulesRefs: Array.isArray(input.rulesRefs) ? input.rulesRefs.map(String) : [],
@@ -104,11 +111,11 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
         artifactType: typeof input.artifactType === "string" ? input.artifactType : undefined,
         format: publicJobFormatInput(input.format),
       }),
-      public_collect: async (input) => dispatcher.get(stringInput(input, "id")),
-      public_checkpoint: async (input) => dispatcher.checkpoint(stringInput(input, "id"), stringInput(input, "summary"), typeof input.result === "string" ? input.result : undefined),
-      public_retry: async (input) => dispatcher.retry(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
-      public_cancel: async (input) => dispatcher.cancel(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
-      public_complete: async (input) => dispatcher.complete(stringInput(input, "id"), stringInput(input, "result")),
+      public_collect: async (input) => publicDispatcher().get(stringInput(input, "id")),
+      public_checkpoint: async (input) => publicDispatcher().checkpoint(stringInput(input, "id"), stringInput(input, "summary"), typeof input.result === "string" ? input.result : undefined),
+      public_retry: async (input) => publicDispatcher().retry(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
+      public_cancel: async (input) => publicDispatcher().cancel(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
+      public_complete: async (input) => publicDispatcher().complete(stringInput(input, "id"), stringInput(input, "result")),
       public_job_resume_packet: async (input) => createPublicJobResumePacket(root, input),
       context_bundle: async (input, context) => loadContextBundle(root, typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? "."),
       context_packet: async (input, context) => buildContextPacket({ root: resolveTinyChuPaths(root).root, targetPath: typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? ".", maxChars: numberInput(input, "maxChars"), evidenceRefs: stringListInput(input, "evidenceRefs"), notes: stringListInput(input, "notes") }),
@@ -135,7 +142,7 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       },
       powershell_command_guard: async (input) => createPowerShellCommandGuard(input),
       trace_diagram_render: async (input) => createTraceDiagramRender(input),
-      tiny_chu_install_check: async () => createTinyChuInstallCheck(registry.requiredToolNames, registry.packages, registry.nativeToolNames),
+      tiny_chu_install_check: async () => createTinyChuInstallCheck(registry.requiredToolNames, registry.packages, registry.nativeToolNames, runtimeMode),
       environment_doctor: async (input) => createEnvironmentDoctor(input),
       ...createSafeToolHandlers(root),
       api_contract_catalog: async (input) => createApiContractCatalog(resolveTinyChuPaths(root).root, input),
@@ -144,7 +151,10 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       auth_permission_trace: async (input) => createAuthPermissionTrace(resolveTinyChuPaths(root).root, input),
       error_transaction_map: async (input) => createErrorTransactionMap(resolveTinyChuPaths(root).root, input),
       test_impact_planner: async (input) => createTestImpactPlanner(resolveTinyChuPaths(root).root, input),
-      worker_packet_optimizer: async (input) => createWorkerPacketOptimizer(resolveTinyChuPaths(root).root, input),
+      worker_packet_optimizer: async (input) => {
+        if (isWorkerRuntimeMode(runtimeMode) && input.dispatch === true) throw new TinyChuModeDispatchError(runtimeMode, "worker_packet_optimizer");
+        return createWorkerPacketOptimizer(resolveTinyChuPaths(root).root, input);
+      },
       artifact_pack_manifest: async (input) => createArtifactPackManifest(input),
       incremental_evidence_cache: async (input) => createIncrementalEvidenceCache(resolveTinyChuPaths(root).root, input),
       button_workflow_plan: async (input) => createButtonWorkflowPlan(resolveTinyChuPaths(root).root, input),
@@ -160,10 +170,11 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       git_weekly_report: async (input) => createGitWeeklyReport(root, input),
       wiki_bundle: async (input) => wiki.bundle(Array.isArray(input.refs) ? input.refs.map(String) : []),
       orchestration_profile: async () => orchestrationProfile,
-      qwen_retry_policy: async (input) => createQwenRetryPolicy(input),
+      qwen_retry_policy: async (input) => createQwenRetryPolicy(input, runtimeMode),
       orchestration_health: async () => createOrchestrationHealth(root),
+      dashboard_snapshot: async (input) => createDashboardSnapshot(root, { ...input, mode: runtimeMode }),
       rules_snapshot: async (input) => writeRulesSnapshot(root, input),
-      tool_usage_plan: async (input) => createToolUsagePlan(input),
+      tool_usage_plan: async (input) => createToolUsagePlan(input, runtimeMode),
       ui_layout_catalog: async (input) => createUiLayoutCatalog(resolveTinyChuPaths(root).root, input),
       ux_rationale_trace: async (input) => createUxRationaleTrace(resolveTinyChuPaths(root).root, input),
       ux_validation_matrix: async (input) => createUxValidationMatrix(resolveTinyChuPaths(root).root, input),
@@ -195,10 +206,12 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
   registry = composeFeaturePackages(createDefaultTinyFeaturePackages(tools, {
     safeTooling: config.safeTooling,
     nativePreviews: config.safeTooling === true && config.nativePreviews === true,
+    mode: runtimeMode,
   }));
 
   return {
     name: "tiny-chu",
+    runtimeMode,
     opencode: POWERSHELL_OPENCODE_RUNTIME,
     registry,
     tools: registry.tools,
@@ -206,6 +219,9 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       async transformUserMessage(message, context) {
         if (!/\b(ulw|ultrawork)\b/i.test(message)) return message;
         const packet = await buildContextPacket({ root: resolveTinyChuPaths(root).root, targetPath: context?.targetPath ?? ".", maxChars: orchestrationProfile.packetStrategy.maxContextChars });
+        if (isWorkerRuntimeMode(runtimeMode)) {
+          return `${message}\n\n<tiny-chu-context>\n${JSON.stringify(packet, null, 2)}\n</tiny-chu-context>\n\n<tiny-chu-powershell-tooling>\n${renderCompactPowerShellToolingGuide()}\n</tiny-chu-powershell-tooling>`;
+        }
         const compactGuide = renderCompactSmallContextGuide(orchestrationProfile);
         return `${message}\n\n<tiny-chu-context>\n${JSON.stringify(packet, null, 2)}\n</tiny-chu-context>\n\n<tiny-chu-powershell-tooling>\n${renderCompactPowerShellToolingGuide()}\n</tiny-chu-powershell-tooling>\n\n<tiny-chu-small-context>\n${compactGuide.text}\n</tiny-chu-small-context>`;
       },

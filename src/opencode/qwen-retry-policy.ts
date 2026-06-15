@@ -1,3 +1,5 @@
+import { isWorkerRuntimeMode, type TinyChuRuntimeMode } from "./runtime-mode.js";
+
 export interface QwenPublicLimits {
   readonly requestsPerMinute: number;
   readonly tokensPerMinute: number;
@@ -30,7 +32,7 @@ function shouldRetry(status: unknown): boolean {
   return status === "failed" || status === "rate_limited" || status === "timeout" || status === "network_error" || status === undefined;
 }
 
-export function createQwenRetryPolicy(input: Record<string, unknown>): QwenRetryPolicyResult {
+export function createQwenRetryPolicy(input: Record<string, unknown>, runtimeMode: TinyChuRuntimeMode = "orchestrator_worker"): QwenRetryPolicyResult {
   const estimatedTokens = positiveInteger(input.estimatedTokens, 4_000);
   const attempt = positiveInteger(input.attempt, 1);
   const retryAfterMs = positiveInteger(input.retryAfterMs, QWEN_PUBLIC_LIMITS.requestSpacingMs);
@@ -46,11 +48,18 @@ export function createQwenRetryPolicy(input: Record<string, unknown>): QwenRetry
     shouldRetry: shouldRetry(input.status),
     neverStop: true,
     retryDelaysMs,
-    recoveryProtocol: [
-      "split prompts so each delegated call stays below 20000 tokens per minute",
-      "space requests by at least 3000 ms because the public limit is 20 requests per minute",
-      "on failure write task_checkpoint with partial result, nextSteps, and retry evidence before requeueing",
-      "use public_retry instead of abandoning the job; if the prompt is too large, reduce it with context_digest or business_logic_map",
-    ],
+    recoveryProtocol: isWorkerRuntimeMode(runtimeMode)
+      ? [
+          "split prompts so each packet stays below 20000 tokens per minute",
+          "space retry attempts by at least 3000 ms",
+          "on failure write task_checkpoint with partial result, nextSteps, and retry evidence before continuing",
+          "keep work packet-only; reduce large prompts with context_digest or business_logic_map before retrying",
+        ]
+      : [
+          "split prompts so each delegated call stays below 20000 tokens per minute",
+          "space requests by at least 3000 ms because the public limit is 20 requests per minute",
+          "on failure write task_checkpoint with partial result, nextSteps, and retry evidence before requeueing",
+          "use public_retry instead of abandoning the job; if the prompt is too large, reduce it with context_digest or business_logic_map",
+        ],
   };
 }

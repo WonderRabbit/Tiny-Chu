@@ -1,9 +1,11 @@
 import type { TinyFeaturePackageSummary } from "./feature-package.js";
 import { createDefaultTinyFeaturePackages } from "./feature-packages/default-packages.js";
+import { normalizeTinyChuRuntimeMode, type TinyChuRuntimeMode, type TinyChuRuntimeModeInput } from "./runtime-mode.js";
 import type { TinyToolHandler } from "./tiny-plugin-types.js";
 
 export interface TinyChuInstallCheckResult {
   readonly packageName: "tiny-chu";
+  readonly runtimeMode: TinyChuRuntimeMode;
   readonly requiredTools: readonly string[];
   readonly exposedPackages: readonly TinyFeaturePackageSummary[];
   readonly nativeTools: readonly string[];
@@ -19,13 +21,16 @@ export interface TinyChuInstallCheckResult {
 }
 
 export function createTinyChuInstallCheck(
-  toolNames: readonly string[] = defaultInstallToolNames(),
+  toolNames?: readonly string[],
   exposedPackages: readonly TinyFeaturePackageSummary[] = [],
   nativeToolNames: readonly string[] = [],
+  runtimeModeInput?: TinyChuRuntimeModeInput,
 ): TinyChuInstallCheckResult {
+  const runtimeMode = normalizeTinyChuRuntimeMode(runtimeModeInput);
   return {
     packageName: "tiny-chu",
-    requiredTools: [...toolNames].sort(),
+    runtimeMode,
+    requiredTools: [...(toolNames ?? defaultInstallToolNames(runtimeMode))].sort(),
     exposedPackages,
     nativeTools: [...nativeToolNames].sort(),
     opencodeEntrypoint: "./dist/opencode/plugin.js",
@@ -40,11 +45,11 @@ export function createTinyChuInstallCheck(
   };
 }
 
-function defaultInstallToolNames(): readonly string[] {
+function defaultInstallToolNames(runtimeMode: TinyChuRuntimeMode): readonly string[] {
   const noop: TinyToolHandler = async () => undefined;
   const handlers: Readonly<Record<string, TinyToolHandler>> = new Proxy({}, {
     get: () => noop,
   });
-  const packages = createDefaultTinyFeaturePackages(handlers);
+  const packages = createDefaultTinyFeaturePackages(handlers, { mode: runtimeMode });
   return packages.flatMap((featurePackage) => (featurePackage.tools ?? []).map((tool) => tool.name));
 }
