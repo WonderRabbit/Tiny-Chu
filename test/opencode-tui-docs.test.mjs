@@ -51,9 +51,9 @@ test("architecture docs include dashboard snapshot in current tool counts", asyn
   };
   const combined = Object.values(docs).join("\n");
 
-  assert.match(combined, /기본 86개 툴/);
-  assert.match(docs.packages, /tiny-chu\.small-model-resilience[\s\S]*17[\s\S]*dashboard_snapshot/);
+  assert.match(combined, /기본 88개 툴/);
+  assert.match(docs.packages, /tiny-chu\.small-model-resilience[\s\S]*19[\s\S]*dashboard_snapshot/);
   assert.match(docs.catalog, /dashboard_snapshot/);
-  assert.match(docs.catalog, /기본 레지스트리는 86개/);
-  assert.doesNotMatch(combined, /기본 85개 툴|기본 레지스트리는 85개|safeTooling`을 켜면 93개|nativePreviews`까지 켜면 97개/);
+  assert.match(docs.catalog, /기본 레지스트리는 88개/);
+  assert.doesNotMatch(combined, /기본 85개 툴|기본 86개 툴|기본 레지스트리는 85개|기본 레지스트리는 86개|safeTooling`을 켜면 93개|safeTooling`을 켜면 94개|nativePreviews`까지 켜면 97개|nativePreviews`까지 켜면 98개/);
 });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -84,4 +84,33 @@ test("WikiBundler rejects inside-root symlinks whose real path escapes the confi
 
   // When / Then
   await assert.rejects(() => wiki.bundle(), /outside configured root|outside root/);
+});
+
+test("WikiBundler rejects symlinked wiki index directories", async () => {
+  // Given
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-wiki-index-dir-symlink-"));
+  const outside = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-wiki-index-dir-outside-"));
+  await mkdir(path.join(root, ".tiny"), { recursive: true });
+  await writeFile(path.join(outside, "index.json"), `${JSON.stringify({ documents: [] })}\n`, "utf8");
+  await symlink(outside, path.join(root, ".tiny", "wiki"));
+  const wiki = new WikiBundler(root);
+
+  // When / Then
+  await assert.rejects(() => wiki.readIndex(), /symlink|escapes root/);
+  await assert.rejects(() => wiki.writeIndex({ documents: [] }), /symlink|escapes root/);
+});
+
+test("WikiBundler rejects symlinked wiki index files before read or write", async () => {
+  // Given
+  const root = await makeRoot("tiny-chu-wiki-index-file-symlink-");
+  const outside = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-wiki-index-file-outside-"));
+  const outsideIndex = path.join(outside, "index.json");
+  await writeFile(outsideIndex, `${JSON.stringify({ documents: [] })}\n`, "utf8");
+  await symlink(outsideIndex, path.join(root, ".tiny", "wiki", "index.json"));
+  const wiki = new WikiBundler(root);
+
+  // When / Then
+  await assert.rejects(() => wiki.readIndex(), /symlink/);
+  await assert.rejects(() => wiki.writeIndex({ documents: [] }), /symlink/);
+  assert.equal(await readFile(outsideIndex, "utf8"), `${JSON.stringify({ documents: [] })}\n`);
 });

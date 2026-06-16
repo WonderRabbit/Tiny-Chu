@@ -37,10 +37,10 @@ test("safe tooling and native previews are opt-in registry packages", async () =
     $: async () => undefined,
   }, { safeTooling: true, nativePreviews: true });
 
-  assert.equal(Object.keys(baseline.tools).length, 86);
-  assert.equal(Object.keys(nativeOnly.tools).length, 86);
-  assert.equal(Object.keys(safe.tools).length, 94);
-  assert.equal(Object.keys(safeNative.tools).length, 98);
+  assert.equal(Object.keys(baseline.tools).length, 88);
+  assert.equal(Object.keys(nativeOnly.tools).length, 88);
+  assert.equal(Object.keys(safe.tools).length, 96);
+  assert.equal(Object.keys(safeNative.tools).length, 100);
   assert.ok(safe.registry.packageIds.includes("tiny-chu.safe-tooling"));
   assert.equal(safe.registry.packageIds.includes("tiny-chu.native-previews"), false);
   assert.ok(safeNative.registry.packageIds.includes("tiny-chu.native-previews"));

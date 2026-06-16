@@ -124,7 +124,7 @@ declare module "node:fs/promises" {
   }
   export function access(path: string): Promise<void>;
   export function copyFile(source: string, target: string): Promise<void>;
-  export function lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
+  export function lstat(path: string): Promise<{ isSymbolicLink(): boolean; isDirectory(): boolean; isFile(): boolean }>;
   export function mkdtemp(prefix: string): Promise<string>;
   export function mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefined>;
   export function readFile(path: string, encoding: "utf8"): Promise<string>;

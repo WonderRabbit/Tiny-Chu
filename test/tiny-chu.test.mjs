@@ -76,6 +76,23 @@ test("tiny plugin preserves public job artifact contracts", async () => {
   assert.deepEqual((await plugin.tools.public_collect({ id: job.id })).contract.mustReturn, job.contract.mustReturn);
 });
 
+test("public wikiRefs stay metadata-only and context_packet schema stays unchanged", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-public-wikirefs-"));
+  await mkdir(path.join(root, ".tiny", "wiki", "domains"), { recursive: true });
+  await writeFile(path.join(root, ".tiny", "wiki", "domains", "api.md"), "Private wiki body: do not inline this text.\n", "utf8");
+  const plugin = createTinyChuPlugin({ root });
+  const job = await plugin.tools.public_dispatch({ prompt: "Analyze API policy", wikiRefs: ["api"], mustReturn: ["findings"] });
+  await plugin.tools.public_checkpoint({ id: job.id, summary: "worker paused", result: "partial result without wiki body" });
+  const resume = await plugin.tools.public_job_resume_packet({ id: job.id });
+  const packet = await plugin.tools.context_packet({ targetPath: ".", maxChars: 1200 });
+
+  assert.deepEqual((await plugin.tools.public_collect({ id: job.id })).context.wikiRefs, ["api"]);
+  assert.doesNotMatch(resume.resumePrompt, /Private wiki body/);
+  assert.equal(Object.hasOwn(packet, "wikiRefs"), false);
+  assert.equal(Object.hasOwn(packet, "wikiQuery"), false);
+  assert.equal(Object.hasOwn(packet, "wikiContext"), false);
+});
+
 test("public worker supports json lifecycle and completion", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-public-json-"));
   const plugin = createTinyChuPlugin({ root });

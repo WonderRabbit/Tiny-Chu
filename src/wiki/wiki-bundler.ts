@@ -2,23 +2,12 @@ import { readFile } from "node:fs/promises";
 import { resolveTinyChuPaths } from "../state/paths.js";
 import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
 import { readJsonFile, writeJsonAtomic } from "../state/file-store.js";
+import { renderWikiContext } from "./wiki-context.js";
+import { searchWiki } from "./wiki-search.js";
+import { resolveWikiIndexReadPath, resolveWikiIndexWritePath } from "./wiki-storage.js";
+import type { WikiBundle, WikiContextInput, WikiContextResult, WikiDocumentRef, WikiIndex, WikiSearchInput, WikiSearchResult } from "./wiki-types.js";
 
-export interface WikiDocumentRef {
-  id: string;
-  path: string;
-  canonical: boolean;
-  tags: string[];
-  freshness: "manual" | "on-merge" | "generated";
-}
-
-export interface WikiIndex {
-  documents: WikiDocumentRef[];
-}
-
-export interface WikiBundle {
-  refs: WikiDocumentRef[];
-  text: string;
-}
+export type { WikiBundle, WikiContextInput, WikiContextResult, WikiDocumentRef, WikiIndex, WikiSearchInput, WikiSearchResult } from "./wiki-types.js";
 
 export class WikiBundler {
   readonly root?: string;
@@ -28,11 +17,13 @@ export class WikiBundler {
   }
 
   async readIndex(): Promise<WikiIndex> {
-    return readJsonFile<WikiIndex>(resolveTinyChuPaths(this.root).wikiIndexFile, { documents: [] });
+    const indexPath = await resolveWikiIndexReadPath(this.root);
+    if (!indexPath.exists) return { documents: [] };
+    return readJsonFile<WikiIndex>(indexPath.file, { documents: [] });
   }
 
   async writeIndex(index: WikiIndex): Promise<void> {
-    await writeJsonAtomic(resolveTinyChuPaths(this.root).wikiIndexFile, index);
+    await writeJsonAtomic(await resolveWikiIndexWritePath(this.root), index);
   }
 
   async upsertDocument(ref: WikiDocumentRef): Promise<WikiIndex> {
@@ -43,6 +34,14 @@ export class WikiBundler {
     const updated = { documents: next };
     await this.writeIndex(updated);
     return updated;
+  }
+
+  async search(input: WikiSearchInput = {}): Promise<WikiSearchResult> {
+    return searchWiki(this.root, input);
+  }
+
+  async context(input: WikiContextInput): Promise<WikiContextResult> {
+    return renderWikiContext(this.root, input);
   }
 
   async bundle(idsOrTags: string[] = []): Promise<WikiBundle> {

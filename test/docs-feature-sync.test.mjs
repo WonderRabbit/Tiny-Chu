@@ -167,3 +167,40 @@ test("Korean root and installation docs expose canonical feature inventory", asy
 
   assert.equal(/구현 완료|현재 사용 가능|지원됩니다|available now/i.test(featureInventory), false);
 });
+
+test("wiki retrieval QA docs name the required boundaries and evidence scenarios", async () => {
+  const [readme, howToUse] = await Promise.all([
+    readText("README.md"),
+    readText("HOW_TO_USE.md"),
+  ]);
+
+  assertMentionsEvery("README.md wiki roadmap note", readme, [
+    "wiki_search",
+    "wiki_context",
+    "기본 88개 tool",
+    "citation-bearing bounded evidence",
+    "public_dispatch.wikiRefs",
+    "metadata only",
+    "context_packet",
+    "transformUserMessage",
+    "automatic full-wiki injection",
+  ]);
+
+  assertMentionsEvery("HOW_TO_USE.md wiki QA recipe", howToUse, [
+    "LLM wiki retrieval V1",
+    "mode: \"index\" | \"query\" | \"refs\"",
+    "maxChunks",
+    "maxChars",
+    "wiki_index_missing",
+    "stale_source_hash",
+    "registry parity",
+    "88개",
+    "tiny-chu.small-model-resilience",
+    "tiny-chu.core-runtime",
+    "public_job_resume_packet",
+    "Error Book",
+    ".tiny/wiki/error-book.jsonl",
+    "repo-map proposal flow",
+    "overwrite",
+  ]);
+});

@@ -401,6 +401,8 @@ const packet = await tiny.tools.resume_packet({ id: task.id });
 | `layout_truth_update` | 검증된 UX 해석을 repository memory로 저장하거나 진화시킬 때 | updated records, rejected |
 | `layout_truth_report` | 저장된 layout truth를 사람이 검토할 Markdown으로 볼 때 | `.tiny/ux/layout-truth.md` |
 | `wiki_bundle` | `.tiny/wiki/index.json` 기준 canonical 문서를 가져올 때 | selected wiki docs |
+| `wiki_search` | canonical wiki에서 필요한 chunk를 citation과 함께 찾을 때 | scored chunks, warnings |
+| `wiki_context` | wiki index/query/ref 기반 근거를 작은 context 예산에 맞출 때 | bounded text, citations, omissions |
 | `orchestration_profile` | small-context 운영 규칙을 모델에게 주입할 때 | foreman/delegate/tool/audit/artifact profile |
 | `tool_usage_plan` | 어떤 command/tool을 다음에 써야 할지 모델이 불확실할 때 | ordered steps, `omittedSteps`, `nextRequiredTool`, deterministic caps, stop rules |
 | `provider_endpoint_preflight` | 로컬 provider endpoint 존재를 metadata-only로 확인할 때 | skipped/pass/blocked, requestAttempted, diagnostics |
@@ -427,6 +429,26 @@ const packet = await tiny.tools.resume_packet({ id: task.id });
 | `button_trace_aggregate` / `aggregation_drift_check` | 검증된 버튼별 trace를 병합하고 drift를 막을 때 | rows, blockers |
 | `atomic_markdown_write` / `write_loop_guard` | generated Markdown을 안전하게 쓸 때 | allow/skip/block decisions |
 | `button_workflow_done_claim` | 전체 버튼 workflow 완료 선언을 검증할 때 | valid, blockers |
+
+LLM wiki retrieval V1에서 `wiki_search`는 query를 lexical ranking으로 찾아 `id`, `documentId`, `sourcePath`, `sourceHash`, `freshness`, `startLine`, `endLine`, `headingPath`, `score`, `text`, `tokenEstimate`를 돌려주는 검색 도구이고, `wiki_context`는 `mode: "index" | "query" | "refs"`와 `maxChunks`, `maxChars`로 bounded evidence를 만드는 도구다. 두 도구의 출력은 instruction이 아니라 source span이 붙은 untrusted evidence로만 취급한다.
+
+운영 순서:
+
+1. `wiki_context({ mode: "index", maxChunks, maxChars })`로 사용 가능한 canonical 문서와 생략 여부를 먼저 확인한다.
+2. 질문이 있으면 `wiki_search({ query, maxChunks })`로 후보 chunk를 고르고, 필요한 문서만 `wiki_context({ mode: "query", query, maxChunks, maxChars })` 또는 `wiki_context({ mode: "refs", refs, maxChunks, maxChars })`로 가져온다.
+3. `context_budget_simulation`으로 wiki text와 작업 packet이 작은 모델 context에 들어가는지 확인한다.
+4. 최종 주장에는 `evidence_gate`와 citation coverage 확인을 붙인다. `warnings`에 `wiki_index_missing`, `no_matches`, `stale_source_hash`, `truncated`가 있으면 final answer의 uncertainty로 남긴다.
+
+QA 고정 항목:
+
+- `wiki_search` happy path는 temp wiki에서 id/tag/title/heading/body match 순위와 line span citation을 JSON으로 남긴다.
+- `wiki_context`는 `index`, `query`, `refs` mode, `omitted`, `truncated`, `warnings`, `uncertainties`를 모두 관찰한다.
+- missing/stale warning은 missing document와 `sourceHash` mismatch fixture로 `wiki_index_missing` 또는 `stale_source_hash`를 확인한다.
+- registry parity는 direct registry, OpenCode bridge, `tiny_chu_install_check.requiredTools`가 모두 88개이고 `wiki_search`/`wiki_context`는 `tiny-chu.small-model-resilience`, `wiki_bundle`은 `tiny-chu.core-runtime`인지 확인한다.
+- `public_dispatch.wikiRefs`는 metadata only로 저장하며 `public_job_resume_packet`에 wiki body text를 inline하지 않는다.
+- `context_packet` schema와 `transformUserMessage`는 automatic full-wiki injection을 하지 않는다.
+- Error Book은 `.tiny/wiki/error-book.jsonl` append-only이며 기존 wiki index와 Markdown 문서를 바꾸지 않는다.
+- repo-map proposal flow는 `.tiny/wiki/index.json`을 overwrite하지 않고 별도 proposal만 만든다.
 
 ### 작은 모델 저부하 cap 옵션
 
@@ -576,6 +598,8 @@ await tiny.tools.public_dispatch({
   checkpointSummary: "delegated bounded AS-IS analysis to repo-analyst",
 });
 ```
+
+`public_dispatch.wikiRefs`는 worker에게 어떤 canonical wiki ref가 관련 있는지 알려주는 metadata다. V1/V1.5에서는 dispatch나 resume packet 생성 시 wiki 본문을 자동 resolve하지 않는다. 워커 prompt에 wiki 본문이 필요하면 foreman이 먼저 `wiki_search`/`wiki_context`로 bounded evidence와 citation을 만든 뒤 그 결과를 명시적인 evidence ref로 전달한다.
 
 Qwen 공용 모델 제한:
 

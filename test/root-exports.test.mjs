@@ -27,6 +27,7 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "aggregateButtonTraces",
   "aggregationDriftCheck",
   "appendJsonLine",
+  "appendWikiErrorBookRecord",
   "atomicMarkdownWrite",
   "boundedText",
   "buildContextPacket",
@@ -98,6 +99,7 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "createUxRationaleTrace",
   "createUxReverseReport",
   "createUxValidationMatrix",
+  "createWikiErrorBookRecord",
   "createWorkerPacketOptimizer",
   "createWorkflow",
   "createWorkflowCheckpoint",
@@ -121,9 +123,11 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "normalizeSafeRelativePath",
   "normalizeTinyChuRuntimeMode",
   "parsePlanMarkdown",
+  "proposeWikiDocumentsFromRepoMap",
   "readJsonFile",
   "readJsonLines",
   "readPlanStatus",
+  "readWikiErrorBookRecords",
   "readWorkspaceFile",
   "recommendModelOptionControls",
   "removeIfExists",
@@ -159,7 +163,7 @@ test("root module keeps the public ABI stable", async () => {
   assert.equal(tinyRoot.TinyChuOpenCodeTuiPlugin, TinyChuOpenCodeTuiPlugin);
   assert.equal(tinyRoot.POWERSHELL_OPENCODE_RUNTIME.shell.executable, "pwsh");
   const directInstall = tinyRoot.createTinyChuInstallCheck();
-  assert.equal(directInstall.requiredTools.length, 86);
+  assert.equal(directInstall.requiredTools.length, 88);
   assert.equal(directInstall.runtimeMode, "orchestrator_worker");
   assert.equal(directInstall.packageName, "tiny-chu");
   assert.equal(directInstall.opencodeEntrypoint, "./dist/opencode/plugin.js");

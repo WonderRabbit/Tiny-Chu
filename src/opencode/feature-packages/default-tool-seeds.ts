@@ -80,6 +80,8 @@ export const WORKFLOW_ORCHESTRATION_TOOLS: readonly ToolSeed[] = [
 
 export const SMALL_MODEL_TOOLS: readonly ToolSeed[] = [
   readJson("context_budget_simulation", "Estimate static packet token budget before small-model execution."),
+  readJson("wiki_search", "Return deterministic cited wiki chunks without bundling full documents."),
+  readJson("wiki_context", "Return bounded citation-bearing wiki context for canonical project knowledge."),
   readJson("context_digest", "Return bounded file evidence snippets with citations for small-context models.", ["rg"]),
   readJson("evidence_gate", "Aggregate required evidence checks into a pass, warning, or fail decision."),
   readJson("session_preflight", "Return latest task checkpoint, verification tools, and small-context budget ledger."),

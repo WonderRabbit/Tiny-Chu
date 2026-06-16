@@ -46,6 +46,7 @@ import { createTraceDiagramRender } from "./trace-diagram-render.js";
 import { createUiActionTrace } from "./ui-action-trace.js";
 import { markdownInput, numberInput, publicJobFormatInput, stringInput, stringListInput, taskPatchInput, taskPriorityInput, taskStatusInput } from "./tiny-tool-inputs.js";
 import type { OpenCodeRuntimeConfig, TinyChuConfig, TinyPluginModule, TinyToolContext, TinyToolHandler } from "./tiny-plugin-types.js";
+import { wikiToolModule } from "./wiki-tool-loader.js";
 import { reportLayoutTruth, updateLayoutTruth, verifyLayoutTruth } from "./layout-truth.js";
 import { createUiLayoutCatalog, createUxRationaleTrace, createUxValidationMatrix } from "./ux-reverse-analysis.js";
 import { createUxReverseReport } from "./ux-reverse-report.js";
@@ -169,6 +170,8 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       button_workflow_done_claim: async (input) => buttonWorkflowDoneClaim(input),
       git_weekly_report: async (input) => createGitWeeklyReport(root, input),
       wiki_bundle: async (input) => wiki.bundle(Array.isArray(input.refs) ? input.refs.map(String) : []),
+      wiki_search: async (input) => (await wikiToolModule()).createWikiSearch(root, input),
+      wiki_context: async (input) => (await wikiToolModule()).createWikiContext(root, input),
       orchestration_profile: async () => orchestrationProfile,
       qwen_retry_policy: async (input) => createQwenRetryPolicy(input, runtimeMode),
       orchestration_health: async () => createOrchestrationHealth(root, runtimeMode),

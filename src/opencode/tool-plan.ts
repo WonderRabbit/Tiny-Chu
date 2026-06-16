@@ -1,9 +1,11 @@
 import type { ArtifactType } from "./artifact-contract.js";
 import { createDefaultAgentModelTemplates, type AgentKind, validateAgentModelTemplate, type AgentModelTemplateValidation } from "./agent-model-options.js";
 import type { TinyChuRuntimeMode } from "./runtime-mode.js";
+import { agentKind } from "./tool-plan-agent.js";
 import { DETERMINISTIC_CAPS, type DeterministicToolCap } from "./tool-plan-caps.js";
 import { applyToolPlanRuntimeMode } from "./tool-plan-runtime-mode.js";
 import { BASE_STOP_RULES, repositoryAnalysisStopRules, smallContextCorrectionStopRules } from "./tool-plan-stop-rules.js";
+import { withWikiContext } from "./tool-plan-wiki.js";
 export interface ToolPlanStep {
   readonly order: number;
   readonly goal: string;
@@ -204,20 +206,10 @@ function verificationTools(objective: string, type: ArtifactType | undefined): r
     : ["artifact_check", "task_checkpoint"];
 }
 
-function agentKind(objective: string): AgentKind | undefined {
-  if (/\bwireframe\b/i.test(objective)) return "wireframe_planner";
-  if (/\bux|layout|screen\b/i.test(objective)) return "ui_ux_analyst";
-  if (/\bfact|research|collect repo\b/i.test(objective)) return "fact_researcher";
-  if (/\breview\b/i.test(objective)) return "reviewer";
-  if (/\bqa|test\b/i.test(objective)) return "qa_runner";
-  if (/\bimplement|fix|code\b/i.test(objective)) return "implementation_worker";
-  return undefined;
-}
-
 export function createToolUsagePlan(input: Record<string, unknown>, runtimeMode: TinyChuRuntimeMode = "orchestrator_worker"): ToolUsagePlanResult {
   const objective = textInput(input.objective, "analyze repository with bounded evidence");
   const type = artifactType(input.artifactType);
-  const ordered = coreSteps(objective, type)
+  const ordered = withWikiContext(coreSteps(objective, type), objective)
     .map((step, index) => ({ ...step, order: index + 1 }));
   const requiredTools = verificationTools(objective, type);
   const recommendedAgentKind = agentKind(objective);

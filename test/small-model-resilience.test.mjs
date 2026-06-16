@@ -230,6 +230,48 @@ test("tool_usage_plan emits small-context correction workflow", async () => {
   assert.ok(plan.stopRules.some((rule) => rule.includes("worker_packet_optimizer") && rule.includes("dispatch:false")));
 });
 
+test("tool_usage_plan recommends wiki context for canonical repository knowledge", async () => {
+  const plugin = createTinyChuPlugin();
+  const plan = await plugin.tools.tool_usage_plan({
+    objective: "analyze repository with canonical wiki context budget for Tiny-Chu knowledge",
+  });
+  const tools = plan.steps.map((step) => step.tinyTool).filter(Boolean);
+
+  assert.ok(tools.includes("wiki_context"));
+  assert.ok(tools.indexOf("context_budget_simulation") < tools.indexOf("wiki_context"));
+  assert.ok(tools.indexOf("wiki_context") < tools.indexOf("workflow_next"));
+  assert.ok(!plan.verification.requiredTools.includes("wiki_context"));
+  assert.ok(!plan.verification.requiredTools.includes("wiki_search"));
+});
+
+test("tool_usage_plan places wiki context inside small-context correction", async () => {
+  const plugin = createTinyChuPlugin();
+  const plan = await plugin.tools.tool_usage_plan({
+    objective: "correct a small-context operating-mode breach using project knowledge wiki",
+  });
+  const tools = plan.steps.map((step) => step.tinyTool).filter(Boolean);
+
+  assert.ok(tools.indexOf("context_packet") < tools.indexOf("wiki_context"));
+  assert.ok(tools.indexOf("wiki_context") < tools.indexOf("incremental_evidence_cache"));
+  assert.ok(!plan.verification.requiredTools.includes("wiki_context"));
+});
+
+test("tool_usage_plan places wiki context in generic canonical-doc flows only", async () => {
+  const plugin = createTinyChuPlugin();
+  const positive = await plugin.tools.tool_usage_plan({
+    objective: "use canonical project knowledge to plan a documentation update",
+  });
+  const positiveTools = positive.steps.map((step) => step.tinyTool).filter(Boolean);
+  const negative = await plugin.tools.tool_usage_plan({
+    objective: "reverse engineer screen UX layout rationale",
+    artifactType: "ux_reverse_analysis",
+  });
+
+  assert.ok(positiveTools.indexOf("repo_map") < positiveTools.indexOf("wiki_context"));
+  assert.ok(positiveTools.indexOf("wiki_context") < positiveTools.indexOf("context_digest"));
+  assert.ok(!negative.steps.some((step) => step.tinyTool === "wiki_context"));
+});
+
 test("incremental evidence cache does not claim git dirtiness", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-evidence-cache-hash-"));
   await mkdir(path.join(root, "src"), { recursive: true });
