@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { runNpm } from "./npm-runner.mjs";
 import { writeBundleTemplate, writeInstallers } from "./offline-installers.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -98,15 +99,11 @@ function npmEnv(cacheDir) {
 
 async function installProductionDependencies(stagingDir, cacheDir) {
   try {
-    await execFileAsync(
-      "npm",
-      ["install", "--omit=dev", "--cache", cacheDir, "--ignore-scripts", "--no-audit", "--fund=false"],
-      {
-        cwd: stagingDir,
-        env: npmEnv(cacheDir),
-        maxBuffer,
-      },
-    );
+    await runNpm(["install", "--omit=dev", "--cache", cacheDir, "--ignore-scripts", "--no-audit", "--fund=false"], {
+      cwd: stagingDir,
+      env: npmEnv(cacheDir),
+      maxBuffer,
+    });
   } catch (error) {
     const stderr = typeof error === "object" && error !== null && "stderr" in error ? String(error.stderr) : "";
     if (/ENOTCACHED|ENOTFOUND|ECONNREFUSED|EAI_AGAIN|network|fetch failed/i.test(stderr)) {
@@ -140,7 +137,7 @@ async function main() {
   const packCacheDir = path.join(tempRoot, "npm-pack-cache");
 
   try {
-    await execFileAsync("npm", ["run", "build"], { cwd: repoRoot, maxBuffer });
+    await runNpm(["run", "build"], { cwd: repoRoot, maxBuffer });
     await mkdir(args.out, { recursive: true });
     await mkdir(cacheDir, { recursive: true });
     await mkdir(packCacheDir, { recursive: true });
@@ -151,7 +148,7 @@ async function main() {
     await buildStagePackageJson(stagingDir, packageJson);
     await installProductionDependencies(stagingDir, cacheDir);
 
-    const packResult = await execFileAsync("npm", ["pack", "--json", "--pack-destination", path.join(bundleDir, "vendor"), "--cache", packCacheDir], {
+    const packResult = await runNpm(["pack", "--json", "--pack-destination", path.join(bundleDir, "vendor"), "--cache", packCacheDir], {
       cwd: stagingDir,
       env: npmEnv(packCacheDir),
       maxBuffer,
@@ -167,7 +164,7 @@ async function main() {
     await writeInstallers(bundleDir, tarballName);
 
     const dependencyClosure = JSON.parse(
-      (await execFileAsync("npm", ["ls", "--omit=dev", "--json"], { cwd: stagingDir, maxBuffer })).stdout,
+      (await runNpm(["ls", "--omit=dev", "--json"], { cwd: stagingDir, maxBuffer })).stdout,
     );
     const distHashes = {
       "dist/index.js": await hashFile(path.join(stagingDir, "dist", "index.js")),
@@ -180,7 +177,7 @@ async function main() {
       version,
       createdAt: new Date().toISOString(),
       node: process.version,
-      npm: (await execFileAsync("npm", ["--version"], { cwd: repoRoot, maxBuffer })).stdout.trim(),
+      npm: (await runNpm(["--version"], { cwd: repoRoot, maxBuffer })).stdout.trim(),
       packageTarball: `vendor/${tarballName}`,
       license: packageJson.license,
       licenseFile: "LICENSE",

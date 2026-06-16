@@ -4,6 +4,7 @@ import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/pr
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { runNpm } from "./npm-runner.mjs";
 
 const execFileAsync = promisify(execFile);
 const maxBuffer = 1024 * 1024 * 32;
@@ -112,15 +113,11 @@ async function main() {
     const emptyCache = path.join(tempRoot, "empty-npm-cache");
     await mkdir(emptyCache, { recursive: true });
 
-    const install = await execFileAsync(
-      "npm",
-      ["install", "--offline", "--cache", emptyCache, "--ignore-scripts", "--no-audit", "--fund=false"],
-      {
-        cwd: consumer.opencodeDir,
-        env: { ...process.env, npm_config_registry: "http://127.0.0.1:9/", npm_config_audit: "false", npm_config_fund: "false" },
-        maxBuffer,
-      },
-    );
+    const install = await runNpm(["install", "--offline", "--cache", emptyCache, "--ignore-scripts", "--no-audit", "--fund=false"], {
+      cwd: consumer.opencodeDir,
+      env: { ...process.env, npm_config_registry: "http://127.0.0.1:9/", npm_config_audit: "false", npm_config_fund: "false" },
+      maxBuffer,
+    });
     const smoke = await runSmoke(consumer.opencodeDir);
 
     console.log(

@@ -341,6 +341,16 @@ npm --version
 
 Node.js `>=20.18.0`을 사용한다. npm 동작이 machine마다 다르면 target environment와 같은 Node/npm 계열에서 release bundle을 다시 만들고 `verify:offline`을 실행한다.
 
+### `spawn npm ENOENT` during `release:offline`
+
+`npm run release:offline` 실행 중 `spawn npm ENOENT`가 나오면 release script 내부의 child npm 실행 파일 해석에 실패한 것이다. 최신 release script는 npm으로 실행된 경우 invoking npm CLI 경로를 기준으로 child npm을 실행한다. 아래 버전을 확인한 뒤 최신 코드를 받은 상태에서 release 명령을 다시 실행한다.
+
+```bash
+node --version
+npm --version
+npm run release:offline -- --out /tmp/tiny-chu-release
+```
+
 ### PowerShell quoting
 
 PowerShell에서 Node one-liner와 특수 문자가 들어간 path는 single quote를 우선 사용한다. native command argument가 쪼개지거나 재작성되면 아래를 설정한다.
