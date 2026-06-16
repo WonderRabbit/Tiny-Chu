@@ -172,6 +172,26 @@ test("worker mode tool plans and qwen retry policy avoid hidden public and workf
   assert.match(JSON.stringify(orchestratorPlan), /analysis_workflow_start|workflow_next|workflow_sot_audit/);
 });
 
+test("worker mode health and OpenCode descriptions avoid public queue state and guidance", async () => {
+  const root = await temporaryRoot("tiny-chu-worker-health-");
+  const worker = createTinyChuPlugin({ root, mode: "worker" });
+  const orchestratorWorker = createTinyChuPlugin({ root, mode: "orchestrator_worker" });
+  const hooks = await TinyChuOpenCodePlugin(fakeOpenCodeInput(root), { mode: "worker" });
+  const publicJobDir = path.join(root, ".tiny", "public-jobs");
+
+  const health = await worker.tools.orchestration_health({});
+  const publicJobState = await readdir(publicJobDir).catch((error) => error?.code === "ENOENT" ? "missing" : Promise.reject(error));
+  const workerDescriptions = worker.registry.toolSpecs.map((spec) => spec.description).join("\n");
+  const hookDescriptions = Object.values(hooks.tool).map((definition) => definition.description).join("\n");
+
+  assert.equal(Object.hasOwn(health, "publicJobs"), false);
+  assert.equal(publicJobState, "missing");
+  assert.doesNotMatch(JSON.stringify(health), /\bpublic(?:Jobs|_retry| job| worker| queue)?\b/i);
+  assert.doesNotMatch(workerDescriptions, /\bpublic\b/i);
+  assert.doesNotMatch(hookDescriptions, /\bpublic\b/i);
+  assert.match(orchestratorWorker.registry.toolSpecs.find((spec) => spec.name === "qwen_retry_policy")?.description ?? "", /\bpublic\b/i);
+});
+
 test("worker mode rejects dispatching packet optimizer and writes no public job state", async () => {
   const root = await temporaryRoot("tiny-chu-worker-dispatch-");
   const tiny = createTinyChuPlugin({ root, mode: "worker" });

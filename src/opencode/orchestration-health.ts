@@ -1,6 +1,7 @@
 import { PublicDispatcher, type PublicJobStatus } from "../dispatcher/public-job.js";
 import { TaskStore, type TaskStatus } from "../state/task-store.js";
 import { QWEN_PUBLIC_LIMITS } from "./qwen-retry-policy.js";
+import { isWorkerRuntimeMode, type TinyChuRuntimeMode } from "./runtime-mode.js";
 
 export interface StatusCount<T extends string> {
   readonly status: T;
@@ -17,7 +18,7 @@ export interface OrchestrationHealthResult {
     readonly total: number;
     readonly byStatus: readonly StatusCount<TaskStatus>[];
   };
-  readonly publicJobs: {
+  readonly publicJobs?: {
     readonly total: number;
     readonly byStatus: readonly StatusCount<PublicJobStatus>[];
     readonly retryable: number;
@@ -32,10 +33,29 @@ function counts<T extends string>(values: readonly T[], statuses: readonly T[]):
   return statuses.map((status) => ({ status, count: values.filter((value) => value === status).length })).filter((item) => item.count > 0);
 }
 
-export async function createOrchestrationHealth(root: string | undefined): Promise<OrchestrationHealthResult> {
+export async function createOrchestrationHealth(root: string | undefined, runtimeMode: TinyChuRuntimeMode = "orchestrator_worker"): Promise<OrchestrationHealthResult> {
   const tasks = await new TaskStore({ root }).list();
-  const jobs = await new PublicDispatcher({ root }).list();
   const taskStatuses = tasks.map((task) => task.status);
+  if (isWorkerRuntimeMode(runtimeMode)) {
+    return {
+      status: taskStatuses.includes("blocked") ? "attention" : "healthy",
+      qwen: {
+        model: "qwen3.6-35b-a3b",
+        limits: QWEN_PUBLIC_LIMITS,
+      },
+      tasks: {
+        total: tasks.length,
+        byStatus: counts(taskStatuses, TASK_STATUSES),
+      },
+      recoverySteps: [
+        "read resume_packet for the active task before continuing",
+        "write task_checkpoint before every retry so partial analysis is not lost",
+        "call qwen_retry_policy to compute wait and chunking when qwen3.6-35b-a3b is rate limited",
+        "run artifact_check and mermaid_check before marking analysis artifacts done",
+      ],
+    };
+  }
+  const jobs = await new PublicDispatcher({ root }).list();
   const jobStatuses = jobs.map((job) => job.status);
   const retryable = jobs.filter((job) => job.status === "failed" || job.status === "retry_wait" || job.status === "checkpointed").length;
   const needsAttention = taskStatuses.includes("blocked") || jobStatuses.includes("failed") || jobStatuses.includes("retry_wait") || jobStatuses.includes("checkpointed");

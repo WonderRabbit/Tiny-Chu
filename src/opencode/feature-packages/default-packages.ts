@@ -1,5 +1,5 @@
 import { FeaturePackageError, type TinyFeaturePackage, type TinyToolDescriptor } from "../feature-package.js";
-import { isWorkerRuntimeMode, normalizeTinyChuRuntimeMode, type TinyChuRuntimeModeInput } from "../runtime-mode.js";
+import { isWorkerRuntimeMode, normalizeTinyChuRuntimeMode, type TinyChuRuntimeMode, type TinyChuRuntimeModeInput } from "../runtime-mode.js";
 import type { TinyToolHandler } from "../tiny-plugin-types.js";
 import { DEFAULT_PACKAGE_SEEDS, SAFE_TOOLING_PACKAGE_SEEDS } from "./default-package-seeds.js";
 import { hookNames, type PackageSeed, type ToolSeed } from "./tool-seed.js";
@@ -41,7 +41,7 @@ export function createDefaultTinyFeaturePackages(handlers: Readonly<Record<strin
         opencode: true,
       },
     },
-    tools: seed.tools.map((tool) => bindToolHandler(seed, tool, handlers)),
+    tools: seed.tools.map((tool) => bindToolHandler(seed, tool, handlers, runtimeMode)),
     resources: seed.resources ?? [],
     prompts: [],
     instructions: seed.instructions ?? [],
@@ -61,7 +61,19 @@ function defaultPackageSeedsForMode(runtimeMode: ReturnType<typeof normalizeTiny
   });
 }
 
-function bindToolHandler(seed: PackageSeed, tool: ToolSeed, handlers: Readonly<Record<string, TinyToolHandler>>): TinyToolDescriptor {
+function workerSafeDescription(description: string, runtimeMode: TinyChuRuntimeMode): string {
+  if (!isWorkerRuntimeMode(runtimeMode)) return description;
+  return description
+    .replace(/\bpublic-worker\b/gi, "worker")
+    .replace(/\bpublic worker\b/gi, "worker")
+    .replace(/\bpublic rate-limit\b/gi, "packet retry")
+    .replace(/\bpublic queue\b/gi, "queue")
+    .replace(/\bpublic\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function bindToolHandler(seed: PackageSeed, tool: ToolSeed, handlers: Readonly<Record<string, TinyToolHandler>>, runtimeMode: TinyChuRuntimeMode): TinyToolDescriptor {
   const handler = handlers[tool.name];
   if (!handler) {
     throw new FeaturePackageError("invalid_tool", `Feature package ${seed.id} references missing handler ${tool.name}`, {
@@ -69,5 +81,5 @@ function bindToolHandler(seed: PackageSeed, tool: ToolSeed, handlers: Readonly<R
       toolName: tool.name,
     });
   }
-  return { ...tool, handler };
+  return { ...tool, description: workerSafeDescription(tool.description, runtimeMode), handler };
 }
