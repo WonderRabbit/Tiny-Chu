@@ -67,7 +67,7 @@ async function listFiles(root) {
 }
 
 async function copyReleaseInputs(stagingDir) {
-  const requiredPaths = ["dist", "README.md", "HOW_TO_USE.md", "INSTALL.md", "templates", "package-lock.json"];
+  const requiredPaths = ["dist", "README.md", "HOW_TO_USE.md", "INSTALL.md", "LICENSE", "templates", "package-lock.json"];
   for (const relativePath of requiredPaths) await assertExists(path.join(repoRoot, relativePath), relativePath);
 
   for (const relativePath of requiredPaths) {
@@ -82,6 +82,7 @@ async function buildStagePackageJson(stagingDir, packageJson) {
     private: packageJson.private,
     type: packageJson.type,
     description: packageJson.description,
+    license: packageJson.license,
     engines: packageJson.engines,
     exports: packageJson.exports,
     files: packageJson.files,
@@ -160,6 +161,7 @@ async function main() {
     if (typeof generatedTarballName !== "string") throw new Error("npm pack did not return a tarball filename");
     await rename(path.join(bundleDir, "vendor", generatedTarballName), path.join(bundleDir, "vendor", tarballName));
 
+    await cp(path.join(repoRoot, "LICENSE"), path.join(bundleDir, "LICENSE"));
     await cp(path.join(repoRoot, "templates"), path.join(bundleDir, "templates"), { recursive: true });
     await writeBundleTemplate(bundleDir, version, tarballName);
     await writeInstallers(bundleDir, tarballName);
@@ -180,6 +182,8 @@ async function main() {
       node: process.version,
       npm: (await execFileAsync("npm", ["--version"], { cwd: repoRoot, maxBuffer })).stdout.trim(),
       packageTarball: `vendor/${tarballName}`,
+      license: packageJson.license,
+      licenseFile: "LICENSE",
       opencodeTemplate: "templates/opencode",
       opencodeDependency: `file:./vendor/${tarballName}`,
       installDocs: "INSTALL.md",

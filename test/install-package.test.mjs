@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -27,10 +27,19 @@ async function execFileResult(file, args, options) {
   }
 }
 
+function assertPackedLicenseMetadata(packPayload) {
+  const files = new Set(packPayload.files.map((file) => file.path));
+
+  assert.ok(files.has("LICENSE"));
+  if (Object.hasOwn(packPayload, "license")) assert.equal(packPayload.license, "Apache-2.0");
+  return files;
+}
+
 test("package metadata exposes offline install assets and commands", async () => {
   const packageJson = await readJson("package.json");
   const templatePackage = await readJson("templates/opencode/package.json");
 
+  assert.equal(packageJson.license, "Apache-2.0");
   assert.equal(packageJson.engines.node, ">=20.18.0");
   assert.equal(packageJson.scripts["pack:check"], "npm run build && node --test test/install-package.test.mjs");
   assert.equal(packageJson.scripts["release:offline"], "node scripts/release/build-offline-bundle.mjs");
@@ -38,6 +47,7 @@ test("package metadata exposes offline install assets and commands", async () =>
   assert.equal(packageJson.exports["./tui"], "./dist/opencode/tui-plugin.js");
   assert.equal(packageJson.dependencies["@opentui/solid"], "^0.3.4");
   assert.equal(packageJson.dependencies["solid-js"], undefined);
+  assert.ok(packageJson.files.includes("LICENSE"));
   assert.ok(packageJson.files.includes("INSTALL.md"));
   assert.ok(packageJson.files.includes("HOW_TO_USE.md"));
   assert.ok(packageJson.files.includes("templates"));
@@ -53,7 +63,7 @@ test("normal package tarball includes install docs and templates without bundled
       maxBuffer,
     });
     const packed = JSON.parse(result.stdout);
-    const files = new Set(packed[0].files.map((file) => file.path));
+    const files = assertPackedLicenseMetadata(packed[0]);
 
     assert.ok(files.has("README.md"));
     assert.ok(files.has("HOW_TO_USE.md"));
@@ -83,6 +93,7 @@ test("normal package tarball fails in a fresh offline consumer without cached de
       maxBuffer,
     });
     const packed = JSON.parse(packResult.stdout);
+    assertPackedLicenseMetadata(packed[0]);
     const tarballPath = path.join(packDir, packed[0].filename);
 
     await mkdir(consumerDir, { recursive: true });
@@ -103,5 +114,39 @@ test("normal package tarball fails in a fresh offline consumer without cached de
     await rm(packCache, { recursive: true, force: true });
     await rm(consumerDir, { recursive: true, force: true });
     await rm(emptyCache, { recursive: true, force: true });
+  }
+});
+
+test("offline release bundle exposes Apache-2.0 license artifacts", async () => {
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-offline-bundle-test-"));
+  const extractDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-offline-bundle-extract-"));
+  const releaseCache = process.env.TINY_CHU_RELEASE_NPM_CACHE ?? process.env.npm_config_cache ?? path.join(os.homedir(), ".npm");
+
+  try {
+    const result = await execFileAsync("npm", ["run", "release:offline", "--", "--out", outDir], {
+      cwd: repoRoot,
+      env: { ...process.env, TINY_CHU_RELEASE_NPM_CACHE: releaseCache, npm_config_audit: "false", npm_config_fund: "false" },
+      maxBuffer,
+    });
+    const jsonStart = result.stdout.indexOf("{");
+    assert.notEqual(jsonStart, -1, "release command did not print a JSON summary");
+    const release = JSON.parse(result.stdout.slice(jsonStart));
+    await execFileAsync("tar", ["-xzf", release.bundle, "-C", extractDir], { maxBuffer });
+
+    const [bundleDirName] = (await readdir(extractDir)).filter((entry) => entry.startsWith("tiny-chu-offline-v"));
+    assert.ok(bundleDirName);
+    const bundleDir = path.join(extractDir, bundleDirName);
+    const manifest = JSON.parse(await readFile(path.join(bundleDir, "manifest.json"), "utf8"));
+    const license = await readFile(path.join(bundleDir, "LICENSE"), "utf8");
+    const offlineReadme = await readFile(path.join(bundleDir, "README-offline.md"), "utf8");
+
+    assert.equal(manifest.license, "Apache-2.0");
+    assert.equal(manifest.licenseFile, "LICENSE");
+    assert.match(license, /Apache License/);
+    assert.match(offlineReadme, /Apache-2\.0/);
+    assert.match(offlineReadme, /LICENSE/);
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+    await rm(extractDir, { recursive: true, force: true });
   }
 });

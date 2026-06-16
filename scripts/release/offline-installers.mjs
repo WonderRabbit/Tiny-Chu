@@ -28,7 +28,9 @@ Install into a target project:
 \`\`\`
 
 The installer copies the OpenCode shim into \`.opencode/\`, places \`${tarballName}\` under \`.opencode/vendor/\`, and runs npm with \`--offline\`.
-`,
+
+Tiny-Chu is licensed under Apache-2.0. See \`LICENSE\` in this offline bundle and inside the packaged tarball.
+    `,
   );
 }
 

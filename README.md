@@ -1,30 +1,40 @@
 # Tiny-Chu
 
-Tiny-Chu is a small, file-backed OpenCode-style orchestration shell inspired by the Light edition architecture in `oh-my-openagent`.
+Tiny-Chu는 OpenCode 스타일 에이전트 작업 흐름에 필요한 최소한의 파일 기반 오케스트레이션 기능을 제공하는 작은 TypeScript 라이브러리다. 로컬 foreman 모델이 작업 상태, 컨텍스트, 계획, public worker 큐, wiki 번들을 잃지 않도록 돕는 데 집중한다.
 
-It deliberately keeps only the portable pieces needed for a local foreman model plus a single public worker API:
+의도적으로 Team Mode, Hyperplan, Atlas/parallel hooks, 원본 delegate-task 엔진 같은 큰 오케스트레이션 시스템은 포함하지 않는다.
 
-- nearest `AGENTS.md` and project rules context bundling
-- `.tiny/tasks/*.json` task persistence
-- `.tiny/plans/*.md` checkbox-driven continuation state
-- `.tiny/workflows/runs/*.json` workflow run state as the JSON source of truth
-- `.tiny/workflows/reports/**/*.md` per-stage workflow reports
-- `.tiny/public-jobs/*.json` public-worker queue packets
-- `.tiny/wiki/index.json` canonical wiki bundle selection
-- a thin `createTinyChuPlugin()` shell exposing `task_*`, `public_*`, `context_bundle`, and `wiki_bundle` tools
+## 빠른 시작
 
-It intentionally does not include Team Mode, Hyperplan, Atlas/parallel hooks, or the original delegate-task engine.
-
-## Quick start
+저장소를 개발 환경에서 확인할 때는 아래 두 명령을 먼저 실행한다.
 
 ```bash
 npm run build
 npm test
 ```
 
-For installation in another OpenCode project, including closed-network installs, internal registry installs, and developer local checkout installs, use the canonical [INSTALL.md](./INSTALL.md) guide.
+다른 OpenCode 프로젝트에 설치하거나 폐쇄망, 내부 registry, developer local checkout 경로를 선택해야 한다면 설치 절차의 canonical source인 [INSTALL.md](./INSTALL.md)를 따른다. 운영 사용법과 작은 모델 운용 흐름은 [HOW_TO_USE.md](./HOW_TO_USE.md)를 참고한다. 내부 구조와 설계 배경은 [docs/architecture/README.md](./docs/architecture/README.md)에 모여 있다.
 
-## Minimal plugin usage
+계획이나 리서치는 진행했지만 아직 제품 기능으로 들어오지 않은 항목은 [docs/feature/2026-06-15-unimplemented-features.md](./docs/feature/2026-06-15-unimplemented-features.md)에 별도로 정리한다.
+
+## 라이선스
+
+Tiny-Chu는 `Apache-2.0` 라이선스로 배포된다. 전체 라이선스 문구는 [LICENSE](./LICENSE)를 확인한다.
+
+## 범위
+
+Tiny-Chu가 제공하는 핵심 기능은 아래와 같다.
+
+- 가장 가까운 `AGENTS.md`와 프로젝트 규칙 파일을 모아 컨텍스트 번들을 만든다.
+- `.tiny/tasks/*.json`에 작업 상태와 checkpoint를 저장한다.
+- `.tiny/plans/*.md`의 Markdown checkbox 계획을 읽어 이어서 실행할 상태를 판단한다.
+- `.tiny/workflows/runs/*.json`을 workflow JSON source of truth로 사용한다.
+- `.tiny/workflows/reports/**/*.md`에 단계별 workflow report projection을 저장한다.
+- `.tiny/public-jobs/*.json`에 public worker용 큐 패킷을 저장한다.
+- `.tiny/wiki/index.json`을 기준으로 canonical wiki 문서를 선택하고 번들링한다.
+- `createTinyChuPlugin()`으로 `task_*`, `public_*`, `context_bundle`, `wiki_bundle`, workflow, evidence, doctor 계열 도구를 노출한다.
+
+## 최소 라이브러리 사용
 
 ```ts
 import { createTinyChuPlugin } from "tiny-chu";
@@ -42,9 +52,9 @@ const tiny = createTinyChuPlugin({
 await tiny.tools.task_create({ title: "Refactor auth boundary" });
 ```
 
-## Use in OpenCode
+## OpenCode 적용
 
-This repository uses two project-local OpenCode plugin surfaces: the server plugin shim for Tiny-Chu tools, and the TUI plugin config for compact status dashboard slots.
+이 저장소는 프로젝트 로컬 OpenCode plugin shim과 TUI dashboard 설정을 포함한다.
 
 ```text
 .opencode/
@@ -55,31 +65,28 @@ This repository uses two project-local OpenCode plugin surfaces: the server plug
     tiny-chu-tui.ts
 ```
 
-OpenCode automatically loads the server shim from `.opencode/plugins/tiny-chu.ts`, so starting OpenCode from this repository root activates Tiny-Chu tools without editing `opencode.json`. The TUI config at `.opencode/tui.json` enables `.opencode/plugins/tiny-chu-tui.ts`, which keeps `home_logo` as `TinyChu` and fills `home_prompt_right`, `sidebar_title`, `sidebar_content`, `sidebar_footer`, and `home_bottom` with task, workflow, job, context, evidence, and health status.
-
-The local server shim imports the TypeScript plugin adapter directly:
+서버 shim은 TypeScript plugin adapter를 직접 export한다.
 
 ```ts
 export { TinyChuOpenCodePlugin as TinyChu } from "../../src/opencode/plugin.ts";
 ```
 
-The local TUI shim imports the TUI plugin directly:
+TUI shim은 dashboard plugin을 export한다.
 
 ```ts
 export { default } from "../../src/opencode/tui-plugin.ts";
 ```
 
-For another project, copy the templates under `templates/opencode/` or follow [INSTALL.md](./INSTALL.md). Closed-network installs should use the offline bundle and local tarball dependency; the source checkout example below is for developer testing.
+이 저장소 루트에서 OpenCode를 실행하면 `.opencode/plugins/tiny-chu.ts`가 Tiny-Chu 도구를 활성화한다. `.opencode/tui.json`은 `.opencode/plugins/tiny-chu-tui.ts`를 켜고, TUI plugin은 `home_logo`를 `TinyChu`로 두며 `home_prompt_right`, `sidebar_title`, `sidebar_content`, `sidebar_footer`, `home_bottom`에 task, workflow, public job, context/evidence, health 상태를 표시한다.
 
-For developer source testing, add Tiny-Chu to that project's `.opencode/package.json` and point a local plugin shim at the package subpath:
+다른 프로젝트에는 `templates/opencode/`를 복사하거나 [INSTALL.md](./INSTALL.md)의 단계별 절차를 따른다. 폐쇄망 운영 설치는 offline bundle과 `.opencode/vendor/`의 local tarball dependency를 사용한다. developer local checkout은 Tiny-Chu 자체 개발이나 로컬 소스 검증에만 쓴다.
 
 ```json
 {
   "private": true,
   "type": "module",
   "dependencies": {
-    "@opencode-ai/plugin": "^1.17.4",
-    "tiny-chu": "file:/absolute/path/to/Tiny-Chu"
+    "tiny-chu": "file:./vendor/tiny-chu-vX.Y.Z-bundled.tgz"
   }
 }
 ```
@@ -88,7 +95,7 @@ For developer source testing, add Tiny-Chu to that project's `.opencode/package.
 export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 ```
 
-Enable the TUI dashboard plugin with `.opencode/tui.json` and a TUI shim:
+TUI dashboard를 켤 때는 `.opencode/tui.json`과 TUI shim을 함께 둔다.
 
 ```json
 {
@@ -100,9 +107,24 @@ Enable the TUI dashboard plugin with `.opencode/tui.json` and a TUI shim:
 export { default } from "tiny-chu/tui";
 ```
 
-The dashboard is backed by the OpenCode-visible `dashboard_snapshot` tool. It summarizes existing `.tiny` task, public job, workflow, evidence, and context state without creating a new dashboard state store. Provider/network preflight is not performed by default; it runs only when `includeProviderPreflight` is explicitly set.
+Dashboard는 OpenCode-visible `dashboard_snapshot` 도구가 만든다. 이 도구는 기존 `.tiny` task, public job, workflow, evidence, context 상태를 읽어 보여주며 별도 dashboard state store를 만들지 않는다. provider/network preflight는 기본값에서 실행하지 않고 `includeProviderPreflight`가 명시된 경우에만 수행한다.
 
-Runtime mode is selected through Tiny-Chu plugin options, not OpenCode's top-level mode object. OpenCode config can pin worker mode or the default orchestrator-worker mode like this:
+## 설치 확인
+
+설치 후 대상 프로젝트의 `.opencode`에서 package import와 install-check를 확인한다.
+
+```bash
+node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; console.log(typeof createTinyChuPlugin)"
+node --input-type=module -e "import { TinyChuOpenCodePlugin } from 'tiny-chu/opencode'; console.log(typeof TinyChuOpenCodePlugin)"
+node --input-type=module -e "const m = await import('tiny-chu/tui'); console.log(m.default.id, typeof m.default.tui)"
+node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; const tiny=createTinyChuPlugin({ root: process.cwd() }); console.log(await tiny.tools.tiny_chu_install_check({}));"
+```
+
+첫 두 명령의 기대값은 `function`이다. TUI 명령은 `tiny-chu.logo function`을 출력해야 한다. `tiny_chu_install_check` 결과에는 OpenCode tool 노출 상태, package metadata, `dashboard_snapshot` 포함 여부가 드러난다.
+
+## Runtime mode
+
+Tiny-Chu runtime mode는 OpenCode의 top-level mode object가 아니라 Tiny-Chu plugin option으로 고른다. mode 1은 worker-only이고 mode 2는 기존 orchestrator + worker surface이며 기본값이다.
 
 ```json
 {
@@ -116,37 +138,23 @@ Runtime mode is selected through Tiny-Chu plugin options, not OpenCode's top-lev
 }
 ```
 
-For a local shim, forward the OpenCode options and pin the mode in the Tiny-Chu adapter:
+로컬 shim에서는 OpenCode options를 보존하면서 Tiny-Chu adapter에 mode를 고정할 수 있다.
 
 ```ts
-export const TinyChu = (input, options) => TinyChuOpenCodePlugin(input, { ...options, mode: 1 });
+export const TinyChu = (input, options) =>
+  TinyChuOpenCodePlugin(input, { ...options, mode: 1 });
 ```
 
-Library construction also accepts named modes:
+라이브러리 직접 구성은 이름 기반 mode도 받는다.
 
 ```ts
 createTinyChuPlugin({ mode: "worker" });
 createTinyChuPlugin({ mode: "orchestrator_worker" });
 ```
 
-Mode 2 is the default.
+## 안전한 소스 도구
 
-The OpenCode plugin exposes the same durable tools as the library shell:
-
-- `task_create`, `task_get`, `task_list`, `task_update`, `task_checkpoint`
-- `public_dispatch`, `public_collect`, `public_checkpoint`, `public_retry`, `public_cancel`, `public_complete`, `public_job_resume_packet`
-- `context_bundle`, `context_packet`, `context_digest`, `repo_map`, `business_logic_map`, `wiki_bundle`
-- `legacy_repo_index`, `ui_action_trace`, `api_backend_trace`, `integration_catalog`, `traceability_matrix`, `evidence_qa`, `evidence_snapshot`
-- `doctor`, `claim_evidence_check`, `session_preflight`, `task_focus_packet`, `powershell_command_guard`, `trace_diagram_render`, `tiny_chu_install_check`
-- `environment_doctor`, `api_contract_catalog`, `dto_schema_map`, `redux_state_flow_map`, `auth_permission_trace`, `error_transaction_map`, `test_impact_planner`, `worker_packet_optimizer`, `artifact_pack_manifest`, `incremental_evidence_cache`
-- `button_workflow_plan`, `button_worker_packet`, `button_workflow_dispatch`, `markdown_envelope_check`, `button_worker_result_check`, `button_trace_aggregate`, `aggregation_drift_check`, `atomic_markdown_write`, `write_loop_guard`, `button_workflow_done_claim`
-- `tool_usage_plan`, `resume_packet`, `chunked_write_plan`, `qwen_retry_policy`, `orchestration_health`, `dashboard_snapshot`, `rules_snapshot`, `provider_endpoint_preflight`, `tool_call_conformance_probe`, `context_budget_simulation`, `evidence_gate`, `small_model_replay`
-- `analysis_workflow_start`, `workflow_create`, `workflow_status`, `workflow_checkpoint`, `workflow_resume_packet`, `workflow_packet_fit_check`, `workflow_next`, `workflow_progress_heartbeat`, `workflow_sot_audit`
-- `git_weekly_report` writes the last 5 business days of Git activity to `.tiny/reports/git-weekly` with report, evidence, QA, index, and audit artifacts
-- `ui_layout_catalog`, `ux_rationale_trace`, `ux_validation_matrix`, `layout_truth_update`, `layout_truth_verify`, `layout_truth_report`, `ux_reverse_report`
-- `orchestration_profile`, `artifact_format_template`, `artifact_check`, `mermaid_check`, `mermaid_fix`
-
-Safe source tooling is opt-in. The default registry stays unchanged; enable it only for repositories that want hash-checked source mutation and isolated artifact publish tools:
+기본 registry는 그대로 둔다. 작은 모델이 소스 파일을 직접 덮어쓰지 못하게 하고 싶을 때만 `safeTooling`과 `nativePreviews`를 켠다.
 
 ```ts
 const tiny = createTinyChuPlugin({
@@ -156,79 +164,69 @@ const tiny = createTinyChuPlugin({
 });
 ```
 
-`safeTooling: true` adds `safe_patch_check`, `safe_patch_apply`, `artifact_workspace_prepare`, `artifact_workspace_commit`, `artifact_publish_manifest`, `artifact_publish_apply`, `powershell_toolchain_probe`, and `run_diagnostics`. With `safeTooling: true`, `nativePreviews: true` also adds `structural_search_ast`, `structural_rewrite_preview`, `json_yaml_transform_preview`, and `json_patch_preview` for preview-only `ast-grep`, `jq`, Mike Farah `yq`, and `jd` workflows; these binaries are optional and missing tools return unavailable/degraded results instead of becoming npm dependencies.
+`safeTooling: true`는 `safe_patch_check`, `safe_patch_apply`, `artifact_workspace_prepare`, `artifact_workspace_commit`, `artifact_publish_manifest`, `artifact_publish_apply`, `powershell_toolchain_probe`, `run_diagnostics`를 추가한다.
 
-The safe edit workflow is: preview or construct a patch, run `safe_patch_check`, then call `safe_patch_apply` only with explicit allowed targets and current `sha256:<hex>` expected hashes. Generated docs and reports should be built in an `artifact_workspace_prepare` workspace, optionally committed inside that isolated workspace, then published through `artifact_publish_manifest` and `artifact_publish_apply`. Construction Git operations stay outside the source repository; only the final apply/publish step writes source targets.
+`safeTooling: true`와 `nativePreviews: true`를 함께 켜면 `structural_search_ast`, `structural_rewrite_preview`, `json_yaml_transform_preview`, `json_patch_preview`도 추가된다. 이 preview 도구들은 `ast-grep`, `jq`, Mike Farah `yq`, `jd` 같은 native executable을 선택적으로 사용한다. 실행 파일이 없으면 unavailable/degraded 결과를 반환하고 npm dependency로 자동 추가하지 않는다.
 
-Deferred tooling remains out of scope for this package: `run_tests`, `diff_preview`, `js_ts_codemod_preview`, `merge_preview`, `semantic_diff_preview`, `delta`, `difftastic`, and `mergiraf` are not implemented by this safe tooling layer.
+안전한 edit 순서는 다음과 같다.
+
+1. patch를 만들거나 preview 도구로 변경 후보를 확인한다.
+2. `safe_patch_check`로 대상 파일, allowlist, 현재 `sha256:<hex>` expected hash를 검증한다.
+3. 검증된 patch만 `safe_patch_apply`로 적용한다.
+4. 생성 문서와 report는 `artifact_workspace_prepare`의 격리 workspace에서 만들고, 필요하면 `artifact_workspace_commit`으로 그 workspace 내부에서만 commit한다.
+5. source repo에 publish할 때는 `artifact_publish_manifest`와 `artifact_publish_apply`를 사용한다.
+
+`run_diagnostics`는 advisory tool이며 mutation gate가 아니다. 기본 확인 순서는 `npm run build`, `npm test`다.
+
+## OpenCode 도구 표면
+
+OpenCode plugin은 task, public job, context, wiki, workflow, evidence, doctor, UX reverse, safe tooling 계열 도구를 노출한다. 대표적인 도구는 아래와 같다.
+
+- `task_create`, `task_get`, `task_list`, `task_update`, `task_checkpoint`
+- `public_dispatch`, `public_collect`, `public_checkpoint`, `public_retry`, `public_cancel`, `public_complete`, `public_job_resume_packet`
+- `context_bundle`, `context_packet`, `context_digest`, `repo_map`, `business_logic_map`, `wiki_bundle`
+- `doctor`, `session_preflight`, `task_focus_packet`, `powershell_command_guard`, `tiny_chu_install_check`
+- `dashboard_snapshot`, `rules_snapshot`, `provider_endpoint_preflight`, `tool_call_conformance_probe`, `context_budget_simulation`, `evidence_gate`, `small_model_replay`
+- `analysis_workflow_start`, `workflow_create`, `workflow_status`, `workflow_checkpoint`, `workflow_resume_packet`, `workflow_packet_fit_check`, `workflow_next`, `workflow_progress_heartbeat`, `workflow_sot_audit`
+- `ui_layout_catalog`, `ux_rationale_trace`, `ux_validation_matrix`, `layout_truth_update`, `layout_truth_verify`, `layout_truth_report`, `ux_reverse_report`
+- `orchestration_profile`, `artifact_format_template`, `artifact_check`, `mermaid_check`, `mermaid_fix`
+
+정확한 현재 노출 목록은 실행 중인 package registry와 `tiny_chu_install_check` 결과를 기준으로 확인한다.
 
 ### Git weekly reports
 
-`git_weekly_report` is a local-git evidence tool. It reports commits reachable
-from the selected `ref` and does not prove remote push events, pull requests,
-reviews, CI, deployments, or branch-protection state.
+`git_weekly_report`는 OpenCode-visible Tiny-Chu tool이다. 선택한 `ref`에서 접근 가능한 최근 5 business days의 로컬 Git activity를 요약해 `.tiny/reports/git-weekly` 아래에 report, evidence, QA, index, audit artifact를 쓴다.
 
-Default input is `repoPath: "."`, `ref: "HEAD"`, `businessDays: 5`,
-`reportMode: "summary_only"`, and `includePatches: false`. The canonical
-period key is `YYYYMMDD_YYYYMMDD`; non-current refs add a sanitized ref suffix
-to the report id so same-period reports can coexist.
+이 tool은 로컬 Git history를 읽는다. remote push, pull request, review, CI, deployment, branch protection 상태를 증명하지 않는다. 기본 입력은 `repoPath: "."`, `ref: "HEAD"`, `businessDays: 5`, `reportMode: "summary_only"`, `includePatches: false`다.
 
-Generated artifacts stay under `.tiny/reports/git-weekly/`:
+## Feature package 구조
 
-- `YYYYMMDD_YYYYMMDD.md` or `YYYYMMDD_YYYYMMDD_<ref>.md`
-- `evidence/YYYYMMDD_YYYYMMDD*.json`
-- `qa/YYYYMMDD_YYYYMMDD*.json`
-- `index.json`
-- `audit.jsonl`
-- `team-members.json`
+OpenCode tool 목록은 내부 `TinyFeaturePackage` descriptor에서 compose된다. `createTinyChuPlugin().registry`가 direct tools, OpenCode tool specs, package ownership metadata, install-check diagnostics, permission hints, small-model hints, resources, instructions의 단일 기준이다.
 
-Identity mapping uses hashed email aliases:
-
-```json
-{
-  "version": 1,
-  "members": [
-    {
-      "id": "member-id",
-      "displayName": "Display Name",
-      "aliases": [{ "name": "Git Name", "emailHash": "sha256:<lowercase-email-sha256>" }]
-    }
-  ]
-}
-```
-
-When `team-members.json` is missing or incomplete, the tool still writes
-artifacts but sets `qa.valid=false` and lists unmapped redacted identities.
-Default markdown, evidence, QA, and audit output avoid raw emails, secret-like
-tokens, and raw patch bodies. `includePatches: true` stores redacted patch
-snippets only and marks QA/audit with elevated sensitivity metadata.
-
-The list above is now generated from internal `TinyFeaturePackage` descriptors instead of three hand-edited registries. The default package graph is composed in dependency-topological order and includes:
+기본 package graph는 dependency-topological order로 구성되며 다음 package id를 포함한다.
 
 - `tiny-chu.core-runtime`
+- `tiny-chu.public-worker-queue`
 - `tiny-chu.shared-support`
 - `tiny-chu.legacy-analysis`
 - `tiny-chu.extension-utilities`
 - `tiny-chu.button-workflow-hardening`
+- `tiny-chu.button-workflow-dispatch`
 - `tiny-chu.small-model-resilience`
 - `tiny-chu.workflow-orchestration`
 - `tiny-chu.ux-reverse-engineering`
 - `tiny-chu.doctor-artifacts`
 - `tiny-chu.host-opencode`
 
-`createTinyChuPlugin().registry` is the single source for direct tools, OpenCode tool specs, package ownership metadata, install-check diagnostics, permission hints, small-model hints, resources, and instructions. The composer rejects duplicate package ids, duplicate tool names, missing dependencies, and dependency cycles before the OpenCode bridge exposes tools.
-
-To add a feature in phase 1, add or extend one package descriptor under `src/opencode/feature-packages/`, bind existing `TinyToolHandler` functions through `createDefaultTinyFeaturePackages()`, add focused composer/parity tests, and run `tiny_chu_install_check` or the registry smoke test. Do not hand-edit parallel tool arrays in `tiny-plugin.ts`, `plugin.ts`, and `install-check.ts`; those surfaces consume the generated registry.
-
-Phase 1 is intentionally internal. Tiny-Chu does not yet provide dynamic package discovery, npm subpackage loading, MCP server adapters, Figma API calls, provider chat/generate/completion calls, or runtime disabling of default feature packages. The only provider-facing exception is `provider_endpoint_preflight`, an explicitly enabled metadata probe for readiness checks.
+새 기능을 추가할 때는 `src/opencode/feature-packages/` 아래 descriptor와 tool seed를 바꾸고, composer/parity 테스트와 기능 테스트를 함께 갱신한다. `tiny-plugin.ts`, `plugin.ts`, `install-check.ts`의 병렬 목록을 각각 손으로 맞추는 방식은 피한다.
 
 ## Workflow orchestration
 
-Use `analysis_workflow_start` when the user asks a small local model to analyze a repository path. It creates both a Tiny-Chu task and an `analysis` workflow run, then returns the next workflow command and the required first tools. Use `workflow_create` when the foreman needs to run a named multi-stage workflow without creating a task. The direct library helper is `createWorkflow`, and the built-in workflow id is `analysis`.
+작은 foreman 모델이 저장소 분석을 시작할 때는 `analysis_workflow_start`가 Tiny-Chu task와 `analysis` workflow run을 만든다. 직접 workflow를 만들 때는 `workflow_create` 또는 library helper `createWorkflow`를 사용한다.
 
-The workflow run JSON under `.tiny/workflows/runs/<runId>.json` is the JSON source of truth. Markdown files under `.tiny/plans/` and `.tiny/workflows/reports/` are projections for people and re-entry prompts; they are regenerated from the JSON state and must not be treated as authoritative state.
+Workflow run JSON은 `.tiny/workflows/runs/<runId>.json`에 저장되며 source of truth다. `.tiny/plans/`와 `.tiny/workflows/reports/`의 Markdown은 사람과 재진입 prompt를 위한 projection이다.
 
-Core command sequence:
+대표 실행 순서는 다음과 같다.
 
 1. `analysis_workflow_start({ objective, targetPath, workerAgent })`
 2. `provider_endpoint_preflight({ endpoint, networkMode: "disabled" })`
@@ -241,275 +239,13 @@ Core command sequence:
 9. `evidence_gate({ required, checks })`
 10. `workflow_sot_audit({ runId, finalResponse, evidenceGate })`
 
-Every completed stage should stop with `workflow_checkpoint(..., status: "done")` before the foreman asks for the next packet. Use `status: "checkpointed"` for a temporary pause that should resume the same phase. After interruption or compaction, call `workflow_resume_packet` first, then `workflow_next` to continue from the newest checkpoint. If the pause came from a public worker, call `public_job_resume_packet` before retrying or collecting. Oversized packets are split before worker dispatch, `workerAgent.config.maxContextTokens` drives static context-window estimation, workers are serial-only, and UI packets stay separate from backend/API/DAO/SQL packets.
+각 단계는 `workflow_checkpoint(..., status: "done")`으로 멈춘 뒤 다음 packet을 요청한다. 중단이나 compaction 뒤에는 `workflow_resume_packet`을 먼저 호출하고 `workflow_next`로 이어간다.
 
-The built-in `analysis` workflow phases are:
+## 안정성 및 상태 레이아웃
 
-1. `project_init`
-2. `architecture_map`
-3. `development_rules`
-4. `web_route_inventory`
-5. `page_layout_flow`
-6. `api_backend_trace`
-7. `dao_sql_business_logic`
-8. `final_deliverables`
+파일 기반 경계는 configured root 안으로 제한한다. wiki ref나 `git_weekly_report.repoPath`처럼 사용자가 지정한 path가 real path 기준으로 root 밖이면 fail closed한다. `.tiny/tasks/*.json`과 `.tiny/public-jobs/*.json`이 malformed JSON이면 정상 runtime API는 `Malformed JSON in <path>` 오류로 실패한다.
 
-`provider_endpoint_preflight` is metadata-only and defaults to `networkMode: "disabled"`. It never proves readiness by sending a chat or generation prompt. Enable `loopback_only` only when the operator explicitly wants to probe a local Ollama, LM Studio, vLLM, llama.cpp, or OpenAI-compatible metadata endpoint.
-
-`workflow_progress_heartbeat` is the anti-stall check: it tells the foreman whether to continue, wait, recover, or stop instead of silently waiting for model output. `workflow_sot_audit` is the final-answer gate: the answer must cite the workflow run and JSON stateRef, and the evidence gate must pass before Tiny-Chu accepts completion.
-
-## Stability and performance contracts
-
-Tiny-Chu keeps file-backed boundaries root-confined. Explicit user or index paths, such as wiki document refs and `git_weekly_report.repoPath`, fail closed when their real path escapes the configured root. Discovered context and rule files are bundled only when their real path stays inside root; outside-root symlinks are skipped, while inside-root symlinks remain allowed.
-
-Malformed runtime JSON in `.tiny/tasks/*.json` and `.tiny/public-jobs/*.json` fails closed with `Malformed JSON in <path>`. The normal runtime APIs do not silently skip, rewrite, or quarantine malformed state.
-
-Task IDs, public job IDs, and checkpoint sequence assignment are collision-resistant within one Node.js process. Cross-process file locking is not implemented; callers that run multiple processes against the same `.tiny` state should coordinate externally.
-
-Safe tooling uses `.tiny/locks/` for short-lived mutation locks and `.tiny/artifacts/` for durable publish manifests. These are runtime-only outputs and should be ignored by source control. `.tiny/rules/` remains project state when callers intentionally persist confirmed repository rules.
-
-Performance checks are characterization baselines, not SLAs. Use these commands to refresh observation artifacts with deterministic fixture counts and elapsed milliseconds:
-
-```bash
-node scripts/stability-performance-baseline.mjs --out .omo/evidence/stability-performance-baseline.json
-node scripts/stability-performance-baseline.mjs --section scanners --out .omo/evidence/scanner-performance-baseline.json
-```
-
-It also sets `TINY_CHU_ROOT` and `TINY_CHU_OPENCODE_PLUGIN` through the OpenCode `shell.env` hook, and adds a compact continuation reminder during OpenCode session compaction.
-
-After building, smoke-test the plugin entrypoint with:
-
-```bash
-npm run build
-node --input-type=module -e "import { TinyChuOpenCodePlugin } from './dist/opencode/plugin.js'; console.log(typeof TinyChuOpenCodePlugin)"
-```
-
-## OpenCode shell runtime
-
-`createTinyChuPlugin()` declares that OpenCode sessions should run on the PowerShell runtime. The exported runtime setting pins the shell name, executable, startup arguments, and PowerShell version so consumers can inspect or pass it through to their OpenCode configuration.
-
-```ts
-import { POWERSHELL_OPENCODE_RUNTIME, createTinyChuPlugin } from "tiny-chu";
-
-const tiny = createTinyChuPlugin();
-
-console.log(tiny.opencode.shell);
-// { name: "powershell", executable: "pwsh", version: "7.6.2", args: ["-NoLogo", "-NoProfile"] }
-console.log(POWERSHELL_OPENCODE_RUNTIME.shell.version);
-// "7.6.2"
-```
-
-
-## PowerShell native-tool profile
-
-Tiny-Chu also exports a compact PowerShell tooling profile for small foreman models. The profile records the shell parsing rules and safe defaults that usually cause mistakes when Unix-oriented tools are called from `pwsh`:
-
-- use real native executables (`jq`, `yq`, `mdq`, `fd`, `ast-grep`, `rg`) instead of PowerShell aliases or Unix-only commands such as `grep -R`, `find -name`, and `xargs` pipelines
-- single-quote filters, selectors, regexes, and structural patterns so PowerShell does not expand `$`, `[]`, `{}`, `|`, or backticks before the native tool receives them
-- insert the native tool's own `--` separator before positional patterns or paths that begin with `-`
-- prefer machine-readable output (`--json`, `--json=stream`, `-o json`, `-c`) and deterministic no-color environment defaults
-- set `$PSNativeCommandArgumentPassing = 'Standard'` for PowerShell 7+ sessions with complex native arguments
-
-```ts
-import { POWERSHELL_TOOLING_PROFILE, renderPowerShellToolingGuide } from "tiny-chu";
-
-console.log(POWERSHELL_TOOLING_PROFILE.nativeTools.map((tool) => tool.name));
-// ["jq", "yq", "mdq", "fd", "ast-grep", "ripgrep"]
-
-console.log(renderPowerShellToolingGuide());
-```
-
-When `transformUserMessage()` injects Tiny-Chu context for `ulw`/`ultrawork` requests, it now appends a compact version of this guide in a `<tiny-chu-powershell-tooling>` block. The compact block keeps the quoting and shell-safety rules that small models commonly miss, while the full `renderPowerShellToolingGuide()` API remains available for explicit inspection.
-
-## Small-context orchestration profile
-
-Tiny-Chu now exposes an orchestration profile for a small local foreman model and a larger delegated analysis agent. It is designed for Windows 10, PowerShell 7.6, and OpenCode plugin sessions where the foreman should avoid reading whole repositories into context.
-
-```ts
-const profile = await tiny.tools.orchestration_profile({});
-
-console.log(profile.models.foreman);
-// { provider: "ollama", model: "gemma4-small", ... }
-
-console.log(profile.models.delegate.model);
-// "qwen3.6-35b-a3b"
-```
-
-The profile gives the foreman a deterministic sequence:
-
-- inventory files with `fd`
-- choose the next bounded step with `tool_usage_plan`
-- map architecture and UI/API/database flow candidates with `repo_map`
-- extract business variables, database-style columns, and comparison expressions with `business_logic_map`
-- search text with `rg --json`
-- search TypeScript structure with `ast-grep`
-- extract bounded source snippets with `context_digest` before making repository claims
-- resume and compact with bounded `context_packet` and `task_focus_packet` instead of re-reading full context
-- summarize previous `.omo/evidence` artifacts with `evidence_snapshot` before repeating scan-heavy work
-- slice JSON/YAML/Markdown with `jq`, `yq`, and `mdq`
-- delegate compact packets to the Qwen worker, using `qwen_retry_policy` for the public limit of 20 requests/min and 20000 tokens/min
-- resume interrupted work with `resume_packet` instead of relying on memory
-- split long generated Markdown with `chunked_write_plan` before writing files
-- check `orchestration_health` after failed, interrupted, checkpointed, or retry-wait worker jobs
-- write confirmed implementation patterns with `rules_snapshot` so future changes can load `.tiny/rules/architecture-patterns.md`
-- checkpoint after each pass so resumed work starts from the latest evidence
-- validate Mermaid diagrams with `mermaid-cli` (`mmdc`) before publishing
-- call `artifact_format_template` before artifact generation, then `artifact_check` after generation
-
-The profile also exposes a 20-pass audit loop and artifact contracts for:
-
-- AS-IS analysis
-- UI definition documents
-- Mermaid sequence diagrams
-- Mermaid flowcharts
-- user stories
-- test cases
-- Mermaid ERDs
-- UX reverse analysis with layout truth
-
-Each pass follows a small-model-safe cycle: review the evidence map, plan one bounded improvement, apply or explicitly skip with evidence, validate the artifact/tool output, then checkpoint `passIndex`, `artifactType`, `evidenceRefs`, `verificationCommands`, `nextSteps`, and `openQuestions`.
-
-`transformUserMessage()` appends a compact operating brief in a `<tiny-chu-small-context>` block for `ulw`/`ultrawork` prompts. The injected brief includes `profileMode: compact`, model budgets, required first tools, omitted full-profile counts, checkpoint/retry reminders, and a pointer to call `orchestration_profile` only when full contract detail is needed.
-
-## Small-model resilience tools
-
-### Small-context operating-mode correction gate
-
-Use `doctor` as the Small-context operating-mode correction gate before a small foreman starts project-wide work. The gate is local-only: Tiny-Chu makes no live provider call while proving readiness, shaping Qwen packets, or checking stale evidence.
-
-Exact no-live-provider sequence:
-
-1. `doctor`
-2. `session_preflight` when a task id exists
-3. `context_packet`
-4. `incremental_evidence_cache`
-5. `tool_usage_plan`
-6. `worker_packet_optimizer({ dispatch: false })`
-7. `qwen_retry_policy`
-8. `claim_evidence_check`
-9. `artifact_pack_manifest`
-10. `task_checkpoint` or `resume_packet`
-
-`incremental_evidence_cache` reports source hash staleness only. It is not a git dirty-worktree detector. Executors must run `git status --short` before editing and inspect `git diff -- <file>` for every dirty tracked file in scope.
-
-Use `context_digest` when the foreman model needs repository evidence but should not read an entire file into context. It returns bounded line snippets and citations.
-
-Use `tool_usage_plan` when the foreman model is unsure which command or Tiny-Chu tool to run next. It returns a short ordered plan with native commands, Tiny-Chu tools, output budgets, `omittedSteps`, `nextRequiredTool`, and `deterministicCaps`.
-
-`tool_usage_plan` also returns a `verification` block. The `steps` array stays capped for small models, but the foreman must still run `verification.requiredTools` after implementation before stopping or checkpointing final output.
-
-OpenCode tool executions also apply a final output budget at the plugin bridge. Direct library calls still return normal structured objects, but OpenCode `ToolResult.output` is bounded by `maxOutputChars` and `maxArrayItems` inputs when supplied, with truncation metadata in `ToolResult.metadata`.
-
-Use `repo_map` before explaining architecture or tracing data flow. It scans bounded files, classifies UI/API/database/domain/config/test layers, and returns recommended `fd`, `rg`, `ast-grep`, and `context_digest` follow-up commands.
-
-Use `business_logic_map` before explaining complex business rules. It returns bounded variables, database-style column names, comparison operators, and line evidence so a small model can compare business logic without loading whole files.
-
-Use the legacy analysis tool chain when a small foreman model needs Button to FE action/saga/API to backend service to MyBatis/RFC traceability:
-
-1. `legacy_repo_index` builds a deterministic evidence index from React, Redux-Saga, Axios, Java Spring/Vert.x-style routes, MyBatis XML, and SAP JCo-style RFC candidates.
-2. `ui_action_trace` links a UI event to handler, Redux action, Saga watcher/worker, and API client when evidence exists.
-3. `api_backend_trace` links an HTTP method/path to backend route, service, mapper, and RFC facts; unmatched endpoints stay explicit.
-4. `integration_catalog` catalogs MyBatis mapper SQL and RFC calls separately.
-5. `traceability_matrix` merges the verified links into JSON rows and Markdown-ready table data.
-6. `evidence_qa` blocks missing evidence ids, hallucinated symbols, and partial traces that omit Unknown gaps.
-
-Use the UX reverse-engineering chain when the foreman must explain why search conditions or result fields exist, why they appear in source order, and how validation/messages are derived:
-
-1. `ui_layout_catalog` scans React/JS/TS source only and catalogs search conditions, action controls, result fields, and message keys with line evidence.
-2. `ux_rationale_trace` creates conservative `Verified`, `Inferred`, `Unknown`, or `Needs Verification` reasons. It does not emit LLM-only hypotheses.
-3. `ux_validation_matrix` separates value kind, client rules, server DTO/MyBatis evidence, message evidence, and unknowns.
-4. `ux_reverse_report` renders Markdown for the `ux_reverse_analysis` artifact contract.
-5. `layout_truth_verify` checks existing `.tiny/ux/layout-truth.json` before reuse.
-6. `layout_truth_update` stores stronger evidence without downgrading verified layout truth.
-7. `layout_truth_report` renders `.tiny/ux/layout-truth.md` for review.
-
-For B2B admin web and mobile web work, screen composition follows `purpose -> state -> data -> action -> feedback -> record`. Run `layout_truth_verify before reuse`; stale/missing layout truth stays a review target. Source-order-only or convention-only position rationale must not be marked `Verified` without direct layout, cross-layer, or current layout-truth evidence.
-
-Figma is intentionally adapter-ready only in this first implementation. The UX report includes mapping keys such as `fileKey`, `nodeId`, `figmaNodeName`, `truthId`, `component`, and `variables`, but Tiny-Chu does not call Figma APIs or require tokens.
-
-Generated analysis deliverables should use `.analysis/` only when a caller explicitly asks for files. Tiny-Chu orchestration state remains under `.tiny/`.
-
-For stricter small-model runs, start with `environment_doctor`, then use `session_preflight` and `incremental_evidence_cache` before reusing old context. Use `api_contract_catalog`, `dto_schema_map`, `redux_state_flow_map`, `auth_permission_trace`, and `error_transaction_map` to turn repeated source inspection into bounded JSON. Before publishing, run `claim_evidence_check`, `trace_diagram_render`, and `artifact_pack_manifest` so named claims, Mermaid diagrams, and grouped design outputs stay evidence-bound.
-
-Use `doctor` as the canonical readiness facade when a run needs one normalized status across command availability, read-only runtime state, PowerShell runtime expectations, and session preflight. `environment_doctor` remains the focused command check, and `orchestration_health` remains the recovery check after failed or checkpointed work.
-
-For multi-button legacy UI analysis, use the button workflow tools instead of sending all buttons to one worker. `button_workflow_plan` creates one work item per control, `button_worker_packet` and `button_workflow_dispatch` keep worker jobs JSON-only and sequential by default, `button_worker_result_check` gates `public_complete`, and `button_workflow_done_claim` verifies that all planned buttons, artifacts, drift checks, and checkpoints are complete.
-
-Use `artifact_format_template` before drafting AS-IS, UI, story, testcase, Mermaid, ERD, or UX reverse artifacts. A project may override built-ins with `.tiny/artifacts/templates/<artifactType>.md`; templates are preparation inputs and are not counted as produced artifacts by `artifact_pack_manifest`.
-
-Agent model option templates are exposed on `orchestration_profile.agentTemplates` with data-only helpers for provider capability validation and UI control recommendations. OpenAI and Anthropic entries are adapter-ready validation metadata only; Tiny-Chu does not perform provider generation calls.
-
-Use `qwen_retry_policy` whenever `qwen3.6-35b-a3b` delegation may hit the shared public limit. The encoded limit is 20 requests/min and 20000 tokens/min; the policy returns spacing, retry delays, minimum chunk count, and a non-stop recovery protocol.
-
-Use `orchestration_health` after failures or interruptions. It summarizes `.tiny/tasks` and `.tiny/public-jobs`, highlights retryable or checkpointed jobs, and returns recovery steps that preserve progress.
-
-Use `rules_snapshot` after confirming repository architecture patterns. It writes `.tiny/rules/architecture-patterns.md` so future implementation requests reuse known Tiny-Chu patterns instead of asking the model to rediscover them.
-
-Use `resume_packet` at session start, after compaction, or after a long command. Use `task_focus_packet` when the foreman needs the active task plus the next open plan checkbox and latest checkpoint in one bounded object.
-
-Use `chunked_write_plan` before writing long Markdown artifacts. Generated Markdown writes should go through `atomic_markdown_write` and `write_loop_guard` when Tiny-Chu is responsible for the file, so identical writes are skipped, empty overwrites are blocked, and no `.bak` files are created.
-
-Use `layout_truth_verify` before trusting saved UX rationale. If source fingerprints changed, stale records must be reviewed before `layout_truth_update` evolves `.tiny/ux/layout-truth.json`.
-
-## Durable continuation checkpoints
-
-Use `task_checkpoint` when the small foreman finishes a scan, starts a large command, delegates to a worker, or receives an artifact. New checkpoints are appended to `.tiny/tasks/<task-id>.checkpoints.jsonl`; `TaskStore.get()` and `TaskStore.list()` still return merged checkpoint history while keeping the main task JSON compact.
-
-```ts
-const task = await tiny.tools.task_create({ title: "Analyze repository" });
-
-await tiny.tools.task_checkpoint({
-  id: task.id,
-  summary: "selected source entry points with fd and rg",
-  artifactType: "as_is",
-  passIndex: 3,
-  nextSteps: ["run ast-grep over plugin tools", "ask Qwen for design risks"],
-  evidenceRefs: ["fd://src/**/*.ts", "rg://createTinyChuPlugin"],
-  openQuestions: ["which docs need Mermaid diagrams?"],
-  verificationCommands: ["rg --json createTinyChuPlugin src"],
-});
-```
-
-## Artifact guard
-
-Use `artifact_check` before accepting generated repository artifacts from a small model or delegated worker. The checker rejects unsupported artifact types, missing evidence references, missing required sections, missing inline citations, missing Mermaid blocks, and obvious Mermaid syntax errors.
-
-```ts
-const result = await tiny.tools.artifact_check({
-  artifactType: "ux_reverse_analysis",
-  markdown: "## Screen Summary\nsrc/ui/OrderSearch.jsx:6\n\n## Layout Inventory\nSource-order elements.\n\n## Layout Truth\nEvidence-backed source order only.\n\n## Existence Rationale\nVerified/Inferred/Unknown only.\n\n## Position Rationale\nSource-order rationale.\n\n## Validation Matrix\nClient and server rules are split.\n\n## Messages\n- Unknown\n\n## Unknowns\n- None\n\n## Evidence\n- src/ui/OrderSearch.jsx:6",
-  evidenceRefs: ["src/ui/OrderSearch.jsx:6"],
-});
-
-// result.valid === true
-```
-
-For Mermaid-backed artifacts (`sequence_diagram`, `flowchart`, `erd`), `artifact_check` reuses the Mermaid guard and enforces the expected diagram declaration.
-
-## Mermaid guard
-
-The plugin includes lightweight Mermaid fence and syntax checks that catch common small-model formatting mistakes before `mmdc` runs. When reading Markdown from a `path`, the path is confined to the configured plugin root.
-
-```ts
-const result = await tiny.tools.mermaid_check({
-  markdown: "```Mermaid\nflowchart TD\nA-->B\n",
-});
-
-// result.valid === false
-// result.diagnostics includes "non_normalized_fence" and "unclosed_fence"
-
-const fixed = await tiny.tools.mermaid_fix({
-  markdown: "```Mermaid\nflowchart TD\nA-->B\n",
-});
-
-console.log(fixed.markdown);
-// ```mermaid
-// flowchart TD
-// A-->B
-// ```
-```
-
-## State layout
+Task id, public job id, checkpoint sequence는 하나의 Node.js process 안에서 충돌을 피한다. 여러 process가 같은 `.tiny` state를 동시에 쓰는 cross-process file locking은 아직 제품 기능이 아니므로 호출자가 외부에서 직렬화해야 한다.
 
 ```text
 .tiny/
@@ -521,4 +257,53 @@ console.log(fixed.markdown);
   tasks/
   wiki/
     index.json
+  workflows/
+    reports/
+    runs/
 ```
+
+성능 검증은 SLA가 아니라 characterization baseline이다. 관찰 artifact가 필요하면 deterministic fixture count와 elapsed milliseconds를 기록하는 스크립트를 실행한다.
+
+```bash
+node scripts/stability-performance-baseline.mjs --out .omo/evidence/stability-performance-baseline.json
+node scripts/stability-performance-baseline.mjs --section scanners --out .omo/evidence/scanner-performance-baseline.json
+```
+
+## PowerShell 런타임
+
+`createTinyChuPlugin()`은 OpenCode session이 PowerShell runtime을 사용해야 한다는 설정을 노출한다. 소비자는 `POWERSHELL_OPENCODE_RUNTIME`을 확인하거나 OpenCode 설정에 전달할 수 있다.
+
+```ts
+import { POWERSHELL_OPENCODE_RUNTIME, createTinyChuPlugin } from "tiny-chu";
+
+const tiny = createTinyChuPlugin();
+
+console.log(tiny.opencode.shell);
+console.log(POWERSHELL_OPENCODE_RUNTIME.shell.version);
+```
+
+PowerShell에서 native tool을 실행할 때는 `$`, `{}`, `[]`, `|`가 포함된 filter, selector, regex, structural pattern을 single quote로 감싸고, 필요하면 `$PSNativeCommandArgumentPassing = 'Standard'`를 설정한다. `jq`, `yq`, `mdq`, `fd`, `ast-grep`, `rg`는 PowerShell alias가 아니라 실제 native executable을 호출해야 한다.
+
+## 아직 구현하지 않은 기능
+
+다음 항목은 현재 문서화된 보류 범위이며 기본 Tiny-Chu 제품 API로 제공하지 않는다. 세부 배경과 향후 검토 조건은 [docs/feature/2026-06-15-unimplemented-features.md](./docs/feature/2026-06-15-unimplemented-features.md)를 본다.
+
+- `run_tests`
+- `diff_preview`
+- `js_ts_codemod_preview`
+- `merge_preview`
+- `semantic_diff_preview`
+- `delta`
+- `difftastic`
+- `mergiraf`
+- `dynamic package discovery`
+- `npm subpackage loading`
+- `MCP server adapters`
+- `Figma API calls`
+- `provider chat/generate/completion calls`
+- `runtime disabling of default feature packages`
+- `cross-process file locking`
+- `compact tool index`
+- `content-aware packet fit`
+
+예외적으로 `provider_endpoint_preflight`는 명시적으로 켜는 metadata readiness probe다. chat 또는 generation prompt를 보내 provider readiness를 증명하는 기능은 아니다.

@@ -1,43 +1,46 @@
-# Tiny-Chu Installation Guide
+# Tiny-Chu 설치 가이드
 
-This is the canonical A-Z install guide for Tiny-Chu. Use it when you need a local developer install, a closed-network install, or an internal registry rollout for OpenCode projects.
+이 문서는 Tiny-Chu를 OpenCode 프로젝트에 설치하는 canonical A-Z 절차다. 로컬 개발 설치, 폐쇄망 설치, internal registry 배포, developer local checkout 검증을 모두 다루지만 운영 폐쇄망 기본 경로는 offline bundle이다.
 
-Tiny-Chu's closed-network install path uses local OpenCode plugin files plus a local package dependency under the target project's `.opencode/` directory. Do not rely on OpenCode startup-time npm plugin download for air-gapped environments.
+Tiny-Chu 폐쇄망 설치는 대상 프로젝트의 `.opencode/` 아래에 project-local OpenCode plugin file과 local package dependency를 둔다. OpenCode 시작 시점에 npm plugin을 외부에서 내려받는 방식에 의존하지 않는다.
 
-## Prerequisites
+프로젝트의 목적과 제공 범위는 [README.md](./README.md)를 먼저 보고, 설치 후 운영 사용법은 [HOW_TO_USE.md](./HOW_TO_USE.md)를 기준으로 확인한다.
 
-Supported runtime:
+## 0단계: 사전 조건 확인
+
+필요한 runtime은 아래와 같다.
 
 - Node.js `>=20.18.0`
-- npm from the selected Node.js distribution
-- OpenCode with project-local plugin loading enabled
-- Bash for `install-offline.sh` on macOS/Linux, or PowerShell 7+ for `install-offline.ps1` on Windows
+- 선택한 Node.js 배포판의 npm
+- project-local plugin loading이 가능한 OpenCode
+- macOS/Linux에서는 `install-offline.sh` 실행용 Bash
+- Windows에서는 `install-offline.ps1` 실행용 PowerShell 7+
 
-For PowerShell sessions, prefer single quotes around paths or commands that contain `$`, `{}`, `[]`, or `|`. Set native argument passing explicitly when troubleshooting:
+PowerShell 세션에서 `$`, `{}`, `[]`, `|`가 포함된 path나 one-liner를 실행할 때는 single quote를 우선 사용한다. native argument 전달 문제가 있으면 아래 값을 명시한다.
 
 ```powershell
 $PSNativeCommandArgumentPassing = 'Standard'
 ```
 
-## Choose An Install Path
+## 1단계: 설치 경로 선택
 
-| Path | Use when | Network requirement in target project |
+| 경로 | 선택 기준 | 대상 프로젝트의 network 요구 |
 | --- | --- | --- |
-| offline bundle | The target project is in a closed network or has no registry access. | None after the release asset download is copied in. |
-| internal registry | Your organization mirrors npm packages into Verdaccio, Artifactory, Nexus, GitHub Packages, or another registry. | Access to the internal registry. |
-| developer local checkout | You are developing Tiny-Chu itself or testing local source changes. | Access to the local source checkout and its dependencies. |
+| offline bundle | 대상 프로젝트가 폐쇄망이거나 registry 접근이 없을 때 | release asset을 복사한 뒤에는 없음 |
+| internal registry | 조직이 Tiny-Chu와 production dependency를 Verdaccio, Artifactory, Nexus, GitHub Packages 같은 내부 registry에 mirror할 때 | 내부 registry 접근 |
+| developer local checkout | Tiny-Chu 자체를 개발하거나 로컬 소스 변경을 빠르게 검증할 때 | 로컬 checkout과 그 dependency 접근 |
 
-The offline bundle is the preferred end-user closed-network install path. The developer source checkout path is intentionally not the primary air-gap story because a source checkout can drift from built release assets.
+운영 폐쇄망에는 offline bundle을 사용한다. developer local checkout은 빌드 산출물과 실제 release asset의 상태가 달라질 수 있으므로 개발 검증 용도로만 둔다.
 
-## Release Asset Download
+## 2단계: release asset download
 
-Before entering the closed network, download the Tiny-Chu release assets from the release page:
+폐쇄망에 들어가기 전, 연결 가능한 release machine에서 Tiny-Chu release asset을 받는다.
 
 - `tiny-chu-offline-vX.Y.Z.tar.gz`
-- checksum file, usually `SHA256SUMS`
-- optional provenance, SBOM, or source archive files required by your organization
+- checksum 파일, 보통 `SHA256SUMS`
+- 조직 정책상 필요한 provenance, SBOM, source archive
 
-The offline bundle contains:
+offline bundle의 기본 구조는 아래와 같다.
 
 ```text
 tiny-chu-offline-vX.Y.Z/
@@ -46,6 +49,7 @@ tiny-chu-offline-vX.Y.Z/
   install-offline.sh
   install-offline.ps1
   README-offline.md
+  LICENSE
   vendor/
     tiny-chu-vX.Y.Z-bundled.tgz
   templates/
@@ -57,21 +61,21 @@ tiny-chu-offline-vX.Y.Z/
         tiny-chu-tui.ts
 ```
 
-Verify the release asset before copying it into the target network:
+release asset을 폐쇄망으로 옮기기 전에 checksum을 검증한다.
 
 ```bash
 sha256sum -c SHA256SUMS
 ```
 
-On macOS, use:
+macOS에서는 아래 명령을 사용한다.
 
 ```bash
 shasum -a 256 -c SHA256SUMS
 ```
 
-## Build-Machine Preparation
+## 3단계: maintainer용 offline bundle 생성
 
-Maintainers can build and verify a new offline bundle on an internet-connected release machine:
+maintainer는 인터넷에 연결된 release machine에서 새 offline bundle을 만들고 검증한다.
 
 ```bash
 git clone <tiny-chu-repository-url>
@@ -82,19 +86,23 @@ npm run release:offline -- --out /tmp/tiny-chu-release
 npm run verify:offline -- --bundle /tmp/tiny-chu-release/tiny-chu-offline-vX.Y.Z.tar.gz
 ```
 
-The release version must come from `package.json.version`. Do not type a separate version into installer scripts or docs for a release build.
+release version은 `package.json.version`에서만 가져온다. installer script나 문서에 별도 version 문자열을 손으로 입력하지 않는다.
 
-The release verifier should install into a fresh temporary `.opencode` consumer, use an empty npm cache, and set a dead registry such as `npm_config_registry=http://127.0.0.1:9/` so accidental network fallback cannot look like an offline success.
+`verify:offline`은 fresh temporary `.opencode` consumer, empty npm cache, dead registry를 사용해야 한다. 예를 들어 `npm_config_registry=http://127.0.0.1:9/`를 설정하면 네트워크 fallback이 성공처럼 보이는 상황을 막을 수 있다.
 
-## Closed-Network Installation
+## 4단계: 폐쇄망으로 bundle 반입
 
-Copy `tiny-chu-offline-vX.Y.Z.tar.gz` into the closed network, then unpack it near or inside the target project:
+검증된 `tiny-chu-offline-vX.Y.Z.tar.gz`와 checksum/provenance 파일을 폐쇄망으로 복사한다. 대상 프로젝트 근처나 내부에서 압축을 푼다.
 
 ```bash
 tar -xzf tiny-chu-offline-vX.Y.Z.tar.gz
 ```
 
-Create the target OpenCode package layout:
+압축 해제 후 `manifest.json`, `SHA256SUMS`, `LICENSE`, `vendor/tiny-chu-vX.Y.Z-bundled.tgz`, `templates/opencode/`가 있는지 확인한다.
+
+## 5단계: 대상 프로젝트 `.opencode` 준비
+
+대상 프로젝트에 OpenCode plugin layout을 만든다.
 
 ```bash
 mkdir -p target-project/.opencode
@@ -103,7 +111,7 @@ mkdir -p target-project/.opencode/vendor
 cp tiny-chu-offline-vX.Y.Z/vendor/tiny-chu-vX.Y.Z-bundled.tgz target-project/.opencode/vendor/
 ```
 
-The target project should now look like this:
+결과는 아래 형태여야 한다.
 
 ```text
 target-project/
@@ -117,28 +125,7 @@ target-project/
       tiny-chu-vX.Y.Z-bundled.tgz
 ```
 
-Install from inside `.opencode`:
-
-```bash
-cd target-project/.opencode
-npm install --offline --cache /tmp/tiny-chu-empty-cache --ignore-scripts --no-audit --fund=false
-```
-
-If your bundle includes installer scripts, you can use them instead of the manual copy/install steps:
-
-```bash
-./install-offline.sh /path/to/target-project
-```
-
-```powershell
-.\install-offline.ps1 -TargetProject C:\path\to\target-project
-```
-
-## OpenCode Shims
-
-Tiny-Chu is loaded through a project-local OpenCode plugin shim, not through a runtime plugin download.
-
-`target-project/.opencode/package.json` should use the local tarball dependency:
+`templates/opencode/`가 제공하는 기본 `.opencode/package.json`은 local tarball dependency를 가리켜야 한다.
 
 ```json
 {
@@ -150,13 +137,43 @@ Tiny-Chu is loaded through a project-local OpenCode plugin shim, not through a r
 }
 ```
 
-`target-project/.opencode/plugins/tiny-chu.ts` should export the OpenCode adapter from the package subpath:
+## 6단계: `.opencode` 안에서 offline install 실행
+
+설치는 대상 프로젝트의 `.opencode` 디렉터리 안에서 실행한다.
+
+```bash
+cd target-project/.opencode
+npm install --offline --cache /tmp/tiny-chu-empty-cache --ignore-scripts --no-audit --fund=false
+```
+
+Windows PowerShell에서는 사용자가 쓸 수 있는 cache 경로를 지정한다.
+
+```powershell
+cd C:\path\to\target-project\.opencode
+npm install --offline --cache "$env:TEMP\tiny-chu-empty-cache" --ignore-scripts --no-audit --fund=false
+```
+
+bundle에 installer script가 포함되어 있으면 수동 copy/install 절차 대신 사용할 수 있다.
+
+```bash
+./install-offline.sh /path/to/target-project
+```
+
+```powershell
+.\install-offline.ps1 -TargetProject C:\path\to\target-project
+```
+
+## 7단계: OpenCode shim 확인
+
+Tiny-Chu는 runtime plugin download가 아니라 project-local OpenCode shim으로 로드된다.
+
+`target-project/.opencode/plugins/tiny-chu.ts`는 package subpath에서 OpenCode adapter를 export한다.
 
 ```ts
 export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 ```
 
-`target-project/.opencode/tui.json` should enable the TUI shim:
+`target-project/.opencode/tui.json`은 TUI shim을 켠다.
 
 ```json
 {
@@ -164,17 +181,19 @@ export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 }
 ```
 
-`target-project/.opencode/plugins/tiny-chu-tui.ts` should export the TUI plugin from the package subpath:
+`target-project/.opencode/plugins/tiny-chu-tui.ts`는 dashboard plugin을 export한다.
 
 ```ts
 export { default } from "tiny-chu/tui";
 ```
 
-The TUI plugin renders the Tiny-Chu status dashboard. It keeps `home_logo` as `TinyChu` and uses `home_prompt_right`, `sidebar_title`, `sidebar_content`, `sidebar_footer`, and `home_bottom` for task, workflow, public job, context/evidence, and health status.
+TUI plugin은 `home_logo`를 `TinyChu`로 유지하고 `home_prompt_right`, `sidebar_title`, `sidebar_content`, `sidebar_footer`, `home_bottom`에 task, workflow, public job, context/evidence, health 상태를 표시한다.
 
-The dashboard is backed by the OpenCode-visible `dashboard_snapshot` tool. It reads existing `.tiny` task, public-job, workflow, evidence, and context state; it does not create a separate dashboard state store. Provider network preflight is disabled by default and only runs when `includeProviderPreflight` is explicitly enabled.
+Dashboard는 OpenCode-visible `dashboard_snapshot` tool을 사용한다. 이 tool은 기존 `.tiny` task, public job, workflow, evidence, context 상태를 읽으며 새 dashboard state store를 만들지 않는다. provider network preflight는 기본값에서 꺼져 있고 `includeProviderPreflight`가 명시될 때만 실행한다.
 
-Runtime mode is selected through Tiny-Chu plugin options, not OpenCode's deprecated top-level `mode` object. Mode 1 is worker-only; mode 2 is the existing orchestrator + worker surface and is the default.
+## 8단계: runtime mode 선택
+
+Tiny-Chu runtime mode는 OpenCode의 deprecated top-level `mode` object가 아니라 Tiny-Chu plugin option으로 선택한다. mode 1은 worker-only, mode 2는 orchestrator + worker surface이며 기본값이다.
 
 ```json
 {
@@ -188,25 +207,51 @@ Runtime mode is selected through Tiny-Chu plugin options, not OpenCode's depreca
 }
 ```
 
-Local shims may pin the same option while preserving other OpenCode options:
+local shim에서 mode를 고정하려면 OpenCode options를 보존한 채 Tiny-Chu adapter로 넘긴다.
 
 ```ts
 export const TinyChu = (input, options) =>
   TinyChuOpenCodePlugin(input, { ...options, mode: 1 });
 ```
 
-Direct library construction accepts the normalized names:
+라이브러리 직접 사용도 named mode를 받는다.
 
 ```ts
 createTinyChuPlugin({ mode: "worker" });
 createTinyChuPlugin({ mode: "orchestrator_worker" });
 ```
 
-The copyable templates in `templates/opencode/` use the same shape. Replace `X.Y.Z` with the release version or with the bundled tarball filename shipped in your release asset.
+## 9단계: 설치 검증
 
-## Internal Registry Alternative
+아래 명령은 `target-project/.opencode`에서 실행한다.
 
-Use this path when the closed network has an approved internal registry and Tiny-Chu plus its production dependencies are mirrored there.
+```bash
+node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; console.log(typeof createTinyChuPlugin)"
+node --input-type=module -e "import { TinyChuOpenCodePlugin } from 'tiny-chu/opencode'; console.log(typeof TinyChuOpenCodePlugin)"
+node --input-type=module -e "const m = await import('tiny-chu/tui'); console.log(m.default.id, typeof m.default.tui)"
+```
+
+첫 두 명령은 `function`을 출력해야 한다. TUI 명령은 `tiny-chu.logo function`을 출력해야 한다.
+
+OpenCode tool 노출 상태는 `tiny_chu_install_check`로 확인한다.
+
+```bash
+node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; const tiny=createTinyChuPlugin({ root: process.cwd() }); console.log(await tiny.tools.tiny_chu_install_check({}));"
+```
+
+기대하는 상태는 아래와 같다.
+
+- OpenCode를 대상 프로젝트 root에서 시작한다.
+- OpenCode가 `.opencode/plugins/tiny-chu.ts`를 발견한다.
+- shim이 `tiny-chu/opencode`에서 `TinyChuOpenCodePlugin`을 import한다.
+- OpenCode가 `.opencode/tui.json`을 읽고 `.opencode/plugins/tiny-chu-tui.ts`를 켠다.
+- TUI shim이 `tiny-chu/tui`에서 dashboard plugin을 import한다.
+- TUI plugin이 켜지면 `home_logo`에는 `TinyChu`가 보이고 dashboard slot이 채워진다.
+- Tiny-Chu tool 목록에는 `tiny_chu_install_check`와 `dashboard_snapshot`이 포함된다.
+
+## 10단계: internal registry 경로
+
+조직 내부 registry에 Tiny-Chu와 production dependency가 mirror되어 있다면 이 경로를 쓴다.
 
 ```bash
 cd target-project/.opencode
@@ -214,13 +259,13 @@ npm config set registry http://internal-registry.example/npm/
 npm install tiny-chu@X.Y.Z --ignore-scripts --no-audit --fund=false
 ```
 
-Then keep the same local plugin shim:
+registry 설치도 project-local shim은 동일하다.
 
 ```ts
 export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 ```
 
-For registry installs, `.opencode/package.json` can pin the registry version:
+`.opencode/package.json`은 registry version을 pin할 수 있다.
 
 ```json
 {
@@ -232,9 +277,9 @@ For registry installs, `.opencode/package.json` can pin the registry version:
 }
 ```
 
-## Developer Source Install
+## 11단계: developer local checkout 경로
 
-Use this only for Tiny-Chu development or local source testing:
+Tiny-Chu 자체 개발이나 로컬 source smoke test가 목적일 때만 사용한다.
 
 ```bash
 git clone <tiny-chu-repository-url>
@@ -244,7 +289,7 @@ npm run build
 npm test
 ```
 
-In a separate target project, point `.opencode/package.json` at the local checkout:
+별도 대상 프로젝트의 `.opencode/package.json`에서 로컬 checkout을 가리킨다.
 
 ```json
 {
@@ -256,88 +301,66 @@ In a separate target project, point `.opencode/package.json` at the local checko
 }
 ```
 
-This developer path is useful for fast iteration, but it is not the preferred closed-network release install because it depends on the local checkout state.
+local shim은 package subpath를 그대로 import한다.
 
-## Verification
-
-After installation, run a package import smoke test from `target-project/.opencode`:
-
-```bash
-node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; console.log(typeof createTinyChuPlugin)"
-node --input-type=module -e "import { TinyChuOpenCodePlugin } from 'tiny-chu/opencode'; console.log(typeof TinyChuOpenCodePlugin)"
-node --input-type=module -e "const m = await import('tiny-chu/tui'); console.log(m.default.id, typeof m.default.tui)"
+```ts
+export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 ```
 
-The first two commands should print `function`. The TUI command should print `tiny-chu.logo function`.
+이 경로는 빠른 반복에는 편하지만 release bundle과 dependency 상태가 달라질 수 있다. 운영 배포 판단은 offline bundle 또는 internal registry 검증 결과를 기준으로 한다.
 
-To inspect Tiny-Chu's own install metadata:
+## 문제 해결
 
-```bash
-node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; const tiny=createTinyChuPlugin({ root: process.cwd() }); console.log(await tiny.tools.tiny_chu_install_check({}));"
-```
+### `ENOTCACHED` during `npm install --offline`
 
-Expected OpenCode startup behavior:
+`ENOTCACHED`는 npm이 offline cache나 local tarball dependency 안에 없는 package를 해석하려 했다는 뜻이다. offline bundle 경로에서는 아래를 확인한다.
 
-- OpenCode starts from the target project root.
-- OpenCode discovers `.opencode/plugins/tiny-chu.ts`.
-- The shim imports `TinyChuOpenCodePlugin` from `tiny-chu/opencode`.
-- OpenCode reads `.opencode/tui.json` and enables `.opencode/plugins/tiny-chu-tui.ts`.
-- The TUI shim imports the dashboard plugin from `tiny-chu/tui`.
-- When the TUI plugin is enabled, `home_logo` shows `TinyChu` and the dashboard slots render through `home_prompt_right`, `sidebar_content`, and the related sidebar/home status slots.
-- Tiny-Chu tools, including `tiny_chu_install_check` and `dashboard_snapshot`, are exposed in the OpenCode tool list.
+- `.opencode/package.json`이 `file:./vendor/tiny-chu-vX.Y.Z-bundled.tgz`를 가리키는가.
+- bundled tarball이 `.opencode/vendor/` 아래에 있는가.
+- 설치 명령을 `.opencode` 안에서 실행했는가.
+- 일반 source package tarball이 아니라 release offline bundle을 사용했는가.
 
-## Troubleshooting
+### stale `dist`
 
-### `ENOTCACHED` During `npm install --offline`
-
-`ENOTCACHED` means npm needed a package that was not present in the offline cache or local tarball dependency. For the offline bundle path, check that:
-
-- `.opencode/package.json` points to `file:./vendor/tiny-chu-vX.Y.Z-bundled.tgz`.
-- The bundled tarball exists under `.opencode/vendor/`.
-- You are installing from inside `.opencode`.
-- You are using the release offline bundle, not a normal source package tarball without bundled dependencies.
-
-### Stale `dist`
-
-If package imports fail after a developer source install, rebuild Tiny-Chu:
+developer local checkout에서 package import가 실패하면 Tiny-Chu를 다시 빌드한다.
 
 ```bash
 npm run build
 ```
 
-Do not trust an old generated `dist/` directory when packaging or testing a release.
+release packaging이나 검증에서는 오래된 generated `dist/`를 믿지 않는다.
 
-### Node Or npm Version Mismatch
+### Node 또는 npm version mismatch
 
-Check versions:
+버전을 확인한다.
 
 ```bash
 node --version
 npm --version
 ```
 
-Use Node.js `>=20.18.0`. If npm behavior differs across machines, rebuild and verify the release bundle with the same Node/npm family used by the target environment.
+Node.js `>=20.18.0`을 사용한다. npm 동작이 machine마다 다르면 target environment와 같은 Node/npm 계열에서 release bundle을 다시 만들고 `verify:offline`을 실행한다.
 
-### PowerShell Quoting
+### PowerShell quoting
 
-Prefer single quotes around Node one-liners and paths that contain special characters. When a native command receives split or rewritten arguments, set:
+PowerShell에서 Node one-liner와 특수 문자가 들어간 path는 single quote를 우선 사용한다. native command argument가 쪼개지거나 재작성되면 아래를 설정한다.
 
 ```powershell
 $PSNativeCommandArgumentPassing = 'Standard'
 ```
 
-### Permission Or Cache Errors
+### permission 또는 cache 오류
 
-Use a writable npm cache owned by the current user:
+현재 사용자가 쓸 수 있는 npm cache를 지정한다.
 
 ```bash
 npm install --offline --cache /tmp/tiny-chu-empty-cache --ignore-scripts --no-audit --fund=false
 ```
 
-On Windows, choose a writable cache directory outside protected system paths:
+Windows에서는 보호된 system path 바깥의 writable cache를 사용한다.
 
 ```powershell
 npm install --offline --cache "$env:TEMP\tiny-chu-empty-cache" --ignore-scripts --no-audit --fund=false
 ```
 
-If permissions still fail, remove only the temporary cache directory you created for this install and rerun the command. Do not remove shared npm caches or unrelated project state.
+권한 문제가 계속되면 이 설치를 위해 직접 만든 임시 cache directory만 제거하고 다시 실행한다. 공유 npm cache나 관련 없는 프로젝트 상태는 삭제하지 않는다.

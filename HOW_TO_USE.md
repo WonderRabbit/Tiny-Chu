@@ -48,6 +48,8 @@ export { default } from "../../src/opencode/tui-plugin.ts";
 
 운영 환경이나 다른 프로젝트에 설치할 때는 전체 절차를 [INSTALL.md](./INSTALL.md)를 기준으로 맞춘다. 이 문서는 사용법을 설명하고, 설치의 canonical source는 `INSTALL.md`다.
 
+계획이나 리서치 단계에서 다뤘지만 아직 Tiny-Chu 제품 기능으로 들어오지 않은 항목은 [docs/feature/2026-06-15-unimplemented-features.md](./docs/feature/2026-06-15-unimplemented-features.md)에 분리해 둔다.
+
 설치 경로는 세 가지로 구분한다.
 
 - `closed-network install`: GitHub Release 또는 배포 저장소에서 `release asset download`를 먼저 수행한 뒤, 폐쇄망 안에서는 offline bundle과 `.opencode/vendor/`의 `local tarball(.tgz) install`만 사용한다.
