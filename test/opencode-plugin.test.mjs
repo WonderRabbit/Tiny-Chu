@@ -12,7 +12,9 @@ test("package exposes an OpenCode plugin entrypoint", async () => {
   assert.match(await readFile("README.md", "utf8"), /\.opencode\/plugins\/tiny-chu\.ts/);
   assert.match(await readFile(".opencode/plugins/tiny-chu.ts", "utf8"), /TinyChuOpenCodePlugin as TinyChu/);
   const openCodePackage = JSON.parse(await readFile(".opencode/package.json", "utf8"));
+  assert.deepEqual(Object.keys(openCodePackage.dependencies).sort(), ["@opencode-ai/plugin"]);
   assert.equal(openCodePackage.dependencies["@opencode-ai/plugin"], packageJson.dependencies["@opencode-ai/plugin"]);
+  assert.equal(openCodePackage.dependencies["@opencode-ai/plugin"], "^1.17.4");
   assert.equal(typeof TinyChuOpenCodePlugin, "function");
 });
 

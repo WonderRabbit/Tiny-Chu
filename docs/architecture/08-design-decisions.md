@@ -184,11 +184,14 @@ safe-tooling 툴(`safe_patch_check` 등)은 상세 `inputSchema`를 가집니다
 ## 결정 12: 의존성 최소주의
 
 ### 결정
-런타임 의존성 `@opencode-ai/plugin` 단 하나, 개발 의존성 `typescript` 단 하나.
+직접 런타임 의존성은 `@opencode-ai/plugin`, `@opentui/solid` 두 개이고, 개발 의존성은 `typescript` 하나다.
+
+- `@opencode-ai/plugin`: OpenCode plugin bridge와 `./opencode` export의 타입/런타임 계약이다.
+- `@opentui/solid`: `./tui` export와 TUI dashboard runtime에 필요하다. `tiny-chu/tui`가 로드하는 dashboard plugin은 Solid 기반 slot UI를 렌더링한다.
 
 ### 근거
 - **Node 내장 우선**: `fs`, `path`, `crypto`, `readline` 등으로 충분
-- **공급망 위험 최소**: 의존성이 적을수록 보안 노출 적음
+- **공급망 위험 최소**: runtime surface는 OpenCode bridge와 TUI dashboard에 필요한 직접 의존성만 둔다.
 - **설치 속도/크기**: 폐쇄망 배포에 유리
 
 ### 네이티브 툴은 의존성이 아님
@@ -205,7 +208,7 @@ safe-tooling 툴(`safe_patch_check` 등)은 상세 `inputSchema`를 가집니다
 | 증거 기반 | 할루시네이션 금지 (결정 8) |
 | 안전 기본값 | safe tooling 옵트인 (결정 7) |
 | 명시적 실패 | fail-closed (MalformedJsonError, 경로 위반) |
-| 최소 의존성 | Node 내장 + plugin 1개 (결정 12) |
+| 최소 의존성 | Node 내장 + 직접 런타임 의존성 2개 (결정 12) |
 
 ## 다음 읽을 문서
 

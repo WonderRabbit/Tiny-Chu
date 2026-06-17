@@ -109,6 +109,22 @@ export { default } from "tiny-chu/tui";
 
 Dashboard는 OpenCode-visible `dashboard_snapshot` 도구가 만든다. 이 도구는 기존 `.tiny` task, public job, workflow, evidence, context 상태를 읽어 보여주며 별도 dashboard state store를 만들지 않는다. provider/network preflight는 기본값에서 실행하지 않고 `includeProviderPreflight`가 명시된 경우에만 수행한다.
 
+## 직접 의존성과 버전 추적
+
+Tiny-Chu의 직접 런타임 의존성은 두 개다.
+
+- `@opencode-ai/plugin`: OpenCode plugin bridge와 `tiny-chu/opencode` export를 위한 런타임 의존성이다. 현재 `package.json` range는 `^1.17.4`이고, `package-lock.json`은 현재 설치 해석을 별도로 고정한다.
+- `@opentui/solid`: `tiny-chu/tui` export와 TUI dashboard runtime을 위한 런타임 의존성이다.
+
+개발 의존성은 `typescript` 하나다. 문서에 registry 최신값을 적을 때는 range나 lockfile resolution과 혼동하지 않는다. 예를 들어 `npm view @opencode-ai/plugin version --json` 결과는 `1.17.7`로 observed as of 2026-06-16이지만, 이것은 현재 `package.json`의 `^1.17.4` range나 `package-lock.json` resolution을 자동으로 바꾼다는 뜻이 아니다.
+
+최신값을 갱신할 때는 아래 명령을 다시 실행하고, 문서에는 항상 `observed as of YYYY-MM-DD` 날짜와 refresh command를 함께 남긴다.
+
+```bash
+npm view @opencode-ai/plugin version --json
+npm view @opencode-ai/plugin@1.17.7 peerDependencies dependencies version --json
+```
+
 ## 설치 확인
 
 설치 후 대상 프로젝트의 `.opencode`에서 package import와 install-check를 확인한다.

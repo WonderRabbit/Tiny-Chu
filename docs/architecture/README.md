@@ -64,7 +64,10 @@ createTinyChuPlugin()                      ── src/opencode/tiny-plugin.ts
 
 - **Node ≥ 20.18**, ESM 전용, TypeScript strict + NodeNext
 - **셸: PowerShell 7.6** (`pwsh -NoLogo -NoProfile`) — Unix 도구를 *가정하지 않음*
-- 런타임 의존성: `@opencode-ai/plugin` 단 하나
+- 직접 런타임 의존성: `@opencode-ai/plugin`, `@opentui/solid` 두 개
+  - `@opencode-ai/plugin`: OpenCode plugin bridge와 `./opencode` export
+  - `@opentui/solid`: `./tui` export, TUI dashboard runtime, Solid JSX 타입
+- 개발 의존성: `typescript` 하나
 - 배포: npm 라이브러리(`.` / `./opencode` exports) + 프로젝트 로컬 OpenCode 플러그인(`.opencode/plugins/tiny-chu.ts`)
 
 자세한 내용은 [01-overview.md](./01-overview.md)로.

@@ -153,6 +153,20 @@ cd C:\path\to\target-project\.opencode
 npm install --offline --cache "$env:TEMP\tiny-chu-empty-cache" --ignore-scripts --no-audit --fund=false
 ```
 
+### offline audit/SBOM 대체 정책
+
+offline install과 `verify:offline`의 `--no-audit`는 의도된 정책이다. `npm audit`는 registry advisory 데이터에 접근해야 하므로 폐쇄망, dead registry, empty cache 검증에서는 신뢰할 수 있는 offline 판정이 아니다. Tiny-Chu는 offline 경로에서 npm audit나 SBOM 생성을 강제하지 않는다.
+
+현재 Tiny-Chu가 제공하는 대체 추적 표면은 아래와 같다.
+
+- `package-lock.json`의 `integrity` 값: 연결된 release machine에서 해석한 dependency tarball 무결성 기록이다.
+- offline bundle `manifest.json`의 `dependencyClosure`: bundle에 포함된 dependency closure를 기록한다.
+- bundle `SHA256SUMS`: `manifest.json`, installer, `LICENSE`, vendor tarball 같은 release artifact의 외부 checksum이다.
+- 조직이 제공하는 provenance와 source archive: release 입력과 빌드 출처를 추적할 때 함께 보관한다.
+- 조직 정책상 필요한 SBOM: Tiny-Chu installer가 offline 환경에서 새로 만들지 않으며, 필요한 경우 연결된 환경에서 생성해 release asset과 함께 반입한다.
+
+따라서 폐쇄망 안에서는 `--no-audit`를 제거해 online advisory 조회를 시도하지 않는다. audit/SBOM 요구가 있는 조직은 release machine에서 별도 보안 검토와 SBOM 생성을 수행하고, 그 결과를 `SHA256SUMS`, provenance, source archive와 함께 보관한다.
+
 bundle에 installer script가 포함되어 있으면 수동 copy/install 절차 대신 사용할 수 있다.
 
 ```bash

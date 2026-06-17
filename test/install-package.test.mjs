@@ -45,6 +45,8 @@ test("package metadata exposes offline install assets and commands", async () =>
   assert.equal(packageJson.scripts["release:offline"], "node scripts/release/build-offline-bundle.mjs");
   assert.equal(packageJson.scripts["verify:offline"], "node scripts/release/verify-offline-bundle.mjs");
   assert.equal(packageJson.exports["./tui"], "./dist/opencode/tui-plugin.js");
+  assert.deepEqual(Object.keys(packageJson.dependencies).sort(), ["@opencode-ai/plugin", "@opentui/solid"]);
+  assert.equal(packageJson.dependencies["@opencode-ai/plugin"], "^1.17.4");
   assert.equal(packageJson.dependencies["@opentui/solid"], "^0.3.4");
   assert.equal(packageJson.dependencies["solid-js"], undefined);
   assert.ok(packageJson.files.includes("LICENSE"));
@@ -139,12 +141,20 @@ test("offline release bundle exposes Apache-2.0 license artifacts", async () => 
     const manifest = JSON.parse(await readFile(path.join(bundleDir, "manifest.json"), "utf8"));
     const license = await readFile(path.join(bundleDir, "LICENSE"), "utf8");
     const offlineReadme = await readFile(path.join(bundleDir, "README-offline.md"), "utf8");
+    const closureDependencies = manifest.dependencyClosure.dependencies ?? {};
 
     assert.equal(manifest.license, "Apache-2.0");
     assert.equal(manifest.licenseFile, "LICENSE");
+    assert.ok(Object.hasOwn(closureDependencies, "@opencode-ai/plugin"));
+    assert.ok(Object.hasOwn(closureDependencies, "@opentui/solid"));
     assert.match(license, /Apache License/);
     assert.match(offlineReadme, /Apache-2\.0/);
     assert.match(offlineReadme, /LICENSE/);
+    assert.match(offlineReadme, /--no-audit/);
+    assert.match(offlineReadme, /dependencyClosure/);
+    assert.match(offlineReadme, /package-lock\.json/);
+    assert.match(offlineReadme, /SHA256SUMS/);
+    assert.match(offlineReadme, /SBOM/);
   } finally {
     await rm(outDir, { recursive: true, force: true });
     await rm(extractDir, { recursive: true, force: true });

@@ -27,7 +27,15 @@ Install into a target project:
 ./install-offline.sh /path/to/target-project
 \`\`\`
 
-The installer copies the OpenCode shim into \`.opencode/\`, places \`${tarballName}\` under \`.opencode/vendor/\`, and runs npm with \`--offline\`.
+The installer copies the OpenCode shim into \`.opencode/\`, places \`${tarballName}\` under \`.opencode/vendor/\`, and runs npm with \`--offline --no-audit\`. The \`--no-audit\` flag is intentional for offline installs because npm audit requires online registry and advisory access.
+
+Offline verification uses deterministic release artifacts instead:
+
+- \`package-lock.json\` integrity entries for package resolution.
+- \`manifest.json.dependencyClosure\` for the bundled production dependency tree.
+- \`SHA256SUMS\` for the published offline archive.
+- Provenance or source archive material when supplied by the release process.
+- An organization-provided SBOM when that policy requires one.
 
 Tiny-Chu is licensed under Apache-2.0. See \`LICENSE\` in this offline bundle and inside the packaged tarball.
     `,

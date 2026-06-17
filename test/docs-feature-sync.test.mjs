@@ -27,6 +27,22 @@ function assertMentionsEvery(docName, docText, values) {
   assert.deepEqual(missing, [], `${docName} is missing feature surface mentions`);
 }
 
+function assertNoStaleSingleRuntimeDependencyClaim(docName, docText) {
+  const stalePatterns = [
+    /런타임 의존성.*단 하나/i,
+    /runtime dependency.*one/i,
+    /plugin\s*1개/i,
+    /plugin\s*하나/i,
+    /플러그인\s*(?:1개|하나)/i,
+  ];
+
+  assert.equal(
+    stalePatterns.some((pattern) => pattern.test(docText)),
+    false,
+    `${docName} still claims there is only one runtime dependency`,
+  );
+}
+
 function sectionForHeading(source, heading) {
   const marker = `#### \`${heading}\``;
   const start = source.indexOf(marker);
@@ -199,5 +215,54 @@ test("wiki retrieval QA docs name the required boundaries and evidence scenarios
     ".tiny/wiki/error-book.jsonl",
     "repo-map proposal flow",
     "overwrite",
+  ]);
+});
+
+test("architecture docs describe the direct runtime dependency contract", async () => {
+  const architectureDocs = [
+    ["docs/architecture/README.md", await readText("docs/architecture/README.md")],
+    ["docs/architecture/01-overview.md", await readText("docs/architecture/01-overview.md")],
+    ["docs/architecture/08-design-decisions.md", await readText("docs/architecture/08-design-decisions.md")],
+  ];
+
+  for (const [docName, docText] of architectureDocs) {
+    assertNoStaleSingleRuntimeDependencyClaim(docName, docText);
+    assertMentionsEvery(docName, docText, ["@opencode-ai/plugin", "@opentui/solid", "./tui", "TUI"]);
+  }
+});
+
+test("root usage docs describe dependency version tracking policy", async () => {
+  const policyDocs = [
+    ["README.md", await readText("README.md")],
+    ["HOW_TO_USE.md", await readText("HOW_TO_USE.md")],
+  ];
+
+  for (const [docName, docText] of policyDocs) {
+    assertNoStaleSingleRuntimeDependencyClaim(docName, docText);
+    assertMentionsEvery(docName, docText, [
+      "@opencode-ai/plugin",
+      "@opentui/solid",
+      "^1.17.4",
+      "1.17.7",
+      "observed as of 2026-06-16",
+      "npm view @opencode-ai/plugin version --json",
+      "package-lock.json",
+    ]);
+  }
+});
+
+test("install docs explain offline audit and SBOM substitute policy", async () => {
+  const install = await readText("INSTALL.md");
+
+  assertMentionsEvery("INSTALL.md", install, [
+    "--no-audit",
+    "package-lock.json",
+    "integrity",
+    "dependencyClosure",
+    "SHA256SUMS",
+    "provenance",
+    "SBOM",
+    "offline",
+    "npm audit",
   ]);
 });

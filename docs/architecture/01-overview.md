@@ -64,8 +64,10 @@ export const POWERSHELL_OPENCODE_RUNTIME: OpenCodeRuntimeConfig = {
 이것은 단순한 설정값이 아닙니다. **전체 도구 설계 철학의 기반**입니다 — `grep -R`/`find`/`xargs` 같은 Unix 전용 파이프라인 대신 실제 네이티브 실행 파일(`jq`, `yq`, `mdq`, `fd`, `ast-grep`, `rg`)을 참조하는 PowerShell 툴링 프로파일(`src/opencode/powershell-tooling.ts`)이 함께 내보내집니다. 자세한 내용은 [05-plugin-and-hooks.md](./05-plugin-and-hooks.md)의 PowerShell 툴링 주입 섹션을 보세요.
 
 ### 의존성 철학
-- **런타임 의존성**: `@opencode-ai/plugin` 단 하나
-- **개발 의존성**: `typescript` 단 하나
+- **직접 런타임 의존성**: `@opencode-ai/plugin`, `@opentui/solid` 두 개
+  - `@opencode-ai/plugin`: OpenCode plugin bridge와 `./opencode` export를 제공한다.
+  - `@opentui/solid`: `./tui` export와 TUI dashboard runtime에 필요하다. `src/opencode/tui-plugin.ts`는 이 패키지를 동적으로 import하고, `src/opencode/tui-dashboard-renderer.ts`는 Solid JSX 타입을 사용한다.
+- **개발 의존성**: `typescript` 하나
 - **기본 오프라인, 명시적 provider preflight만 선택적 네트워크** — 오케스트레이션 프로파일, agent-model 템플릿, Figma 매핑 키, Qwen 패킷 구성은 모두 **어댑터-대비만 된(adapter-ready) 메타데이터**입니다. Tiny-Chu는 기본적으로 네트워크 API 호출을 하지 않으며, `provider_endpoint_preflight`만 사용자가 `networkMode`로 허용한 경우 로컬/명시 호스트 metadata probe를 수행할 수 있습니다. `doctor` 준비 게이트는 로컬 전용입니다.
 
 ### 대상 플랫폼
