@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20.18.0"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Pack Check
+        run: npm run pack:check
+
+      - name: Offline Package
+        run: npm run release:offline -- --out "$RUNNER_TEMP/tiny-chu-release"
+
+      - name: Resolve Bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          bundles=("$RUNNER_TEMP"/tiny-chu-release/tiny-chu-offline-v*.tar.gz)
+          if [ ${#bundles[@]} -ne 1 ]; then
+            printf 'Expected exactly one offline bundle, found %s\n' "${#bundles[@]}" >&2
+            exit 1
+          fi
+          printf 'BUNDLE_PATH=%s\n' "${bundles[0]}" >> "$GITHUB_ENV"
+
+      - name: Offline Verify
+        run: npm run verify:offline -- --bundle "$BUNDLE_PATH"

@@ -11,6 +11,13 @@ Canonical release history는 루트 [CHANGELOG.md](../CHANGELOG.md)에 기록한
   - worker mode와 orchestrator-worker mode를 분리했다.
   - mode-aware feature package graph, install-check runtime metadata, runtime-mode tests를 추가했다.
 
+## Unreleased Local History
+
+- 2026-06-17
+  - GitHub Actions `CI / verify` PR gate를 추가했다.
+  - 게이트는 `npm run build`, `npm test`, `npm run pack:check`, offline bundle 생성, `verify:offline -- --bundle` 검증을 순서대로 실행한다.
+  - `test/github-actions-workflow.test.mjs`로 workflow trigger, read-only permission, job/check 이름, command order, forbidden publish/deploy scope를 정적으로 검증한다.
+
 ## Local History Files
 
 - [../CHANGELOG.md](../CHANGELOG.md): canonical release changelog.
