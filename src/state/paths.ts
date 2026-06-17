@@ -6,6 +6,7 @@ export interface TinyChuPaths {
   plansDir: string;
   boulderFile: string;
   tinyDir: string;
+  locksDir: string;
   publicJobsDir: string;
   memoryDir: string;
   workflowsDir: string;
@@ -28,6 +29,7 @@ export function resolveTinyChuPaths(root = process.cwd()): TinyChuPaths {
     plansDir: path.join(tinyDir, "plans"),
     boulderFile: path.join(tinyDir, "boulder.json"),
     tinyDir,
+    locksDir: path.join(tinyDir, "locks"),
     publicJobsDir: path.join(tinyDir, "public-jobs"),
     memoryDir: path.join(tinyDir, "memory"),
     workflowsDir,

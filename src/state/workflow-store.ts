@@ -1,21 +1,18 @@
+import { access } from "node:fs/promises";
 import path from "node:path";
 import { appendJsonLine, readJsonFile, readJsonLines, writeJsonAtomic } from "./file-store.js";
+import { withTinyStateLock } from "./lock-store.js";
 import { resolveTinyChuPaths } from "./paths.js";
 import { withWorkflowCheckpointLock } from "./workflow-lock.js";
 import { workflowStageReportRef, writeWorkflowPlanProjection, writeWorkflowStageReport } from "./workflow-projection.js";
 import type { WorkflowCheckpoint, WorkflowCheckpointInput, WorkflowCreateRunInput, WorkflowEvent, WorkflowNode, WorkflowNodeInput, WorkflowNodeStatus, WorkflowRun, WorkflowStoreOptions } from "./workflow-types.js";
 
-const workflowRunSequences = new Map<string, number>();
-
 function workflowStamp(now: Date): string {
   return now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
-function workflowRunId(root: string | undefined, now: Date): string {
+function workflowRunIdCandidate(now: Date, sequence: number): string {
   const base = `W-${workflowStamp(now)}`;
-  const sequenceKey = `${resolveTinyChuPaths(root).workflowRunsDir}\0${base}`;
-  const sequence = workflowRunSequences.get(sequenceKey) ?? 0;
-  workflowRunSequences.set(sequenceKey, sequence + 1);
   return sequence === 0 ? base : `${base}-${sequence.toString(36).padStart(4, "0")}`;
 }
 
@@ -30,6 +27,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function runFile(root: string | undefined, runId: string): string {
   assertWorkflowRunId(runId);
   return path.join(resolveTinyChuPaths(root).workflowRunsDir, `${runId}.json`);
+}
+
+async function fileExists(file: string): Promise<boolean> {
+  try {
+    await access(file);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function nextWorkflowRunId(root: string | undefined, now: Date): Promise<string> {
+  for (let sequence = 0; ; sequence += 1) {
+    const runId = workflowRunIdCandidate(now, sequence);
+    if (!(await fileExists(runFile(root, runId)))) return runId;
+  }
 }
 
 function eventFile(root: string | undefined, runId: string): string {
@@ -149,35 +163,40 @@ export class WorkflowStore {
   }
 
   async createRun(input: WorkflowCreateRunInput): Promise<WorkflowRun> {
-    const now = this.now();
-    const iso = now.toISOString();
-    const runId = workflowRunId(this.root, now);
-    const nodes = input.nodes.map((node) => normalizeNode(node, iso));
-    const run: WorkflowRun = {
-      runId,
-      workflowId: input.workflowId,
-      objective: input.objective,
-      targetPath: input.targetPath,
-      workerAgent: input.workerAgent,
-      status: "ready",
-      currentNodeId: firstReadyNode(nodes),
-      planRef: planRef(runId),
-      stateRef: stateRef(runId),
-      nodes,
-      checkpoints: [],
-      createdAt: iso,
-      updatedAt: iso,
-    };
-    await writeJsonAtomic(runFile(this.root, runId), run);
-    await writeWorkflowPlanProjection(this.root, run);
-    await appendJsonLine(eventFile(this.root, runId), {
-      sequence: 1,
-      type: "run_created",
-      runId,
-      status: run.status,
-      createdAt: iso,
-    } satisfies WorkflowEvent);
-    return run;
+    return withTinyStateLock(this.root, "workflows-create.lock", async (lock) => {
+      const now = this.now();
+      const iso = now.toISOString();
+      const runId = await nextWorkflowRunId(this.root, now);
+      const nodes = input.nodes.map((node) => normalizeNode(node, iso));
+      const run: WorkflowRun = {
+        runId,
+        workflowId: input.workflowId,
+        objective: input.objective,
+        targetPath: input.targetPath,
+        workerAgent: input.workerAgent,
+        status: "ready",
+        currentNodeId: firstReadyNode(nodes),
+        planRef: planRef(runId),
+        stateRef: stateRef(runId),
+        nodes,
+        checkpoints: [],
+        createdAt: iso,
+        updatedAt: iso,
+      };
+      await lock.assertActive();
+      await writeJsonAtomic(runFile(this.root, runId), run);
+      await lock.assertActive();
+      await writeWorkflowPlanProjection(this.root, run);
+      await lock.assertActive();
+      await appendJsonLine(eventFile(this.root, runId), {
+        sequence: 1,
+        type: "run_created",
+        runId,
+        status: run.status,
+        createdAt: iso,
+      } satisfies WorkflowEvent);
+      return run;
+    });
   }
 
   async getRun(runId: string): Promise<WorkflowRun | undefined> {
@@ -194,7 +213,7 @@ export class WorkflowStore {
   }
 
   async checkpoint(input: WorkflowCheckpointInput): Promise<WorkflowCheckpoint> {
-    return withWorkflowCheckpointLock(this.root, input.runId, async () => {
+    return withWorkflowCheckpointLock(this.root, input.runId, async (lock) => {
       const current = await this.getRun(input.runId);
       if (!current) throw new Error(`Workflow run not found: ${input.runId}`);
       assertCheckpointTarget(current, input.nodeId);
@@ -212,6 +231,7 @@ export class WorkflowStore {
         createdAt,
       };
       const updated = appendCheckpoint(current, checkpoint);
+      await lock.assertActive();
       await appendJsonLine(eventFile(this.root, input.runId), {
         sequence: events.length + 1,
         type: "checkpoint_created",
@@ -221,8 +241,11 @@ export class WorkflowStore {
         summary: checkpoint.summary,
         createdAt,
       } satisfies WorkflowEvent);
+      await lock.assertActive();
       await writeJsonAtomic(runFile(this.root, input.runId), updated);
+      await lock.assertActive();
       await writeWorkflowStageReport(this.root, updated, checkpoint);
+      await lock.assertActive();
       await writeWorkflowPlanProjection(this.root, updated);
       return checkpoint;
     });

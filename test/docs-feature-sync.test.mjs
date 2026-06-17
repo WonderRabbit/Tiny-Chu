@@ -127,7 +127,6 @@ test("Korean root and installation docs expose canonical feature inventory", asy
     "Figma API calls",
     "provider chat/generate/completion calls",
     "runtime disabling of default feature packages",
-    "cross-process file locking",
     "compact tool index",
     "ULW prompt injection follow-up",
     "content-aware packet fit",
@@ -136,7 +135,6 @@ test("Korean root and installation docs expose canonical feature inventory", asy
     "### package/plugin expansion",
     "### external adapter boundaries",
     "### provider/network behavior",
-    "### concurrency/state hardening",
     "### small-model optimization follow-ups",
     "### documentation/operations follow-ups",
   ]);
@@ -156,7 +154,6 @@ test("Korean root and installation docs expose canonical feature inventory", asy
     "Figma API calls",
     "provider chat/generate/completion calls",
     "runtime disabling of default feature packages",
-    "cross-process file locking",
     "compact tool index",
     "ULW prompt injection follow-up",
     "content-aware packet fit",

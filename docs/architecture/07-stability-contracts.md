@@ -67,27 +67,20 @@ CLAUDE.md의 작성 규칙:
 
 > **주의**: `compactValue`가 객체를 순회할 때 키를 정렬하지만, **배열 순서는 보존**합니다 (슬라이스만). 따라서 배열의 의미 있는 순서(예: 위상 정렬 결과)는 유지됩니다.
 
-## 4. 충돌 회피 계약 (단일 프로세스)
+## 4. 충돌 회피 계약 (cross-process advisory)
 
-CLAUDE.md의 명시적 한계:
+핵심 `.tiny` state writer는 `.tiny/locks/` 아래 directory-based advisory lock으로 직렬화한다. lock metadata는 `owner.json`에 기록되며, lease는 holder가 주기적으로 갱신한다.
 
-> 교차 프로세스 파일 잠금 없음. task/public-job/checkpoint id는 하나의 Node 프로세스 내에서만 충돌에 강합니다.
+### 보장
+- **task/public/workflow ID** — create lock 안에서 target 파일 존재 여부를 확인하고 다음 candidate를 선택
+- **checkpoint sequence** — task/workflow record lock 안에서 현재 sidecar/SOT를 다시 읽고 다음 sequence 선택
+- **wiki index** — read-modify-write 전체를 `wiki-index.lock` 안에서 수행
+- **safe-tooling** — shared `safe-tooling.lock`을 쓰되 contention은 blocking 대신 기존 `locked` diagnostic 유지
+- **임시 파일** — PID + UUID로 temp file 이름 충돌 회피 (`writeJsonAtomic`, `writeTextAtomic`)
 
-### 단일 프로세스 내 보장
-- **task ID 시퀀스** — 모듈 카운터 기반, 프로세스 내 고유
-- **public job ID** — `nextJobSequence` + 타임스탬프 (`J-<ISO>-<seq36>`)
-- **임시 파일** — PID + UUID로 다중 동시 쓰기 충돌 회피 (`writeJsonAtomic`)
-
-### 단일 프로세스 한계
-- `nextJobSequence`는 모듈 변수 → 두 프로세스가 같은 시퀀스 할당 가능
-- OS 수준 파일 잠금 없음 → 같은 파일 동시 쓰기 시 마지막 쓰기 승
-
-### 다중 프로세스 호출자의 책임
-동일 root에 여러 Node 프로세스가 접근하면:
-1. 외부 조정 필요 (예: 단일 프로세스 직렬화, 분산 잠금)
-2. 또는 root 분리 (프로세스별 다른 `.tiny/`)
-
-Tiny-Chu 자체는 다중 프로세스 안전성을 제공하지 않습니다.
+### 한계
+- local filesystem advisory semantics만 제공한다. NFS/분산 파일시스템, remote lock, database transaction, consensus를 제공하지 않는다.
+- 모든 writer가 lock 대상은 아니다. git weekly report, rules snapshot, layout truth, wiki error book JSONL, generic markdown write는 현재 matrix에서 제외된다.
 
 ## 5. 출력 예산 계약
 
@@ -159,7 +152,7 @@ node scripts/stability-performance-baseline.mjs --section scanners --out .omo/ev
 | `.tiny/` | 런타임 상태 | 산출물 — 커밋 금지 (단, rules_snapshot 등 명시적 요청 제외) |
 | `.omo/evidence/` | QA/성능 관찰 | 산출물 |
 | `.analysis/` | 분석 산출물 | 산출물 — 호출자가 명시적으로 요청할 때만 파일 생성 |
-| `.tiny/locks/` | safe-tooling 단기 잠금 | 런타임 전용 |
+| `.tiny/locks/` | cross-process advisory lock directory | 런타임 전용 |
 | `.tiny/artifacts/` | 게시 매니페스트 | 런타임 전용 |
 | `.tiny/rules/` | 확인된 규칙 | 호출자가 의도적으로 영속화할 때 프로젝트 상태 |
 
@@ -172,6 +165,7 @@ node scripts/stability-performance-baseline.mjs --section scanners --out .omo/ev
 - [x] 루트 탈출 경로 → fail-closed
 - [x] 심볼릭 링크 정책 (root 밖 거부 / 안 허용)
 - [x] 깨진 JSON → `MalformedJsonError`
+- [x] 핵심 `.tiny` writer의 cross-process ID/sequence/index race 방지
 - [x] 중복 패키지 id / 툴명 → 에러
 - [x] 의존성 사이클 / 누락 → 에러
 - [x] 위상 정렬 결정성

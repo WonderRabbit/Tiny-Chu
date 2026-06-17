@@ -251,7 +251,9 @@ console.log(await tiny.tools.tiny_chu_install_check({}));
 
 `.tiny/tasks/*.json`과 `.tiny/public-jobs/*.json`이 malformed JSON이면 정상 runtime API는 `Malformed JSON in <path>` 오류로 실패한다. 이 계획의 계약은 corrupt state를 조용히 skip, rewrite, quarantine하지 않는 것이다.
 
-같은 Node.js process 안에서는 task id, public job id, checkpoint sequence 충돌을 피한다. 여러 process가 같은 `.tiny` state를 동시에 쓰는 cross-process file locking은 구현하지 않았으므로, 그런 실행 방식은 호출자가 외부에서 직렬화해야 한다.
+Tiny-Chu는 `.tiny/locks/` 아래 directory-based advisory lock으로 핵심 `.tiny` state writer를 cross-process 직렬화한다. task/public job/workflow id는 각 create lock 안에서 파일 존재 여부를 보고 할당하며, task checkpoint와 workflow checkpoint는 record-specific lock으로 sequence를 보호한다. lock lease 기본값은 stale 30초, timeout 10초, poll 25ms, renew 5초이고, malformed 또는 missing `owner.json`은 directory mtime이 stale이 될 때까지 점유 중인 unknown owner로 취급한다.
+
+잠금 적용 writer는 task create/update/checkpoint, public job create/lifecycle update, workflow create/checkpoint/projection, wiki index write/upsert, safe-tooling apply/publish gate다. git weekly report, rules snapshot, layout truth, wiki error book JSONL, generic markdown write는 현재 cross-process locking matrix에서 제외된다. 이 보장은 local filesystem advisory semantics이며 NFS/분산 파일시스템 안전성을 뜻하지 않는다.
 
 성능 검증은 SLA가 아니라 characterization baseline이다. 절대 latency threshold로 pass/fail하지 않고, synthetic fixture의 count/cap과 관찰용 `elapsedMs`만 기록한다.
 

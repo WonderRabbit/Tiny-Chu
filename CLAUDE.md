@@ -66,7 +66,7 @@ createTinyChuPlugin()                      src/opencode/tiny-plugin.ts
 - **모든 상태는 `.tiny/` 아래**에 있으며, `resolveTinyChuPaths(root)` (`src/state/paths.ts`) 로 해석됩니다. 이 경로를 수동으로 조립하지 마세요.
 - **명시적 사용자/인덱스 경로**(wiki refs, `git_weekly_report.repoPath`, 마크다운 툴의 `path` 입력)는 실제 경로가 설정된 루트를 벗어나면 **fail-closed** 합니다 (`src/state/path-safety.ts`). 루트 바깥 심볼릭 링크는 건너뛰고, 루트 안쪽 심볼릭 링크는 허용합니다.
 - **잘못된 형식의 런타임 JSON** (`.tiny/tasks/*.json`, `.tiny/public-jobs/*.json`)은 `Malformed JSON in <path>` 를 던집니다 — 조용히 건너뛰거나, 다시 쓰거나, 격리하지 않습니다.
-- **교차 프로세스 파일 잠금 없음.** task/public-job/checkpoint id는 하나의 Node 프로세스 내에서만 충돌에 강합니다. 다중 프로세스 호출자는 외부에서 조정해야 합니다.
+- **교차 프로세스 상태 잠금.** 핵심 `.tiny` writer는 `.tiny/locks/` 아래 directory-based advisory lock으로 직렬화합니다. task/public-job/workflow id는 create lock 안에서 파일 존재 여부를 확인해 할당하고, task/workflow checkpoint sequence와 wiki index read-modify-write는 record/index lock으로 보호합니다. 이 보장은 local filesystem advisory semantics에 한정되며 NFS/분산 파일시스템 안전성을 뜻하지 않습니다.
 - `incremental_evidence_cache`는 **소스-해시 출령(staleness)만** 보고합니다 — git dirty-worktree 검사가 아닙니다. 실행자는 직접 `git status`/`git diff`를 실행해야 합니다.
 
 ## 런타임 상태 레이아웃 (소스가 아닌 산출물)
@@ -78,6 +78,7 @@ createTinyChuPlugin()                      src/opencode/tiny-plugin.ts
   public-jobs/      *.json (public worker 큐 패킷)
   rules/            architecture-patterns.md (rules_snapshot 이 작성)
   wiki/index.json   canonical wiki 번들 선택 기준
+  locks/            cross-process advisory lock directory
   reports/git-weekly/, ux/, artifacts/templates/
 ```
 

@@ -29,7 +29,7 @@
 - **원자적 쓰기**: temp-rename 패턴이 DB 트랜잭션 없이도 부분 쓰기 방지
 
 ### 비용 (수용된 한계)
-- 단일 프로세스 한계 (교차 프로세스 잠금 없음)
+- local filesystem advisory lock에 한정 (분산 잠금/DB 트랜잭션 아님)
 - 대규모 동시 쓰기에는 부적합
 - 쿼리能力은 파일 스캔에 의존
 
@@ -144,10 +144,10 @@ safe-tooling 툴(`safe_patch_check` 등)은 상세 `inputSchema`를 가집니다
 **근거**: 대규모 계층적 계획 엔진 대신 단순 Markdown 체크박스(`.tiny/plans/*.md`). "boulder" 루프는 `readPlanStatus()`로 충분.
 
 ### 제외: Atlas / parallel hooks
-**근거**: 병렬 디스패치 훅 없음. worker 패킷은 기본 **순차** 처리. 동시성은 명시적/외부 조정에 맡김.
+**근거**: 병렬 디스패치 훅 없음. worker 패킷 실행 정책은 기본 **순차** 처리이며, 이는 scheduling 범위의 비목표다. `.tiny` task/public-job/workflow/wiki 상태 writer 자체는 `.tiny/locks/` advisory lock 계약을 따른다.
 
 ### 제외: 원본 delegate-task 엔진
-**근거**: 자체 delegate 메커니즘 대신 file-backed public-job 큐. 상태가 파일이라 검사 가능하고, 단일 프로세스 한계가 명시적.
+**근거**: 자체 delegate 메커니즘 대신 file-backed public-job 큐. 상태가 파일이라 검사 가능하고, core writer 충돌은 local-filesystem advisory lock으로 직렬화된다.
 
 ### 공통 철학
 > "이 리포지토리는 의도적으로 작게 유지됩니다. 큰 추상화는 피합니다." (AGENTS.md)

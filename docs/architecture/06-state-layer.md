@@ -24,7 +24,7 @@
   ux/                 layout-truth.json (UX 역설계)
   artifacts/
     templates/        산출물 형식 템플릿 오버라이드
-  locks/              safe-tooling 단기 변경 잠금
+  locks/              cross-process advisory lock directory
   memory/             (예약)
   boulder.json        (작업 루프 상태)
 ```
@@ -40,6 +40,7 @@ export interface TinyChuPaths {
   plansDir: string;
   boulderFile: string;
   tinyDir: string;
+  locksDir: string;
   publicJobsDir: string;
   workflowsDir: string;
   workflowDefinitionsDir: string;
@@ -205,7 +206,7 @@ CLAUDE.md: "명시적 사용자/인덱스 경로 — wiki refs, `git_weekly_repo
 `TaskStore` (`src/state/task-store.ts`)는 작업 + 체크포인트를 관리합니다.
 
 ### 작업 JSON
-각 작업은 `.tiny/tasks/<id>.json`으로 저장됩니다. ID는 한 Node 프로세스 내에서 충돌에 강합니다(`task-store.ts`의 시퀀스 기반 ID).
+각 작업은 `.tiny/tasks/<id>.json`으로 저장됩니다. ID는 `tasks-create.lock` 안에서 현재 파일 존재 여부를 확인하며 `T-<timestamp>` 또는 deterministic suffix candidate로 할당합니다.
 
 ### 체크포인트 JSONL
 `task_checkpoint`는 `.tiny/tasks/<id>.checkpoints.jsonl`에 **추가 전용(append-only)** 으로 기록됩니다 (`appendJsonLine`). 각 줄이 하나의 체크포인트입니다:
@@ -252,20 +253,19 @@ interface PublicJob {
 
 ### ID 생성과 검증
 ```ts
-function jobId(now: Date): string {
-  nextJobSequence += 1;
+function jobIdCandidate(now: Date, sequence: number): string {
   const stamp = now.toISOString().replace(/[-:.]/g, "");
-  return `J-${stamp}-${nextJobSequence.toString(36).padStart(4, "0")}`;
+  return `J-${stamp}-${sequence.toString(36).padStart(4, "0")}`;
 }
 
 function assertJobId(id: string): void {
   if (!/^J-[A-Za-z0-9_-]+$/.test(id)) throw new Error(`Invalid public job id: ${id}`);
 }
 ```
-- **모듈 시퀀스** (`nextJobSequence`) — 한 프로세스 내 고유성
+- **create lock 내부 후보 선택** — `public-jobs-create.lock`을 잡고 기존 파일을 확인하며 다음 candidate를 선택
 - **정규식 검증** (`assertJobId`) — 패스 인젝션 방지
 
-> **제한**: `nextJobSequence`는 모듈 변수이므로 **한 Node 프로세스 내에서만** 충돌에 강합니다. 다중 프로세스 호출자는 외부 조정이 필요합니다 (아래 계약 섹션 참조).
+> **교차 프로세스 계약**: public job 생성은 `.tiny/locks/public-jobs-create.lock`으로 직렬화됩니다. lifecycle update는 `public-job-<jobId>.lock` 안에서 현재 on-disk job을 다시 읽고 저장합니다. 이 계약은 아래 advisory lock 섹션의 local filesystem 한계를 따릅니다.
 
 ### Rate gate (soft/hard RPM/TPM)
 ```ts
@@ -310,16 +310,38 @@ retry 백오프: `attempt`에 따라 15초/30초/60초, 최대 90초 (`public-jo
 
 `WikiBundler(root)`는 `.tiny/wiki/index.json`을 기준으로 canonical wiki 문서를 선택합니다. `wiki_bundle` 툴이 refs 배열로 문서를 번들링합니다. refs는 root 안에 있어야 합니다 (fail-closed).
 
-## 교차 프로세스 제한 (명시적)
+## 교차 프로세스 advisory lock
 
-CLAUDE.md가 명시하는 한계:
+Tiny-Chu는 dependency 없이 `mkdir` 기반 lock directory를 사용한다. lock은 `.tiny/locks/<name>.lock/owner.json`에 `lockId`, `pid`, `hostname`, `createdAt`, `renewedAt`, `expiresAt`를 기록하고, holder가 lease를 갱신한다.
 
-> **교차 프로세스 파일 잠금 없음.** task/public-job/checkpoint id는 하나의 Node 프로세스 내에서만 충돌에 강합니다. 다중 프로세스 호출자는 외부에서 조정해야 합니다.
+기본값:
 
-- `nextJobSequence` (public-job.ts) — 모듈 변수, 프로세스 내 고유
-- task-store의 시퀀스 — 동일
+- stale: 30초
+- timeout: 10초
+- poll: 25ms
+- renew: 5초
 
-즉, **동일 root에 여러 Node 프로세스가 동시에 쓰면** ID 충돌이나 레이스가 발생할 수 있습니다. 원자적 rename은 부분 쓰기를 막지만, 두 프로세스가 같은 ID를 할당하는 것까지는 막지 못합니다. 단일 프로세스 사용을 가정합니다.
+missing 또는 malformed `owner.json`은 unknown owner로 취급한다. directory mtime이 stale이 아니면 기다리거나 timeout하고, stale 이후에만 recovery한다. release는 owner token(`lockId`)이 맞을 때만 directory를 제거한다. 이 보장은 local filesystem advisory semantics에 한정되며 NFS/분산 파일시스템 안전성을 뜻하지 않는다.
+
+| writer | lock |
+|--------|------|
+| task create | `tasks-create.lock` |
+| task update/checkpoint | `task-<taskId>.lock` |
+| public job create | `public-jobs-create.lock` |
+| public job checkpoint/retry/complete/cancel | `public-job-<jobId>.lock` |
+| workflow create | `workflows-create.lock` |
+| workflow checkpoint | `workflow-<runId>.lock` |
+| workflow plan projection / plan template | `plan-<hash>.lock` |
+| wiki index write/upsert | `wiki-index.lock` |
+| safe-tooling apply/publish | `safe-tooling.lock` |
+
+| 제외 writer | 이유 |
+|-------------|------|
+| git weekly reports | 보고서 산출물이며 cross-process state SOT가 아님 |
+| rules snapshot | 명시적 rules materialization 경로 |
+| layout truth | 별도 UX state 계약 |
+| wiki error book JSONL | append-only diagnostics |
+| generic markdown write | allowlist 기반 source write gate이며 `.tiny` state SOT가 아님 |
 
 ## 상태 무결성 요약 체크리스트
 
@@ -329,7 +351,7 @@ CLAUDE.md가 명시하는 한계:
 - [x] 명시적 경로가 root 벗어나면 undefined 반환 (fail-closed)
 - [x] 심볼릭 링크: 어휘적 + 실제 이중 검사; root 밖은 거부, root 안은 허용
 - [x] 체크포인트는 JSONL 추가 전용 — 작업 JSON은 컴팩트
-- [x] worker ID/시퀀스는 단일 프로세스 내에서만 충돌 회피
+- [x] 핵심 `.tiny` writer는 `.tiny/locks/` advisory lock으로 cross-process 직렬화
 
 ## 다음 읽을 문서
 

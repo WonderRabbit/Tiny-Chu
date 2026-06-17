@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { copyFile, lstat, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ensureDir, removeIfExists } from "../state/file-store.js";
+import { acquireTinyStateLock } from "../state/lock-store.js";
 import { resolvePathInsideRoot } from "../state/path-safety.js";
 
 export const SAFE_TOOLING_LIMITS = {
@@ -31,6 +32,7 @@ export interface SafeToolingDiagnostic {
 export interface SafeToolingLock {
   readonly path: string;
   readonly acquired: true;
+  readonly assertActive: () => Promise<void>;
   readonly release: () => Promise<void>;
 }
 
@@ -117,19 +119,9 @@ export async function hashSourceTarget(root: string, target: string): Promise<So
 }
 
 export async function acquireSafeToolingLock(root: string): Promise<SafeToolingLock | undefined> {
-  const lockPath = path.join(root, ".tiny", "locks", "safe-tooling.lock");
-  try {
-    await mkdir(lockPath, { recursive: false });
-    await writeFile(path.join(lockPath, "owner.json"), JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }), "utf8");
-    return { path: lockPath, acquired: true, release: async () => { await rm(lockPath, { recursive: true, force: true }); } };
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      await ensureDir(path.dirname(lockPath));
-      return acquireSafeToolingLock(root);
-    }
-    if (error instanceof Error && "code" in error && error.code === "EEXIST") return undefined;
-    throw error;
-  }
+  const lock = await acquireTinyStateLock(root, "safe-tooling.lock", { nonBlocking: true });
+  if (!lock) return undefined;
+  return { path: lock.path, acquired: true, assertActive: lock.assertActive, release: lock.release };
 }
 
 export async function writeBytesAtomic(file: string, bytes: Buffer): Promise<void> {

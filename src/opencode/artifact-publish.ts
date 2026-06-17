@@ -48,6 +48,23 @@ export interface ArtifactPublishApplyResult {
   readonly diagnostics: readonly SafeToolingDiagnostic[];
 }
 
+class SafeToolingLockCompromised extends Error {
+  readonly diagnostic: SafeToolingDiagnostic;
+
+  constructor(error: unknown) {
+    super(error instanceof Error ? error.message : "Safe tooling lock was compromised.");
+    this.diagnostic = { code: "lock_compromised", message: this.message };
+  }
+}
+
+async function assertSafeToolingLockActive(lock: { readonly assertActive: () => Promise<void> }): Promise<void> {
+  try {
+    await lock.assertActive();
+  } catch (error) {
+    throw new SafeToolingLockCompromised(error);
+  }
+}
+
 function sha256(bytes: Buffer): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
@@ -173,9 +190,11 @@ export async function createArtifactPublishApply(root: string, input: { readonly
   if (!lock) return { applied: false, dryRun: false, entries: manifest.entries, diagnostics: [{ code: "locked", message: "Safe tooling lock is already held." }] };
   const backups = new Map<string, Buffer | undefined>();
   try {
+    await assertSafeToolingLockActive(lock);
     const lockedDiagnostics = await validateApply(root, manifest);
     if (lockedDiagnostics.length > 0) return { applied: false, dryRun: false, entries: manifest.entries, diagnostics: lockedDiagnostics };
     for (const entry of manifest.entries) {
+      await assertSafeToolingLockActive(lock);
       const target = resolvePathInsideRoot(root, entry.target);
       if (!target) return { applied: false, dryRun: false, entries: manifest.entries, diagnostics: [{ code: "outside_root", message: "Target escapes root.", path: entry.target }] };
       backups.set(entry.target, entry.targetBefore.status === "present" ? await readFile(target) : undefined);
@@ -183,6 +202,7 @@ export async function createArtifactPublishApply(root: string, input: { readonly
     const written: string[] = [];
     try {
       for (const entry of manifest.entries) {
+        await assertSafeToolingLockActive(lock);
         const target = resolvePathInsideRoot(root, entry.target);
         const source = normalizeSafeRelativePath(entry.source);
         const bytes = source ? await readWorkspaceFile(manifest.workspaceRoot, source) : undefined;
@@ -190,23 +210,32 @@ export async function createArtifactPublishApply(root: string, input: { readonly
         await writeBytesAtomic(target, bytes);
         written.push(entry.target);
       }
+      await assertSafeToolingLockActive(lock);
     } catch (error) {
-      for (const targetPath of written.reverse()) {
-        const bytes = backups.get(targetPath);
-        const target = resolvePathInsideRoot(root, targetPath);
-        if (!target) continue;
-        if (bytes === undefined) await removePathIfExists(target);
-        else await writeBytesAtomic(target, bytes);
+      const lockDiagnostic = error instanceof SafeToolingLockCompromised ? error.diagnostic : undefined;
+      if (!lockDiagnostic) {
+        for (const targetPath of written.reverse()) {
+          const bytes = backups.get(targetPath);
+          const target = resolvePathInsideRoot(root, targetPath);
+          if (!target) continue;
+          if (bytes === undefined) await removePathIfExists(target);
+          else await writeBytesAtomic(target, bytes);
+        }
       }
-      return { applied: false, dryRun: false, entries: manifest.entries, diagnostics: [{ code: "publish_write_failed", message: error instanceof Error ? error.message : "Publish write failed." }] };
+      return { applied: false, dryRun: false, entries: manifest.entries, diagnostics: [lockDiagnostic ?? { code: "publish_write_failed", message: error instanceof Error ? error.message : "Publish write failed." }] };
     }
     for (const entry of manifest.entries) {
+      await assertSafeToolingLockActive(lock);
       const target = resolvePathInsideRoot(root, entry.target);
       if (!target) continue;
       const after = await hashSourceTarget(root, entry.target);
       if (after.hash !== entry.targetAfter) return { applied: false, dryRun: false, entries: manifest.entries, diagnostics: [{ code: "post_write_hash_mismatch", message: "Published target hash did not match manifest.", path: entry.target }] };
     }
+    await assertSafeToolingLockActive(lock);
     return { applied: true, dryRun: false, entries: manifest.entries, diagnostics: [] };
+  } catch (error) {
+    if (error instanceof SafeToolingLockCompromised) return { applied: false, dryRun: false, entries: manifest.entries, diagnostics: [error.diagnostic] };
+    throw error;
   } finally {
     await lock.release();
   }

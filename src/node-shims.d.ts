@@ -6,6 +6,8 @@ declare const process: {
 
 declare function setTimeout(callback: () => void, ms: number): unknown;
 declare function clearTimeout(timeout: unknown): void;
+declare function setInterval(callback: () => void, ms: number): unknown;
+declare function clearInterval(timeout: unknown): void;
 
 declare class Buffer extends Uint8Array {
   static byteLength(value: string, encoding?: "utf8"): number;
@@ -47,6 +49,7 @@ declare module "node:path" {
 declare module "node:os" {
   const os: {
     tmpdir(): string;
+    hostname(): string;
   };
   export default os;
 }
@@ -124,7 +127,7 @@ declare module "node:fs/promises" {
   }
   export function access(path: string): Promise<void>;
   export function copyFile(source: string, target: string): Promise<void>;
-  export function lstat(path: string): Promise<{ isSymbolicLink(): boolean; isDirectory(): boolean; isFile(): boolean }>;
+  export function lstat(path: string): Promise<{ mtimeMs: number; isSymbolicLink(): boolean; isDirectory(): boolean; isFile(): boolean }>;
   export function mkdtemp(prefix: string): Promise<string>;
   export function mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefined>;
   export function readFile(path: string, encoding: "utf8"): Promise<string>;
@@ -133,6 +136,7 @@ declare module "node:fs/promises" {
   export function rm(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>;
   export function rmdir(path: string, options?: { recursive?: boolean }): Promise<void>;
   export function stat(path: string): Promise<{ mtimeMs: number; size: number }>;
+  export function utimes(path: string, atime: Date, mtime: Date): Promise<void>;
   export function symlink(target: string, path: string): Promise<void>;
   export function writeFile(path: string, data: string | Uint8Array, encoding?: "utf8"): Promise<void>;
   export function appendFile(path: string, data: string, encoding?: "utf8"): Promise<void>;

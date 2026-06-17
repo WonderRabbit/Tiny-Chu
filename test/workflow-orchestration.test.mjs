@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -410,6 +410,36 @@ test("workflow checkpoint sequences stay unique during same-process concurrency"
 
   const current = await status({ root, runId: created.runId });
   assert.equal(current.checkpoints.length, 5);
+});
+
+test("workflow run ids stay unique across process concurrency", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-workflow-cross-process-create-"));
+  const distUrl = pathToFileURL(path.join(process.cwd(), "dist", "index.js")).href;
+  const fixedNow = "2026-06-13T04:05:06.000Z";
+  const workerCount = 6;
+  const runCreate = (index) => execFileAsync(process.execPath, [
+    "--input-type=module",
+    "--eval",
+    `
+      const { WorkflowStore } = await import(${JSON.stringify(distUrl)});
+      const store = new WorkflowStore({ root: ${JSON.stringify(root)}, now: () => new Date(${JSON.stringify(fixedNow)}) });
+      const run = await store.createRun({
+        workflowId: ${JSON.stringify("cross-process-create-proof")},
+        objective: ${JSON.stringify("Cross-process workflow create proof")},
+        nodes: [{ nodeId: ${JSON.stringify("only")}, title: ${JSON.stringify("Only node")} }]
+      });
+      console.log(JSON.stringify({ index: ${index}, runId: run.runId }));
+    `,
+  ]);
+
+  const outputs = await Promise.all(Array.from({ length: workerCount }, (_, index) => runCreate(index)));
+  const runIds = outputs.map((output) => JSON.parse(output.stdout.trim()).runId);
+  const runFiles = (await readdir(path.join(root, ".tiny", "workflows", "runs"))).filter((file) => file.endsWith(".json")).sort();
+  const planFiles = (await readdir(path.join(root, ".tiny", "plans"))).filter((file) => file.endsWith(".md")).sort();
+
+  assert.equal(new Set(runIds).size, workerCount);
+  assert.deepEqual(runFiles, runIds.map((runId) => `${runId}.json`).sort());
+  assert.deepEqual(planFiles, runIds.map((runId) => `${runId}.md`).sort());
 });
 
 test("workflow checkpoint sequences stay unique across process concurrency", async () => {

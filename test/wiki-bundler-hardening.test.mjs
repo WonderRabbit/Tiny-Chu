@@ -1,14 +1,106 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { WikiBundler } from "../dist/index.js";
+
+const distUrl = pathToFileURL(path.join(process.cwd(), "dist", "index.js")).href;
+const readyLine = "__tiny_chu_child_ready__";
 
 async function makeRoot(prefix) {
   const root = await mkdtemp(path.join(os.tmpdir(), prefix));
   await mkdir(path.join(root, ".tiny", "wiki", "domains"), { recursive: true });
   return root;
+}
+
+function runNodeScript(script) {
+  const child = spawn(process.execPath, ["--input-type=module", "--eval", script], { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  let stdout = "";
+  let stderr = "";
+  let ready = false;
+  let released = false;
+  let resolveReady;
+  let rejectReady;
+  let resolveDone;
+  let rejectDone;
+  const readyPromise = new Promise((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  const done = new Promise((resolve, reject) => {
+    resolveDone = resolve;
+    rejectDone = reject;
+  });
+  const timeout = setTimeout(() => {
+    child.kill("SIGKILL");
+    const error = new Error("Timed out waiting for child process");
+    rejectReady(error);
+    rejectDone(error);
+  }, 15_000);
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+    if (!ready && stdout.split(/\r?\n/).includes(readyLine)) {
+      ready = true;
+      resolveReady();
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  child.once("error", (error) => {
+    clearTimeout(timeout);
+    rejectReady(error);
+    rejectDone(error);
+  });
+  child.once("close", (code, signal) => {
+    clearTimeout(timeout);
+    if (!ready) rejectReady(new Error(`Child exited before ready: ${stderr || signal || code}`));
+    if (code !== 0) {
+      rejectDone(new Error(`Child exited with ${code ?? signal}: ${stderr}`));
+      return;
+    }
+    const lines = stdout.trim().split(/\r?\n/).filter((line) => line && line !== readyLine);
+    try {
+      resolveDone(JSON.parse(lines.at(-1) ?? ""));
+    } catch (error) {
+      rejectDone(new Error(`Child did not emit JSON: ${error instanceof Error ? error.message : String(error)}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    }
+  });
+  return {
+    ready: readyPromise,
+    release: () => {
+      if (released) return;
+      released = true;
+      child.stdin.end("go\n");
+    },
+    done,
+    kill: () => child.kill("SIGKILL"),
+  };
+}
+
+async function collectReleasedChildren(children) {
+  try {
+    await Promise.all(children.map((child) => child.ready));
+    for (const child of children) child.release();
+    return await Promise.all(children.map((child) => child.done));
+  } catch (error) {
+    for (const child of children) child.kill();
+    await Promise.allSettled(children.map((child) => child.done));
+    throw error;
+  }
+}
+
+function readySnippet() {
+  return `
+    const release = new Promise((resolve) => process.stdin.once("data", resolve));
+    console.log(${JSON.stringify(readyLine)});
+    await release;
+  `;
 }
 
 test("WikiBundler selects canonical docs and tag matches when paths stay inside root", async () => {
@@ -28,6 +120,39 @@ test("WikiBundler selects canonical docs and tag matches when paths stay inside 
   assert.match(canonical.text, /Backend truth/);
   assert.doesNotMatch(canonical.text, /Frontend truth/);
   assert.match(tagged.text, /Frontend truth/);
+});
+
+test("WikiBundler upsertDocument preserves all cross-process documents", async () => {
+  // Given: child processes share one wiki index and distinct document refs.
+  const root = await makeRoot("tiny-chu-wiki-cross-process-upsert-");
+  const workerCount = 10;
+  await Promise.all(Array.from({ length: workerCount }, (_, index) => writeFile(
+    path.join(root, ".tiny", "wiki", "domains", `doc-${index}.md`),
+    `Document ${index}`,
+    "utf8",
+  )));
+
+  // When: every child upserts a distinct ref after the same release signal.
+  const children = Array.from({ length: workerCount }, (_, index) => runNodeScript(`
+    const { WikiBundler } = await import(${JSON.stringify(distUrl)});
+    ${readySnippet()}
+    const wiki = new WikiBundler(${JSON.stringify(root)});
+    const index = await wiki.upsertDocument({
+      id: ${JSON.stringify(`doc-${index}`)},
+      path: ${JSON.stringify(`.tiny/wiki/domains/doc-${index}.md`)},
+      canonical: true,
+      tags: ["cross-process", ${JSON.stringify(`doc-${index}`)}],
+      freshness: "manual"
+    });
+    console.log(JSON.stringify({ ids: index.documents.map((doc) => doc.id) }));
+  `));
+  await collectReleasedChildren(children);
+  const expectedIds = Array.from({ length: workerCount }, (_, index) => `doc-${index}`).sort();
+  const index = JSON.parse(await readFile(path.join(root, ".tiny", "wiki", "index.json"), "utf8"));
+
+  // Then: index.json contains every distinct ref, not only the final writer's view.
+  assert.deepEqual(index.documents.map((doc) => doc.id).sort(), expectedIds);
+  assert.deepEqual((await new WikiBundler(root).readIndex()).documents.map((doc) => doc.id).sort(), expectedIds);
 });
 
 test("WikiBundler allows inside-root symlinks whose real path stays inside root", async () => {

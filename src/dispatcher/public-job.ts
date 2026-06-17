@@ -1,7 +1,8 @@
-import { readdir } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
 import path from "node:path";
 import { resolveTinyChuPaths } from "../state/paths.js";
 import { ensureDir, readJsonFile, writeJsonAtomic } from "../state/file-store.js";
+import { tinyStatePublicJobLockName, withTinyStateLock } from "../state/lock-store.js";
 
 export type PublicJobStatus = "queued" | "running" | "checkpointed" | "retry_wait" | "done" | "failed" | "cancelled";
 
@@ -71,12 +72,9 @@ interface RateEvent {
   tokens: number;
 }
 
-let nextJobSequence = 0;
-
-function jobId(now: Date): string {
-  nextJobSequence += 1;
+function jobIdCandidate(now: Date, sequence: number): string {
   const stamp = now.toISOString().replace(/[-:.]/g, "");
-  return `J-${stamp}-${nextJobSequence.toString(36).padStart(4, "0")}`;
+  return `J-${stamp}-${sequence.toString(36).padStart(4, "0")}`;
 }
 
 function assertJobId(id: string): void {
@@ -86,6 +84,23 @@ function assertJobId(id: string): void {
 function jobFile(root: string | undefined, id: string): string {
   assertJobId(id);
   return path.join(resolveTinyChuPaths(root).publicJobsDir, `${id}.json`);
+}
+
+async function fileExists(file: string): Promise<boolean> {
+  try {
+    await access(file);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function nextJobId(root: string | undefined, now: Date): Promise<string> {
+  for (let sequence = 1; ; sequence += 1) {
+    const id = jobIdCandidate(now, sequence);
+    if (!(await fileExists(jobFile(root, id)))) return id;
+  }
 }
 
 function isPublicJob(job: PublicJob | undefined): job is PublicJob {
@@ -125,40 +140,43 @@ export class PublicDispatcher {
     artifactType?: string;
     format?: "markdown_sections" | "json";
   }): Promise<PublicJob> {
-    const now = this.now();
-    const iso = now.toISOString();
-    const mustReturn = input.mustReturn && input.mustReturn.length > 0 ? input.mustReturn : ["findings", "changed_files", "risks", "next_step"];
-    const budget: PublicJobBudget = {
-      inputTokensMax: input.budget?.inputTokensMax ?? 2400,
-      outputTokensMax: input.budget?.outputTokensMax ?? 1200,
-      totalTokensHard: input.budget?.totalTokensHard ?? 4000,
-    };
-    const job: PublicJob = {
-      id: jobId(now),
-      taskId: input.taskId,
-      kind: input.kind ?? "public.analysis",
-      status: "queued",
-      owner: this.owner,
-      attempt: 1,
-      createdAt: iso,
-      updatedAt: iso,
-      budget,
-      context: {
-        rulesRefs: input.rulesRefs ?? [],
-        wikiRefs: input.wikiRefs ?? [],
-        planRef: input.planRef,
-        checkpointSummary: input.checkpointSummary,
-        prompt: input.prompt,
-      },
-      contract: {
-        mustReturn,
-        format: input.format ?? "markdown_sections",
-        artifactType: input.artifactType,
-        ...(input.artifactType ? { formatTemplate: { artifactType: input.artifactType, preparationTool: "artifact_format_template", requiredBefore: "artifact_generation" as const } } : {}),
-      },
-    };
-    await writeJsonAtomic(jobFile(this.root, job.id), job);
-    return job;
+    return withTinyStateLock(this.root, "public-jobs-create.lock", async (lock) => {
+      const now = this.now();
+      const iso = now.toISOString();
+      const mustReturn = input.mustReturn && input.mustReturn.length > 0 ? input.mustReturn : ["findings", "changed_files", "risks", "next_step"];
+      const budget: PublicJobBudget = {
+        inputTokensMax: input.budget?.inputTokensMax ?? 2400,
+        outputTokensMax: input.budget?.outputTokensMax ?? 1200,
+        totalTokensHard: input.budget?.totalTokensHard ?? 4000,
+      };
+      const job: PublicJob = {
+        id: await nextJobId(this.root, now),
+        taskId: input.taskId,
+        kind: input.kind ?? "public.analysis",
+        status: "queued",
+        owner: this.owner,
+        attempt: 1,
+        createdAt: iso,
+        updatedAt: iso,
+        budget,
+        context: {
+          rulesRefs: input.rulesRefs ?? [],
+          wikiRefs: input.wikiRefs ?? [],
+          planRef: input.planRef,
+          checkpointSummary: input.checkpointSummary,
+          prompt: input.prompt,
+        },
+        contract: {
+          mustReturn,
+          format: input.format ?? "markdown_sections",
+          artifactType: input.artifactType,
+          ...(input.artifactType ? { formatTemplate: { artifactType: input.artifactType, preparationTool: "artifact_format_template", requiredBefore: "artifact_generation" as const } } : {}),
+        },
+      };
+      await lock.assertActive();
+      await writeJsonAtomic(jobFile(this.root, job.id), job);
+      return job;
+    });
   }
 
   async get(id: string): Promise<PublicJob | undefined> {
@@ -176,31 +194,29 @@ export class PublicDispatcher {
   }
 
   async checkpoint(id: string, summary: string, partialResult?: string): Promise<PublicJob> {
-    const job = await this.require(id);
-    return this.save({
+    return this.mutate(id, (job) => ({
       ...job,
       status: "checkpointed",
       updatedAt: this.now().toISOString(),
       context: { ...job.context, checkpointSummary: summary },
       result: partialResult ?? job.result,
-    });
+    }));
   }
 
   async retry(id: string, reason = "retry requested"): Promise<PublicJob> {
-    const job = await this.require(id);
-    const delaySeconds = Math.min(90, [15, 30, 60][Math.max(0, Math.min(job.attempt - 1, 2))] ?? 90);
-    const retryAt = new Date(this.now().getTime() + delaySeconds * 1000).toISOString();
-    return this.save({ ...job, status: "retry_wait", attempt: job.attempt + 1, retryAt, updatedAt: this.now().toISOString(), error: reason });
+    return this.mutate(id, (job) => {
+      const delaySeconds = Math.min(90, [15, 30, 60][Math.max(0, Math.min(job.attempt - 1, 2))] ?? 90);
+      const retryAt = new Date(this.now().getTime() + delaySeconds * 1000).toISOString();
+      return { ...job, status: "retry_wait", attempt: job.attempt + 1, retryAt, updatedAt: this.now().toISOString(), error: reason };
+    });
   }
 
   async complete(id: string, result: string): Promise<PublicJob> {
-    const job = await this.require(id);
-    return this.save({ ...job, status: "done", result, updatedAt: this.now().toISOString(), error: undefined });
+    return this.mutate(id, (job) => ({ ...job, status: "done", result, updatedAt: this.now().toISOString(), error: undefined }));
   }
 
   async cancel(id: string, reason = "cancelled"): Promise<PublicJob> {
-    const job = await this.require(id);
-    return this.save({ ...job, status: "cancelled", error: reason, updatedAt: this.now().toISOString() });
+    return this.mutate(id, (job) => ({ ...job, status: "cancelled", error: reason, updatedAt: this.now().toISOString() }));
   }
 
   checkRateGate(tokens: number): RateGateSnapshot {
@@ -239,5 +255,14 @@ export class PublicDispatcher {
   private async save(job: PublicJob): Promise<PublicJob> {
     await writeJsonAtomic(jobFile(this.root, job.id), job);
     return job;
+  }
+
+  private async mutate(id: string, update: (job: PublicJob) => PublicJob): Promise<PublicJob> {
+    assertJobId(id);
+    return withTinyStateLock(this.root, tinyStatePublicJobLockName(id), async (lock) => {
+      const updated = update(await this.require(id));
+      await lock.assertActive();
+      return this.save(updated);
+    });
   }
 }

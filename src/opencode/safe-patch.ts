@@ -35,6 +35,23 @@ export interface SafePatchApplyResult {
   readonly lock?: { readonly path: string };
 }
 
+class SafeToolingLockCompromised extends Error {
+  readonly diagnostic: SafeToolingDiagnostic;
+
+  constructor(error: unknown) {
+    super(error instanceof Error ? error.message : "Safe tooling lock was compromised.");
+    this.diagnostic = { code: "lock_compromised", message: this.message };
+  }
+}
+
+async function assertSafeToolingLockActive(lock: { readonly assertActive: () => Promise<void> }): Promise<void> {
+  try {
+    await lock.assertActive();
+  } catch (error) {
+    throw new SafeToolingLockCompromised(error);
+  }
+}
+
 function stripPatchPath(raw: string): string | undefined {
   if (raw === "/dev/null") return undefined;
   const pathOnly = raw.split(/\s+/)[0] ?? "";
@@ -145,10 +162,12 @@ export async function createSafePatchApply(root: string, input: SafePatchInput):
   const sandbox = await createPatchSandbox(root, check.touchedFiles.map((file) => file.path));
   const backups = new Map<string, Buffer | undefined>();
   try {
+    await assertSafeToolingLockActive(lock);
     const apply = await runNativeCommand("git", ["apply"], { cwd: sandbox, input: input.patch, timeoutMs: SAFE_TOOLING_LIMITS.gitApplyCheckTimeoutMs });
     if (apply.status !== "ok" || apply.exitCode !== 0) return { applied: false, touchedFiles: check.touchedFiles.map((file) => ({ ...file, after: file.before })), diagnostics: [{ code: "git_apply_failed", message: "git apply failed in sandbox." }], lock: { path: lock.path } };
     const patched = await readPatchedBytes(sandbox, check.touchedFiles.map((file) => file.path));
     for (const file of check.touchedFiles) {
+      await assertSafeToolingLockActive(lock);
       const current = await hashSourceTarget(root, file.path);
       if (file.expected !== current.hash) return { applied: false, touchedFiles: check.touchedFiles.map((item) => ({ ...item, after: item.before })), diagnostics: [{ code: "stale_hash", message: "Target changed before apply.", path: file.path }], lock: { path: lock.path } };
       const resolved = resolvePathInsideRoot(root, file.path);
@@ -158,6 +177,7 @@ export async function createSafePatchApply(root: string, input: SafePatchInput):
     const written: string[] = [];
     try {
       for (const file of check.touchedFiles) {
+        await assertSafeToolingLockActive(lock);
         const resolved = resolvePathInsideRoot(root, file.path);
         const bytes = patched.get(file.path);
         if (!resolved) throw new Error(`Unsafe target: ${file.path}`);
@@ -165,19 +185,27 @@ export async function createSafePatchApply(root: string, input: SafePatchInput):
         else await writeBytesAtomic(resolved, bytes);
         written.push(file.path);
       }
+      await assertSafeToolingLockActive(lock);
     } catch (error) {
-      for (const target of written.reverse()) {
-        const bytes = backups.get(target);
-        const resolved = resolvePathInsideRoot(root, target);
-        if (!resolved) continue;
-        if (bytes === undefined) await removePathIfExists(resolved);
-        else await writeBytesAtomic(resolved, bytes);
+      const lockDiagnostic = error instanceof SafeToolingLockCompromised ? error.diagnostic : undefined;
+      if (!lockDiagnostic) {
+        for (const target of written.reverse()) {
+          const bytes = backups.get(target);
+          const resolved = resolvePathInsideRoot(root, target);
+          if (!resolved) continue;
+          if (bytes === undefined) await removePathIfExists(resolved);
+          else await writeBytesAtomic(resolved, bytes);
+        }
       }
       const touchedFiles = await Promise.all(check.touchedFiles.map(async (file) => ({ ...file, after: await hashSourceTarget(root, file.path) })));
-      return { applied: false, touchedFiles, diagnostics: [{ code: "apply_write_failed", message: error instanceof Error ? error.message : "Safe patch apply write failed." }], lock: { path: lock.path } };
+      return { applied: false, touchedFiles, diagnostics: [lockDiagnostic ?? { code: "apply_write_failed", message: error instanceof Error ? error.message : "Safe patch apply write failed." }], lock: { path: lock.path } };
     }
     const touchedFiles = await Promise.all(check.touchedFiles.map(async (file) => ({ ...file, after: await hashSourceTarget(root, file.path) })));
+    await assertSafeToolingLockActive(lock);
     return { applied: true, touchedFiles, diagnostics: [], lock: { path: lock.path } };
+  } catch (error) {
+    if (error instanceof SafeToolingLockCompromised) return { applied: false, touchedFiles: check.touchedFiles.map((file) => ({ ...file, after: file.before })), diagnostics: [error.diagnostic], lock: { path: lock.path } };
+    throw error;
   } finally {
     await rm(sandbox, { recursive: true, force: true });
     await lock.release();

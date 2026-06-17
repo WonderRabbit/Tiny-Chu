@@ -8,7 +8,6 @@
 - 안전한 소스 변경 흐름은 `safeTooling`과 `nativePreviews` opt-in으로 제한된다.
 - 현재 안전 도구 표면은 `safe_patch_check`, `safe_patch_apply`, `artifact_workspace_prepare`, `artifact_workspace_commit`, `artifact_publish_manifest`, `artifact_publish_apply`, `powershell_toolchain_probe`, `run_diagnostics`, `structural_search_ast`, `structural_rewrite_preview`, `json_yaml_transform_preview`, `json_patch_preview` 중심이다.
 - `provider_endpoint_preflight`는 metadata readiness probe일 뿐 provider chat이나 generation prompt를 보내지 않는다.
-- 여러 process가 같은 `.tiny` state를 동시에 쓰는 경우의 cross-process file locking은 호출자 쪽 직렬화가 필요하다.
 
 ## 미구현 범위
 
@@ -120,15 +119,6 @@
 - 아직 구현하지 않는 범위: OpenAI/Anthropic/Ollama chat, generate, completion prompt 호출을 Tiny-Chu tool로 넣지 않았다.
 - 향후 검토 조건: explicit network consent, token redaction, cost controls, retry semantics, transcript evidence policy가 생기면 검토한다.
 
-### concurrency/state hardening
-
-#### `cross-process file locking`
-
-- 현재 상태: 하나의 Node.js process 안에서 task id, public job id, checkpoint sequence 충돌을 피한다.
-- 근거: README 안정성 계약은 여러 process 동시 write를 호출자 외부 직렬화 책임으로 둔다.
-- 아직 구현하지 않는 범위: OS file lock, stale lock recovery, multi-process write serialization을 넣지 않았다.
-- 향후 검토 조건: lock lifetime, crash recovery, Windows/macOS/Linux 파일 시스템 차이, partial write 복구를 검증하면 검토한다.
-
 ### small-model optimization follow-ups
 
 #### `compact tool index`
@@ -174,4 +164,3 @@
 - 보류 항목을 제품 기능으로 승격할 때는 `src/opencode/feature-packages/` descriptor, focused tests, registry parity test, README/HOW_TO_USE/INSTALL 관련 문서를 함께 갱신한다.
 - native executable 기반 기능은 PowerShell quoting, missing binary degraded behavior, deterministic output, source mutation gate를 먼저 정의해야 한다.
 - provider나 MCP/Figma 같은 외부 연동은 token handling, network mode, failure isolation, no-live-provider 검증 경로를 명확히 한 뒤에만 검토한다.
-- cross-process state mutation은 lock lifetime, stale lock recovery, partial write 복구, Windows/macOS/Linux 파일 시스템 차이를 검증할 때까지 보류한다.

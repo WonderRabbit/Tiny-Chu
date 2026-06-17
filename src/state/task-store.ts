@@ -1,7 +1,8 @@
-import { readdir } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
 import path from "node:path";
 import { resolveTinyChuPaths } from "./paths.js";
 import { appendJsonLine, ensureDir, readJsonFile, readJsonLines, writeJsonAtomic } from "./file-store.js";
+import { tinyStateTaskLockName, withTinyStateLock } from "./lock-store.js";
 
 export type TaskStatus = "todo" | "in_progress" | "blocked" | "done" | "cancelled";
 
@@ -36,15 +37,11 @@ export interface TaskStoreOptions {
   now?: () => Date;
 }
 
-const taskIdSequences = new Map<string, number>();
 const checkpointLocks = new Map<string, Promise<void>>();
 
-function taskId(root: string | undefined, now: Date): string {
+function taskIdCandidate(now: Date, sequence: number): string {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
   const base = `T-${stamp}`;
-  const sequenceKey = `${resolveTinyChuPaths(root).tasksDir}\0${base}`;
-  const sequence = taskIdSequences.get(sequenceKey) ?? 0;
-  taskIdSequences.set(sequenceKey, sequence + 1);
   return sequence === 0 ? base : `${base}-${sequence.toString(36).padStart(4, "0")}`;
 }
 
@@ -60,6 +57,23 @@ function taskFile(root: string | undefined, id: string): string {
 function checkpointFile(root: string | undefined, id: string): string {
   assertTaskId(id);
   return path.join(resolveTinyChuPaths(root).tasksDir, `${id}.checkpoints.jsonl`);
+}
+
+async function fileExists(file: string): Promise<boolean> {
+  try {
+    await access(file);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function nextTaskId(root: string | undefined, now: Date): Promise<string> {
+  for (let sequence = 0; ; sequence += 1) {
+    const id = taskIdCandidate(now, sequence);
+    if (!(await fileExists(taskFile(root, id)))) return id;
+  }
 }
 
 function isTinyTask(task: TinyTask | undefined): task is TinyTask {
@@ -138,23 +152,26 @@ export class TaskStore {
   }
 
   async create(input: { title: string; priority?: TinyTask["priority"]; notes?: string[]; planRef?: string }): Promise<TinyTask> {
-    const now = this.now();
-    const iso = now.toISOString();
-    const task: TinyTask = {
-      id: taskId(this.root, now),
-      title: input.title,
-      status: "todo",
-      priority: input.priority ?? "normal",
-      notes: input.notes ?? [],
-      createdAt: iso,
-      updatedAt: iso,
-      planRef: input.planRef,
-      evidenceRefs: [],
-      publicJobIds: [],
-      checkpoints: [],
-    };
-    await writeJsonAtomic(taskFile(this.root, task.id), task);
-    return task;
+    return withTinyStateLock(this.root, "tasks-create.lock", async (lock) => {
+      const now = this.now();
+      const iso = now.toISOString();
+      const task: TinyTask = {
+        id: await nextTaskId(this.root, now),
+        title: input.title,
+        status: "todo",
+        priority: input.priority ?? "normal",
+        notes: input.notes ?? [],
+        createdAt: iso,
+        updatedAt: iso,
+        planRef: input.planRef,
+        evidenceRefs: [],
+        publicJobIds: [],
+        checkpoints: [],
+      };
+      await lock.assertActive();
+      await writeJsonAtomic(taskFile(this.root, task.id), task);
+      return task;
+    });
   }
 
   async get(id: string): Promise<TinyTask | undefined> {
@@ -174,52 +191,65 @@ export class TaskStore {
   }
 
   async update(id: string, patch: Partial<Omit<TinyTask, "id" | "createdAt">>): Promise<TinyTask> {
-    const current = await this.get(id);
-    if (!current) throw new Error(`Task not found: ${id}`);
-    const updated: TinyTask = {
-      ...current,
-      ...patch,
-      id: current.id,
-      createdAt: current.createdAt,
-      updatedAt: this.now().toISOString(),
-    };
-    await writeJsonAtomic(taskFile(this.root, id), updated);
-    return updated;
+    assertTaskId(id);
+    return withTinyStateLock(this.root, tinyStateTaskLockName(id), async (lock) => {
+      const current = await this.get(id);
+      if (!current) throw new Error(`Task not found: ${id}`);
+      const updated: TinyTask = {
+        ...current,
+        ...patch,
+        id: current.id,
+        createdAt: current.createdAt,
+        updatedAt: this.now().toISOString(),
+      };
+      await lock.assertActive();
+      await writeJsonAtomic(taskFile(this.root, id), updated);
+      return updated;
+    });
   }
 
   async checkpoint(id: string, input: { summary: string; artifactType?: string; passIndex?: number; nextSteps?: string[]; evidenceRefs?: string[]; openQuestions?: string[]; verificationCommands?: string[] }): Promise<TaskCheckpoint> {
     assertTaskId(id);
     return withCheckpointLock(id, async () => {
-      const current = await this.get(id);
-      if (!current) throw new Error(`Task not found: ${id}`);
-      const raw = await readJsonFile<TinyTask | undefined>(taskFile(this.root, id), undefined);
-      const inlineCheckpoints = raw ? normalizeTask(raw).checkpoints : [];
-      const checkpoint: TaskCheckpoint = {
-        sequence: nextCheckpointSequence(current.checkpoints),
-        summary: input.summary,
-        artifactType: input.artifactType,
-        passIndex: input.passIndex,
-        nextSteps: input.nextSteps ?? [],
-        evidenceRefs: input.evidenceRefs ?? [],
-        openQuestions: input.openQuestions ?? [],
-        verificationCommands: input.verificationCommands ?? [],
-        createdAt: this.now().toISOString(),
-      };
-      await appendJsonLine(checkpointFile(this.root, id), checkpoint);
-      const updated: TinyTask = {
-        ...current,
-        checkpoints: inlineCheckpoints,
-        evidenceRefs: [...new Set([...current.evidenceRefs, ...checkpoint.evidenceRefs])].sort(),
-        updatedAt: checkpoint.createdAt,
-      };
-      await writeJsonAtomic(taskFile(this.root, id), updated, { compact: true });
-      return checkpoint;
+      return withTinyStateLock(this.root, tinyStateTaskLockName(id), async (lock) => {
+        const current = await this.get(id);
+        if (!current) throw new Error(`Task not found: ${id}`);
+        const raw = await readJsonFile<TinyTask | undefined>(taskFile(this.root, id), undefined);
+        const inlineCheckpoints = raw ? normalizeTask(raw).checkpoints : [];
+        const checkpoint: TaskCheckpoint = {
+          sequence: nextCheckpointSequence(current.checkpoints),
+          summary: input.summary,
+          artifactType: input.artifactType,
+          passIndex: input.passIndex,
+          nextSteps: input.nextSteps ?? [],
+          evidenceRefs: input.evidenceRefs ?? [],
+          openQuestions: input.openQuestions ?? [],
+          verificationCommands: input.verificationCommands ?? [],
+          createdAt: this.now().toISOString(),
+        };
+        await lock.assertActive();
+        await appendJsonLine(checkpointFile(this.root, id), checkpoint);
+        const updated: TinyTask = {
+          ...current,
+          checkpoints: inlineCheckpoints,
+          evidenceRefs: [...new Set([...current.evidenceRefs, ...checkpoint.evidenceRefs])].sort(),
+          updatedAt: checkpoint.createdAt,
+        };
+        await lock.assertActive();
+        await writeJsonAtomic(taskFile(this.root, id), updated, { compact: true });
+        return checkpoint;
+      });
     });
   }
 
   private async withSidecarCheckpoints(task: TinyTask): Promise<TinyTask> {
     const normalized = normalizeTask(task);
     const sidecar = await readJsonLines<TaskCheckpoint>(checkpointFile(this.root, normalized.id), []);
-    return { ...normalized, checkpoints: mergeCheckpoints(normalized.checkpoints, sidecar) };
+    const checkpoints = mergeCheckpoints(normalized.checkpoints, sidecar);
+    const evidenceRefs = new Set(normalized.evidenceRefs);
+    for (const checkpoint of checkpoints) {
+      for (const ref of checkpoint.evidenceRefs) evidenceRefs.add(ref);
+    }
+    return { ...normalized, checkpoints, evidenceRefs: [...evidenceRefs].sort() };
   }
 }

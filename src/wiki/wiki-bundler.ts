@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolveTinyChuPaths } from "../state/paths.js";
 import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
 import { readJsonFile, writeJsonAtomic } from "../state/file-store.js";
+import { withTinyStateLock } from "../state/lock-store.js";
 import { renderWikiContext } from "./wiki-context.js";
 import { searchWiki } from "./wiki-search.js";
 import { resolveWikiIndexReadPath, resolveWikiIndexWritePath } from "./wiki-storage.js";
@@ -23,17 +24,23 @@ export class WikiBundler {
   }
 
   async writeIndex(index: WikiIndex): Promise<void> {
-    await writeJsonAtomic(await resolveWikiIndexWritePath(this.root), index);
+    await withTinyStateLock(this.root, "wiki-index.lock", async (lock) => {
+      await lock.assertActive();
+      await this.writeIndexUnlocked(index);
+    });
   }
 
   async upsertDocument(ref: WikiDocumentRef): Promise<WikiIndex> {
-    const index = await this.readIndex();
-    const next = index.documents.filter((doc) => doc.id !== ref.id);
-    next.push(ref);
-    next.sort((a, b) => a.id.localeCompare(b.id));
-    const updated = { documents: next };
-    await this.writeIndex(updated);
-    return updated;
+    return withTinyStateLock(this.root, "wiki-index.lock", async (lock) => {
+      const index = await this.readIndex();
+      const next = index.documents.filter((doc) => doc.id !== ref.id);
+      next.push(ref);
+      next.sort((a, b) => a.id.localeCompare(b.id));
+      const updated = { documents: next };
+      await lock.assertActive();
+      await this.writeIndexUnlocked(updated);
+      return updated;
+    });
   }
 
   async search(input: WikiSearchInput = {}): Promise<WikiSearchResult> {
@@ -57,5 +64,9 @@ export class WikiBundler {
       return `---\nwiki: ${doc.id}\npath: ${doc.path}\ntags: ${doc.tags.join(",")}\n---\n${content.trim()}\n`;
     }));
     return { refs: selected, text: chunks.join("\n") };
+  }
+
+  private async writeIndexUnlocked(index: WikiIndex): Promise<void> {
+    await writeJsonAtomic(await resolveWikiIndexWritePath(this.root), index);
   }
 }

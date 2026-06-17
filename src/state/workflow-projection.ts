@@ -1,5 +1,6 @@
 import path from "node:path";
 import { writeTextAtomic } from "./file-store.js";
+import { tinyStatePlanLockName, withTinyStateLock } from "./lock-store.js";
 import { resolveTinyChuPaths } from "./paths.js";
 import type { WorkflowCheckpoint, WorkflowRun } from "./workflow-types.js";
 
@@ -121,7 +122,11 @@ export function workflowStageReportRef(runId: string, checkpoint: Pick<WorkflowC
 }
 
 export async function writeWorkflowPlanProjection(root: string | undefined, run: WorkflowRun): Promise<void> {
-  await writeTextAtomic(absoluteRef(root, workflowPlanProjectionRef(run.runId)), renderWorkflowPlanProjection({ ...run, planRef: workflowPlanProjectionRef(run.runId) }));
+  const projectionRef = workflowPlanProjectionRef(run.runId);
+  await withTinyStateLock(root, tinyStatePlanLockName(projectionRef), async (lock) => {
+    await lock.assertActive();
+    await writeTextAtomic(absoluteRef(root, projectionRef), renderWorkflowPlanProjection({ ...run, planRef: projectionRef }));
+  });
 }
 
 export async function writeWorkflowStageReport(root: string | undefined, run: WorkflowRun, checkpoint: WorkflowCheckpoint): Promise<void> {

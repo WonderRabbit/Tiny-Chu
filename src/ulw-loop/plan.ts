@@ -1,7 +1,8 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveTinyChuPaths } from "../state/paths.js";
-import { ensureDir } from "../state/file-store.js";
+import { ensureDir, writeTextAtomic } from "../state/file-store.js";
+import { tinyStatePlanLockName, withTinyStateLock } from "../state/lock-store.js";
 
 export interface PlanCheckbox {
   section: string;
@@ -91,6 +92,10 @@ export async function writePlanTemplate(root: string | undefined, fileName: stri
     "- [ ] F3. final summary includes evidence",
     "",
   ].join("\n");
-  await writeFile(planPath, markdown, "utf8");
-  return path.relative(paths.root, planPath);
+  const planRef = path.relative(paths.root, planPath);
+  await withTinyStateLock(root, tinyStatePlanLockName(planRef), async (lock) => {
+    await lock.assertActive();
+    await writeTextAtomic(planPath, markdown);
+  });
+  return planRef;
 }
