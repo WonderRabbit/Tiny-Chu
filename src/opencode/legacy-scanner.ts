@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
+import { portableRelative, resolveExistingPathInsideRoot } from "../state/path-safety.js";
 import type { LegacyConfidence, LegacyEvidenceFact } from "./legacy-types.js";
 
 const EXCLUDED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".tiny", ".omo", ".analysis"]);
@@ -62,7 +62,7 @@ async function collectFiles(root: string, dir: string, limit: number, acc: strin
       continue;
     }
     if (entry.isFile() && INCLUDED_EXTENSIONS.has(path.extname(entry.name))) {
-      acc.push(path.relative(root, absolute).replace(/\\/g, "/"));
+      acc.push(portableRelative(root, absolute));
     }
   }
 }
@@ -75,7 +75,7 @@ export async function readLegacySourceFiles(root: string, input: Record<string, 
   const isFileTarget = path.extname(target) !== "";
   const start = isFileTarget ? path.dirname(target) : target;
   const files = isFileTarget && INCLUDED_EXTENSIONS.has(path.extname(target))
-    ? [path.relative(base, target).replace(/\\/g, "/")]
+    ? [portableRelative(base, target)]
     : [];
   if (!isFileTarget) await collectFiles(base, start, positiveInteger(input.maxFiles, 160), files);
   const sources: LegacySourceFile[] = [];

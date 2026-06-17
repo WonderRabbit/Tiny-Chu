@@ -1,6 +1,6 @@
 import { access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
-import { isLexicallyInsideRoot, resolveExistingPathInsideRoot } from "../state/path-safety.js";
+import { isLexicallyInsideRoot, portableRelative, resolveExistingPathInsideRoot } from "../state/path-safety.js";
 
 export interface ContextDocument {
   kind: "agents" | "rule";
@@ -93,7 +93,7 @@ async function collectAgentsFiles(root: string, targetPath: string): Promise<Con
     const file = path.join(cursor, "AGENTS.md");
     const content = await readDiscoveredFile(absoluteRoot, file);
     if (content !== undefined) {
-      docs.push({ kind: "agents", path: path.relative(absoluteRoot, file), content, precedence: distance });
+      docs.push({ kind: "agents", path: portableRelative(absoluteRoot, file), content, precedence: distance });
     }
     if (cursor === absoluteRoot) break;
     cursor = path.dirname(cursor);
@@ -117,7 +117,7 @@ async function collectRuleFiles(root: string): Promise<ContextDocument[]> {
       const file = path.join(dir, entry);
       const content = await readDiscoveredFile(absoluteRoot, file);
       if (content !== undefined) {
-        docs.push({ kind: "rule", path: path.relative(absoluteRoot, file), content, precedence });
+        docs.push({ kind: "rule", path: portableRelative(absoluteRoot, file), content, precedence });
         precedence += 1;
       }
     }

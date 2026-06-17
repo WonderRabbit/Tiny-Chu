@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
+import { portableRelative, resolveExistingPathInsideRoot } from "../state/path-safety.js";
 import type { TaskCheckpoint, TinyTask } from "../state/task-store.js";
 
 export interface ContextSnippet {
@@ -51,7 +50,7 @@ export async function createContextDigest(root: string, input: Record<string, un
   const absolute = await resolveExistingPathInsideRoot(root, targetPath);
   if (!absolute) throw new Error(`Context digest path is outside configured root: ${targetPath}`);
   const resolvedTarget = await resolveExistingPathInsideRoot(root, ".");
-  const relative = path.relative(resolvedTarget ?? root, absolute);
+  const relative = portableRelative(resolvedTarget ?? root, absolute);
   const lines = (await readFile(absolute, "utf8")).split(/\r?\n/);
   const snippets: ContextSnippet[] = [];
   for (const [index, line] of lines.entries()) {

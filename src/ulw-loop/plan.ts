@@ -3,6 +3,7 @@ import path from "node:path";
 import { resolveTinyChuPaths } from "../state/paths.js";
 import { ensureDir, writeTextAtomic } from "../state/file-store.js";
 import { tinyStatePlanLockName, withTinyStateLock } from "../state/lock-store.js";
+import { portableRelative } from "../state/path-safety.js";
 
 export interface PlanCheckbox {
   section: string;
@@ -92,7 +93,7 @@ export async function writePlanTemplate(root: string | undefined, fileName: stri
     "- [ ] F3. final summary includes evidence",
     "",
   ].join("\n");
-  const planRef = path.relative(paths.root, planPath);
+  const planRef = portableRelative(paths.root, planPath);
   await withTinyStateLock(root, tinyStatePlanLockName(planRef), async (lock) => {
     await lock.assertActive();
     await writeTextAtomic(planPath, markdown);

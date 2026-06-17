@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
+import { portableRelative, resolveExistingPathInsideRoot } from "../state/path-safety.js";
 
 export interface BusinessComparison {
   readonly left: string;
@@ -54,7 +54,7 @@ async function collectFiles(root: string, dir: string, limit: number, acc: strin
       continue;
     }
     if (entry.isFile() && INCLUDED_EXTENSIONS.has(path.extname(entry.name))) {
-      acc.push(path.relative(root, absolute));
+      acc.push(portableRelative(root, absolute));
     }
   }
 }
@@ -111,7 +111,7 @@ export async function createBusinessLogicMap(root: string, input: Record<string,
   const start = isFileTarget ? path.dirname(scanRoot) : scanRoot;
   const maxFiles = positiveInteger(input.maxFiles, 80);
   const maxItems = positiveInteger(input.maxItemsPerFile, 12);
-  const relativeFiles: string[] = isFileTarget && INCLUDED_EXTENSIONS.has(path.extname(scanRoot)) ? [path.relative(configuredRoot, scanRoot)] : [];
+  const relativeFiles: string[] = isFileTarget && INCLUDED_EXTENSIONS.has(path.extname(scanRoot)) ? [portableRelative(configuredRoot, scanRoot)] : [];
   if (!isFileTarget) await collectFiles(configuredRoot, start, maxFiles, relativeFiles);
   const files: BusinessLogicFile[] = [];
   for (const relative of relativeFiles) {
@@ -121,7 +121,7 @@ export async function createBusinessLogicMap(root: string, input: Record<string,
     if (file.variables.length > 0 || file.columns.length > 0 || file.comparisons.length > 0) files.push(file);
   }
   return {
-    root: path.relative(configuredRoot, start) || ".",
+    root: portableRelative(configuredRoot, start) || ".",
     scannedFiles: relativeFiles.length,
     files,
     recommendedCommands: [

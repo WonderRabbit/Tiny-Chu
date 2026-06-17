@@ -11,6 +11,14 @@ function isSafeRelative(relative: string): boolean {
   return relative === "" || !(relative === ".." || relative.startsWith("../") || relative.startsWith("..\\") || WINDOWS_ABSOLUTE.test(relative));
 }
 
+export function toPortablePath(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+export function portableRelative(from: string, to: string): string {
+  return toPortablePath(path.relative(from, to));
+}
+
 export function resolvePathInsideRoot(root: string, candidate: string): string | undefined {
   if (isWindowsAbsolute(root) || isWindowsAbsolute(candidate)) {
     const absoluteRoot = path.win32.resolve(root);

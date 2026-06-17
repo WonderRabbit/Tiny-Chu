@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
+import { portableRelative, resolveExistingPathInsideRoot } from "../state/path-safety.js";
 import { bounded, positiveInteger, scanFacts, textInput, type EvidenceStatus, type ScanFact } from "./extension-scan.js";
 
 export interface FlowItem {
@@ -119,7 +119,7 @@ async function collectTestFiles(root: string, dir: string, acc: string[]): Promi
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     const absolute = path.join(dir, entry.name);
     if (entry.isDirectory() && !["node_modules", ".git", "dist"].includes(entry.name)) await collectTestFiles(root, absolute, acc);
-    if (entry.isFile() && /\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)) acc.push(path.relative(root, absolute).replace(/\\/g, "/"));
+    if (entry.isFile() && /\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)) acc.push(portableRelative(root, absolute));
   }
 }
 
