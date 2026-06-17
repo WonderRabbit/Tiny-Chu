@@ -68,7 +68,19 @@ async function listFiles(root) {
 }
 
 async function copyReleaseInputs(stagingDir) {
-  const requiredPaths = ["dist", "README.md", "HOW_TO_USE.md", "INSTALL.md", "LICENSE", "templates", "package-lock.json"];
+  const requiredPaths = [
+    "dist",
+    "README.md",
+    "HOW_TO_USE.md",
+    "INSTALL.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "templates",
+    "package-lock.json",
+  ];
   for (const relativePath of requiredPaths) await assertExists(path.join(repoRoot, relativePath), relativePath);
 
   for (const relativePath of requiredPaths) {
@@ -158,7 +170,9 @@ async function main() {
     if (typeof generatedTarballName !== "string") throw new Error("npm pack did not return a tarball filename");
     await rename(path.join(bundleDir, "vendor", generatedTarballName), path.join(bundleDir, "vendor", tarballName));
 
-    await cp(path.join(repoRoot, "LICENSE"), path.join(bundleDir, "LICENSE"));
+    for (const releaseDoc of ["LICENSE", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md", "CHANGELOG.md"]) {
+      await cp(path.join(repoRoot, releaseDoc), path.join(bundleDir, releaseDoc));
+    }
     await cp(path.join(repoRoot, "templates"), path.join(bundleDir, "templates"), { recursive: true });
     await writeBundleTemplate(bundleDir, version, tarballName);
     await writeInstallers(bundleDir, tarballName);

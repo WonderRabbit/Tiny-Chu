@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible Tiny-Chu defect. Security vulnerabilities must be reported through SECURITY.md, not a public issue.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a security vulnerability, stop here and follow SECURITY.md instead of opening a public issue.
+  - type: input
+    id: version-source
+    attributes:
+      label: Version and source
+      description: Tiny-Chu version and where it came from, such as npm package, source checkout, or offline bundle.
+      placeholder: "0.1.0 from source checkout"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js version, package manager, shell, and OpenCode or agent runtime details.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal commands, files, or steps that reproduce the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What should have happened.
+    validations:
+      required: true
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: What actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Paste relevant logs, stack traces, command output, or JSON snippets. Redact secrets.
+      render: shell
+  - type: textarea
+    id: regression-notes
+    attributes:
+      label: Regression notes
+      description: Did this work in an earlier version, commit, or installation source? Include the last known good version if known.

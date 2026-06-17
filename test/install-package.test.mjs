@@ -53,6 +53,10 @@ test("package metadata exposes offline install assets and commands", async () =>
   assert.ok(packageJson.files.includes("LICENSE"));
   assert.ok(packageJson.files.includes("INSTALL.md"));
   assert.ok(packageJson.files.includes("HOW_TO_USE.md"));
+  assert.ok(packageJson.files.includes("CONTRIBUTING.md"));
+  assert.ok(packageJson.files.includes("CODE_OF_CONDUCT.md"));
+  assert.ok(packageJson.files.includes("SECURITY.md"));
+  assert.ok(packageJson.files.includes("CHANGELOG.md"));
   assert.ok(packageJson.files.includes("templates"));
   assert.equal(templatePackage.dependencies["tiny-chu"], "file:./vendor/tiny-chu-vX.Y.Z-bundled.tgz");
 });
@@ -71,6 +75,10 @@ test("normal package tarball includes install docs and templates without bundled
     assert.ok(files.has("README.md"));
     assert.ok(files.has("HOW_TO_USE.md"));
     assert.ok(files.has("INSTALL.md"));
+    assert.ok(files.has("CONTRIBUTING.md"));
+    assert.ok(files.has("CODE_OF_CONDUCT.md"));
+    assert.ok(files.has("SECURITY.md"));
+    assert.ok(files.has("CHANGELOG.md"));
     assert.ok(files.has("templates/opencode/package.json"));
     assert.ok(files.has("templates/opencode/tui.json"));
     assert.ok(files.has("templates/opencode/plugins/tiny-chu.ts"));
@@ -140,7 +148,13 @@ test("offline release bundle exposes Apache-2.0 license artifacts", async () => 
     assert.ok(bundleDirName);
     const bundleDir = path.join(extractDir, bundleDirName);
     const manifest = JSON.parse(await readFile(path.join(bundleDir, "manifest.json"), "utf8"));
-    const license = await readFile(path.join(bundleDir, "LICENSE"), "utf8");
+    const releaseDocs = await Promise.all(
+      ["LICENSE", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md", "CHANGELOG.md"].map(async (file) => [
+        file,
+        await readFile(path.join(bundleDir, file), "utf8"),
+      ]),
+    );
+    const releaseDocText = new Map(releaseDocs);
     const offlineReadme = await readFile(path.join(bundleDir, "README-offline.md"), "utf8");
     const closureDependencies = manifest.dependencyClosure.dependencies ?? {};
 
@@ -148,7 +162,11 @@ test("offline release bundle exposes Apache-2.0 license artifacts", async () => 
     assert.equal(manifest.licenseFile, "LICENSE");
     assert.ok(Object.hasOwn(closureDependencies, "@opencode-ai/plugin"));
     assert.ok(Object.hasOwn(closureDependencies, "@opentui/solid"));
-    assert.match(license, /Apache License/);
+    assert.match(releaseDocText.get("LICENSE"), /Apache License/);
+    assert.match(releaseDocText.get("CONTRIBUTING.md"), /npm run build/);
+    assert.match(releaseDocText.get("CODE_OF_CONDUCT.md"), /Contributor Covenant/);
+    assert.match(releaseDocText.get("SECURITY.md"), /7 days/);
+    assert.match(releaseDocText.get("CHANGELOG.md"), /## \[0\.1\.0\]/);
     assert.match(offlineReadme, /Apache-2\.0/);
     assert.match(offlineReadme, /LICENSE/);
     assert.match(offlineReadme, /--no-audit/);

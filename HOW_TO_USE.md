@@ -48,6 +48,8 @@ export { default } from "../../src/opencode/tui-plugin.ts";
 
 운영 환경이나 다른 프로젝트에 설치할 때는 전체 절차를 [INSTALL.md](./INSTALL.md)를 기준으로 맞춘다. 이 문서는 사용법을 설명하고, 설치의 canonical source는 `INSTALL.md`다.
 
+기여, 보안 보고, release checklist, 변경 이력은 [CONTRIBUTING.md](./CONTRIBUTING.md), [SECURITY.md](./SECURITY.md), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [CHANGELOG.md](./CHANGELOG.md)를 기준으로 한다. `docs/` 아래 history 입구는 [docs/HISTORY.md](./docs/HISTORY.md)다. 운영자는 offline bundle이나 release asset을 검증할 때 `CHANGELOG.md`와 `CONTRIBUTING.md`의 tag/checksum policy를 함께 확인한다.
+
 계획이나 리서치 단계에서 다뤘지만 아직 Tiny-Chu 제품 기능으로 들어오지 않은 항목은 [docs/feature/2026-06-15-unimplemented-features.md](./docs/feature/2026-06-15-unimplemented-features.md)에 분리해 둔다.
 
 설치 경로는 세 가지로 구분한다.

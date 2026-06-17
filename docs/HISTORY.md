@@ -1,0 +1,19 @@
+# Tiny-Chu History
+
+이 문서는 `docs/` 아래에서 찾을 수 있는 Tiny-Chu 변경 이력 입구다.
+
+Canonical release history는 루트 [CHANGELOG.md](../CHANGELOG.md)에 기록한다. `CHANGELOG.md`는 Keep a Changelog 형식을 따르고, release checklist와 tag 절차는 [CONTRIBUTING.md](../CONTRIBUTING.md)를 기준으로 한다.
+
+## Current Released History
+
+- `0.1.0` - 2026-06-16
+  - OpenCode runtime mode selection을 추가했다.
+  - worker mode와 orchestrator-worker mode를 분리했다.
+  - mode-aware feature package graph, install-check runtime metadata, runtime-mode tests를 추가했다.
+
+## Local History Files
+
+- [../CHANGELOG.md](../CHANGELOG.md): canonical release changelog.
+- [HYSTORY.md](./HYSTORY.md): misspelled legacy path kept as a compatibility pointer.
+
+새 변경 이력은 이 파일이 아니라 `CHANGELOG.md`의 `## [Unreleased]` 아래에 먼저 기록한다.

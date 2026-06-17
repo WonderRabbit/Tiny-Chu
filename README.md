@@ -15,6 +15,8 @@ npm test
 
 다른 OpenCode 프로젝트에 설치하거나 폐쇄망, 내부 registry, developer local checkout 경로를 선택해야 한다면 설치 절차의 canonical source인 [INSTALL.md](./INSTALL.md)를 따른다. 운영 사용법과 작은 모델 운용 흐름은 [HOW_TO_USE.md](./HOW_TO_USE.md)를 참고한다. 내부 구조와 설계 배경은 [docs/architecture/README.md](./docs/architecture/README.md)에 모여 있다.
 
+기여와 운영 거버넌스는 [CONTRIBUTING.md](./CONTRIBUTING.md), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md), [CHANGELOG.md](./CHANGELOG.md)를 기준으로 한다. `docs/` 아래에서 이력을 찾는 경우 [docs/HISTORY.md](./docs/HISTORY.md)를 입구로 사용한다. GitHub 이슈와 PR을 열 때는 `.github/ISSUE_TEMPLATE/`와 `.github/pull_request_template.md`의 템플릿을 사용한다.
+
 계획이나 리서치는 진행했지만 아직 제품 기능으로 들어오지 않은 항목은 [docs/feature/2026-06-15-unimplemented-features.md](./docs/feature/2026-06-15-unimplemented-features.md)에 별도로 정리한다.
 
 ## 라이선스

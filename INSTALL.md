@@ -5,6 +5,7 @@
 Tiny-Chu 폐쇄망 설치는 대상 프로젝트의 `.opencode/` 아래에 project-local OpenCode plugin file과 local package dependency를 둔다. OpenCode 시작 시점에 npm plugin을 외부에서 내려받는 방식에 의존하지 않는다.
 
 프로젝트의 목적과 제공 범위는 [README.md](./README.md)를 먼저 보고, 설치 후 운영 사용법은 [HOW_TO_USE.md](./HOW_TO_USE.md)를 기준으로 확인한다.
+릴리스와 거버넌스 기준은 [CONTRIBUTING.md](./CONTRIBUTING.md), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md), [CHANGELOG.md](./CHANGELOG.md)를 함께 확인한다.
 
 ## 0단계: 사전 조건 확인
 
@@ -50,6 +51,10 @@ tiny-chu-offline-vX.Y.Z/
   install-offline.ps1
   README-offline.md
   LICENSE
+  CONTRIBUTING.md
+  CODE_OF_CONDUCT.md
+  SECURITY.md
+  CHANGELOG.md
   vendor/
     tiny-chu-vX.Y.Z-bundled.tgz
   templates/
@@ -90,6 +95,8 @@ release version은 `package.json.version`에서만 가져온다. installer scrip
 
 `verify:offline`은 fresh temporary `.opencode` consumer, empty npm cache, dead registry를 사용해야 한다. 예를 들어 `npm_config_registry=http://127.0.0.1:9/`를 설정하면 네트워크 fallback이 성공처럼 보이는 상황을 막을 수 있다.
 
+release tag는 [CONTRIBUTING.md](./CONTRIBUTING.md)의 checklist를 따른다. `CHANGELOG.md`와 `package.json.version`을 먼저 맞추고, 현재 `0.1.0` 준비 상태는 `git tag --list v0.1.0`로 읽기 전용 확인만 한다. 실제 annotated tag 예시는 `git tag -a vX.Y.Z -m "tiny-chu vX.Y.Z"`지만, tag 생성, `git push`, `npm publish`는 별도 승인 없이는 실행하지 않는다.
+
 ## 4단계: 폐쇄망으로 bundle 반입
 
 검증된 `tiny-chu-offline-vX.Y.Z.tar.gz`와 checksum/provenance 파일을 폐쇄망으로 복사한다. 대상 프로젝트 근처나 내부에서 압축을 푼다.
@@ -98,7 +105,7 @@ release version은 `package.json.version`에서만 가져온다. installer scrip
 tar -xzf tiny-chu-offline-vX.Y.Z.tar.gz
 ```
 
-압축 해제 후 `manifest.json`, `SHA256SUMS`, `LICENSE`, `vendor/tiny-chu-vX.Y.Z-bundled.tgz`, `templates/opencode/`가 있는지 확인한다.
+압축 해제 후 `manifest.json`, `SHA256SUMS`, `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `vendor/tiny-chu-vX.Y.Z-bundled.tgz`, `templates/opencode/`가 있는지 확인한다.
 
 ## 5단계: 대상 프로젝트 `.opencode` 준비
 
