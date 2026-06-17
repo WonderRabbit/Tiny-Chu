@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const maxBuffer = 1024 * 1024 * 32;
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmExecOptions = process.platform === "win32" ? { shell: true } : {};
 
 async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(repoRoot, relativePath), "utf8"));
@@ -65,6 +66,7 @@ test("normal package tarball includes install docs and templates without bundled
   const cacheDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-dry-cache-"));
   try {
     const result = await execFileAsync(npmCommand, ["pack", "--dry-run", "--json", "--cache", cacheDir], {
+      ...npmExecOptions,
       cwd: repoRoot,
       env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
       maxBuffer,
@@ -99,6 +101,7 @@ test("normal package tarball fails in a fresh offline consumer without cached de
 
   try {
     const packResult = await execFileAsync(npmCommand, ["pack", "--json", "--pack-destination", packDir, "--cache", packCache], {
+      ...npmExecOptions,
       cwd: repoRoot,
       env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
       maxBuffer,
@@ -112,6 +115,7 @@ test("normal package tarball fails in a fresh offline consumer without cached de
       npmCommand,
       ["install", tarballPath, "--offline", "--cache", emptyCache, "--ignore-scripts", "--no-audit", "--fund=false"],
       {
+        ...npmExecOptions,
         cwd: consumerDir,
         env: { ...process.env, npm_config_registry: "http://127.0.0.1:9/", npm_config_audit: "false", npm_config_fund: "false" },
       },
@@ -135,6 +139,7 @@ test("offline release bundle exposes Apache-2.0 license artifacts", async () => 
 
   try {
     const result = await execFileAsync(npmCommand, ["run", "release:offline", "--", "--out", outDir], {
+      ...npmExecOptions,
       cwd: repoRoot,
       env: { ...process.env, TINY_CHU_RELEASE_NPM_CACHE: releaseCache, npm_config_audit: "false", npm_config_fund: "false" },
       maxBuffer,

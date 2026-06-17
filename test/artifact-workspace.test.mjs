@@ -164,12 +164,16 @@ test("artifact_publish_apply rolls back when a multi-file publish write fails", 
 
   // When: the second target becomes unwritable after manifest creation.
   const restoreWritable = await makeDirectoryUnwritable(path.join(root, "locked"));
-  const failed = await createArtifactPublishApply(root, { manifestPath: manifest.manifestPath });
-  await restoreWritable();
+  let failed;
+  try {
+    failed = await createArtifactPublishApply(root, { manifestPath: manifest.manifestPath });
+  } finally {
+    await restoreWritable();
+  }
 
   // Then: the first write is rolled back and no partial publish remains.
   assert.equal(failed.applied, false);
-  assert.ok(failed.diagnostics.some((diagnostic) => diagnostic.code === "publish_write_failed"));
+  assert.ok(failed.diagnostics.some((diagnostic) => diagnostic.code === (process.platform === "win32" ? "target_access_failed" : "publish_write_failed")));
   assert.equal(await readFile(path.join(root, "docs", "one.md"), "utf8"), "one-old\n");
   assert.equal(await readFile(path.join(root, "locked", "two.md"), "utf8"), "two-old\n");
 });

@@ -198,16 +198,20 @@ test("safe_patch_apply rolls back after a multi-file write failure", async () =>
 
   // When: the second target directory becomes unwritable after validation data is captured.
   const restoreWritable = await makeDirectoryUnwritable(path.join(root, "z"));
-  const result = await createSafePatchApply(root, {
-    patch,
-    allowedTargets: ["a/**", "z/**"],
-    expectedFiles: { "a/one.txt": oneBefore.hash, "z/two.txt": twoBefore.hash },
-  });
-  await restoreWritable();
+  let result;
+  try {
+    result = await createSafePatchApply(root, {
+      patch,
+      allowedTargets: ["a/**", "z/**"],
+      expectedFiles: { "a/one.txt": oneBefore.hash, "z/two.txt": twoBefore.hash },
+    });
+  } finally {
+    await restoreWritable();
+  }
 
   // Then: no partial write remains.
   assert.equal(result.applied, false);
-  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === "apply_write_failed"));
+  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === (process.platform === "win32" ? "target_access_failed" : "apply_write_failed")));
   assert.equal(await readFile(path.join(root, "a", "one.txt"), "utf8"), "one\n");
   assert.equal(await readFile(path.join(root, "z", "two.txt"), "utf8"), "two\n");
 });
