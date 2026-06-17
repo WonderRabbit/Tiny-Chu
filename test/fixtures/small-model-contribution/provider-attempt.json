@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "provider-attempt",
+  "docsOnlyProof": {
+    "hasSingleNormalizedContributionScore": false,
+    "individualGateOutputs": {
+      "contextBudget": "context_budget_simulation",
+      "toolCallConformance": "tool_call_conformance_probe",
+      "evidenceGate": "evidence_gate",
+      "smallModelReplay": "small_model_replay",
+      "toolUsagePlan": "tool_usage_plan",
+      "resumePacket": "resume_packet",
+      "qwenRetryPolicy": "qwen_retry_policy",
+      "workflowSotAudit": "workflow_sot_audit"
+    }
+  },
+  "providerCall": {
+    "requested": true,
+    "provider": "qwen-fixture-provider",
+    "reason": "A malformed runner tried to prove the score with a live provider instead of fixture evidence."
+  },
+  "rubricRows": [
+    {
+      "id": "A01",
+      "category": "A_working_set_reduction",
+      "title": "Bounded context packet exists",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/evidence-packet.ts:64"
+      ]
+    },
+    {
+      "id": "A02",
+      "category": "A_working_set_reduction",
+      "title": "Context discovery is deterministic",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/context-loader.ts:19"
+      ]
+    }
+  ],
+  "loadObservations": [
+    {
+      "factorId": "provider_call_attempted",
+      "kind": "provider_call",
+      "severity": "fail",
+      "measured": 1,
+      "threshold": 0,
+      "blockedReason": "A provider call was requested; the evaluator must reject it without making a request.",
+      "fixPaths": [
+        {
+          "tool": "provider_endpoint_preflight",
+          "nextCommand": "replace provider execution with an offline fixture transcript"
+        }
+      ]
+    }
+  ]
+}

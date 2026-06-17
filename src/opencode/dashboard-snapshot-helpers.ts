@@ -22,12 +22,12 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function textInput(input: Record<string, unknown>, key: string): string | undefined {
+export function dashboardTextInput(input: Record<string, unknown>, key: string): string | undefined {
   const value = input[key];
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 }
 
-export function positiveInteger(input: Record<string, unknown>, key: string, fallback: number): number {
+export function dashboardPositiveInteger(input: Record<string, unknown>, key: string, fallback: number): number {
   const value = input[key];
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
 }
@@ -47,11 +47,11 @@ export function errorMessage(error: unknown, fallback: string): string {
 }
 
 export function taskFocusInput(input: Record<string, unknown>, maxEvidenceRefs: number): Record<string, unknown> {
-  const taskId = textInput(input, "taskId");
+  const taskId = dashboardTextInput(input, "taskId");
   return {
     ...(taskId ? { id: taskId } : {}),
     maxEvidenceRefs,
-    maxOpenItems: positiveInteger(input, "maxTasks", 3),
+    maxOpenItems: dashboardPositiveInteger(input, "maxTasks", 3),
   };
 }
 
@@ -82,7 +82,7 @@ export function publicJobsSnapshot(jobs: readonly PublicJob[]): DashboardSnapsho
 }
 
 export async function workflowSnapshot(root: string | undefined, input: Record<string, unknown>, generatedAt: string): Promise<DashboardSnapshotWorkflow> {
-  const runId = textInput(input, "runId");
+  const runId = dashboardTextInput(input, "runId");
   if (!runId) return { found: false, warning: "runId not provided" };
   try {
     const heartbeat = await createWorkflowProgressHeartbeat(root, { runId, now: generatedAt });
@@ -108,8 +108,8 @@ export async function providerSnapshot(input: Record<string, unknown>): Promise<
     };
   }
   const preflightInput: Record<string, unknown> = {
-    ...(textInput(input, "provider") ? { provider: textInput(input, "provider") } : {}),
-    ...(textInput(input, "endpoint") ? { endpoint: textInput(input, "endpoint") } : {}),
+    ...(dashboardTextInput(input, "provider") ? { provider: dashboardTextInput(input, "provider") } : {}),
+    ...(dashboardTextInput(input, "endpoint") ? { endpoint: dashboardTextInput(input, "endpoint") } : {}),
     ...(networkModeInput(input.networkMode) ? { networkMode: networkModeInput(input.networkMode) } : {}),
   };
   const result = await createProviderEndpointPreflight(preflightInput);

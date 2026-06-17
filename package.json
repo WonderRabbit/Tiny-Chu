@@ -7,7 +7,8 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node scripts/run-tests.mjs",
+    "naming:check": "node scripts/naming-check.mjs --root . --dictionary docs/naming/dictionary.json",
+    "test": "npm run build && npm run naming:check && node scripts/run-tests.mjs",
     "pack:check": "npm run build && node --test test/install-package.test.mjs",
     "release:offline": "node scripts/release/build-offline-bundle.mjs",
     "verify:offline": "node scripts/release/verify-offline-bundle.mjs"
@@ -27,6 +28,9 @@
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
     "CHANGELOG.md",
+    "docs/naming",
+    "scripts/naming-check.mjs",
+    "scripts/naming-extract.mjs",
     "templates"
   ],
   "engines": {

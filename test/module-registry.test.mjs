@@ -47,6 +47,10 @@ const EXPECTED_TOOL_NAMES = [
   "markdown_envelope_check",
   "mermaid_check",
   "mermaid_fix",
+  "naming_add",
+  "naming_context",
+  "naming_lookup",
+  "naming_propose",
   "orchestration_health",
   "orchestration_profile",
   "powershell_command_guard",
@@ -64,6 +68,7 @@ const EXPECTED_TOOL_NAMES = [
   "resume_packet",
   "rules_snapshot",
   "session_preflight",
+  "small_model_contribution_evaluation",
   "small_model_replay",
   "task_checkpoint",
   "task_create",
@@ -115,10 +120,10 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
 
   assert.equal(typeof tiny.tools.git_weekly_report, "function");
   assert.equal(typeof hooks.tool.git_weekly_report?.execute, "function");
-  assert.equal(directToolNames.length, 88);
-  assert.equal(bridgeToolNames.length, 88);
+  assert.equal(directToolNames.length, 93);
+  assert.equal(bridgeToolNames.length, 93);
   assert.equal(tiny.registry.packages.length, 12);
-  assert.equal(tiny.registry.toolSpecs.length, 88);
+  assert.equal(tiny.registry.toolSpecs.length, 93);
   assert.equal(new Set(tiny.registry.toolSpecs.map((spec) => spec.packageId)).size, 10);
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.public-worker-queue"));
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.legacy-analysis"));
@@ -132,6 +137,9 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "workflow_next")?.packageId, "tiny-chu.workflow-orchestration");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "wiki_bundle")?.packageId, "tiny-chu.core-runtime");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "wiki_context")?.packageId, "tiny-chu.small-model-resilience");
+  assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "small_model_contribution_evaluation")?.packageId, "tiny-chu.small-model-resilience");
+  assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "naming_lookup")?.packageId, "tiny-chu.small-model-resilience");
+  assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "naming_add")?.permission?.writesState, true);
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "wiki_search")?.packageId, "tiny-chu.small-model-resilience");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "dashboard_snapshot")?.packageId, "tiny-chu.small-model-resilience");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "provider_endpoint_preflight")?.permission?.network, "optional");
@@ -144,7 +152,7 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
     "experimental.session.compacting",
     "shell.env",
   ]);
-  assert.equal(install.requiredTools.length, 88);
+  assert.equal(install.requiredTools.length, 93);
   assert.equal(install.runtimeMode, "orchestrator_worker");
   assert.equal(install.packageName, "tiny-chu");
   assert.equal(install.opencodeEntrypoint, "./dist/opencode/plugin.js");
@@ -176,4 +184,21 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
   const bridgeInstallOutput = JSON.parse(bridgeInstall.output);
   assert.equal(bridgeInstallOutput.installDocs, "INSTALL.md");
   assert.deepEqual(bridgeInstallOutput.installModes, EXPECTED_INSTALL_MODES);
+});
+
+test("worker mode exposes offline small-model contribution evaluator", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-worker-small-model-evaluator-"));
+  const tiny = tinyRoot.createTinyChuPlugin({ root, mode: "worker" });
+  const hooks = await TinyChuOpenCodePlugin({
+    project: { root },
+    directory: root,
+    worktree: root,
+    client: { app: { log: async () => undefined } },
+    $: async () => undefined,
+  }, { mode: "worker" });
+  const install = await tiny.tools.tiny_chu_install_check({});
+
+  assert.equal(typeof tiny.tools.small_model_contribution_evaluation, "function");
+  assert.equal(typeof hooks.tool.small_model_contribution_evaluation?.execute, "function");
+  assert.equal(install.requiredTools.includes("small_model_contribution_evaluation"), true);
 });

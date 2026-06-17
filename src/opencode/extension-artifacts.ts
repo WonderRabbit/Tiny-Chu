@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { stat } from "node:fs/promises";
 import { PublicDispatcher } from "../dispatcher/public-job.js";
 import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
-import { bounded, positiveInteger } from "./extension-scan.js";
+import { bounded, extensionPositiveInteger } from "./extension-scan.js";
 import { readLegacySourceFiles } from "./legacy-scanner.js";
 import { QWEN_PUBLIC_LIMITS } from "./qwen-retry-policy.js";
 
@@ -114,8 +114,8 @@ function chunks(values: readonly string[], size: number): readonly (readonly str
 
 export async function createWorkerPacketOptimizer(root: string, input: Record<string, unknown>): Promise<WorkerPacketOptimizerResult> {
   const refs = strings(input.evidenceRefs);
-  const maxEvidenceRefsPerPacket = positiveInteger(input.maxEvidenceRefsPerPacket, 24);
-  const maxFilesPerPacket = positiveInteger(input.maxFilesPerPacket, 8);
+  const maxEvidenceRefsPerPacket = extensionPositiveInteger(input.maxEvidenceRefsPerPacket, 24);
+  const maxFilesPerPacket = extensionPositiveInteger(input.maxFilesPerPacket, 8);
   const refChunks = bounded(chunks(refs, maxEvidenceRefsPerPacket), input.maxPackets, 6);
   const requiredReturns = strings(input.mustReturn).length > 0 ? strings(input.mustReturn) : ["findings", "citations", "uncertainties", "verificationCommands", "nextSteps"];
   const type = artifactType(input);
@@ -192,7 +192,7 @@ export async function createIncrementalEvidenceCache(root: string, input: Record
   if (!target) throw new Error("Evidence cache target path is outside configured root");
   const base = await resolveExistingPathInsideRoot(root, ".");
   const configuredRoot = base ?? root;
-  const sources = await readLegacySourceFiles(configuredRoot, { targetPath: input.targetPath ?? ".", maxFiles: positiveInteger(input.maxInputs, 80) });
+  const sources = await readLegacySourceFiles(configuredRoot, { targetPath: input.targetPath ?? ".", maxFiles: extensionPositiveInteger(input.maxInputs, 80) });
   const previous = previousMap(input);
   const inputs = await Promise.all(sources.map(async (source) => {
     const info = await stat(`${configuredRoot}/${source.path}`);

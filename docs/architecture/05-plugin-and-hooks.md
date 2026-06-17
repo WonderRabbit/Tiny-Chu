@@ -43,7 +43,7 @@ args: {
     .describe("Tiny-Chu tool input object."),
 }
 ```
-Tiny-Chu는 강타입 입력 스키마 대신 **자유 형식 객체**를 받습니다. 각 툴 디스크립터의 `inputSchema`는 safe-tooling 툴에만 상세 정의되어 있고, 나머지는 런타임에 `stringInput()`/`numberInput()`으로 검증합니다. 이 선택의 이유는 핸들러 구현을 단순하게 유지하면서 기본 88개 툴을 일관되게 노출하기 위해서입니다.
+Tiny-Chu는 강타입 입력 스키마 대신 **자유 형식 객체**를 받습니다. 각 툴 디스크립터의 `inputSchema`는 safe-tooling 툴에만 상세 정의되어 있고, 나머지는 런타임에 `stringInput()`/`numberInput()`으로 검증합니다. 이 선택의 이유는 핸들러 구현을 단순하게 유지하면서 기본 93개 툴을 일관되게 노출하기 위해서입니다.
 
 #### 변환 2: 컨텍스트 매핑
 ```ts

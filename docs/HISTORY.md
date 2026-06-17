@@ -13,6 +13,11 @@ Canonical release history는 루트 [CHANGELOG.md](../CHANGELOG.md)에 기록한
 
 ## Unreleased Local History
 
+- 2026-06-18
+  - 작은 모델 기여도 평가기를 추가했다.
+  - `small_model_contribution_evaluation`은 22개 rubric row, 0/1/2 점수, `normalizedScore`, score band, load factor, `blockedReasons`, `fixPaths`를 fixture 기반으로 계산한다.
+  - CLI runner와 보고서, registry/tool count 문서, recovery-focused test를 추가해 live Qwen/provider 호출 없이 평가 evidence를 남긴다.
+
 - 2026-06-17
   - GitHub Actions `CI / verify` PR gate를 추가했다.
   - 게이트는 `npm run build`, `npm test`, `npm run pack:check`, offline bundle 생성, `verify:offline -- --bundle` 검증을 순서대로 실행한다.

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "malformed-unknown-factor",
+  "docsOnlyProof": {
+    "hasSingleNormalizedContributionScore": false,
+    "individualGateOutputs": {
+      "contextBudget": "context_budget_simulation",
+      "toolCallConformance": "tool_call_conformance_probe",
+      "evidenceGate": "evidence_gate",
+      "smallModelReplay": "small_model_replay",
+      "toolUsagePlan": "tool_usage_plan",
+      "resumePacket": "resume_packet",
+      "qwenRetryPolicy": "qwen_retry_policy",
+      "workflowSotAudit": "workflow_sot_audit"
+    }
+  },
+  "rubricRows": [
+    {
+      "id": "A01",
+      "category": "A_working_set_reduction",
+      "title": "Bounded context packet exists",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/evidence-packet.ts:64"
+      ]
+    },
+    {
+      "id": "A02",
+      "category": "A_working_set_reduction",
+      "title": "Context discovery is deterministic",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/context-loader.ts:19"
+      ]
+    }
+  ],
+  "loadObservations": [
+    {
+      "factorId": "mystery_model_tax",
+      "kind": "unknown_factor",
+      "severity": "fail",
+      "measured": 1,
+      "threshold": 0,
+      "blockedReason": "Unknown load factors must be rejected instead of ignored.",
+      "fixPaths": [
+        {
+          "tool": "small_model_contribution_evaluation",
+          "nextCommand": "replace mystery_model_tax with a known load factor kind"
+        }
+      ]
+    }
+  ]
+}

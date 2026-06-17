@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "malformed-duplicate-row",
+  "docsOnlyProof": {
+    "hasSingleNormalizedContributionScore": false,
+    "individualGateOutputs": {
+      "contextBudget": "context_budget_simulation",
+      "toolCallConformance": "tool_call_conformance_probe",
+      "evidenceGate": "evidence_gate",
+      "smallModelReplay": "small_model_replay",
+      "toolUsagePlan": "tool_usage_plan",
+      "resumePacket": "resume_packet",
+      "qwenRetryPolicy": "qwen_retry_policy",
+      "workflowSotAudit": "workflow_sot_audit"
+    }
+  },
+  "rubricRows": [
+    {
+      "id": "A01",
+      "category": "A_working_set_reduction",
+      "title": "Bounded context packet exists",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/evidence-packet.ts:64"
+      ]
+    },
+    {
+      "id": "A01",
+      "category": "A_working_set_reduction",
+      "title": "Duplicate row id should fail closed",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/context-loader.ts:19"
+      ]
+    }
+  ],
+  "loadObservations": []
+}

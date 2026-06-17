@@ -12,11 +12,11 @@ export interface LegacySourceFile {
   readonly lines: readonly string[];
 }
 
-export function textInput(value: unknown, fallback: string): string {
+export function legacyTextInput(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
 }
 
-export function positiveInteger(value: unknown, fallback: number): number {
+export function legacyPositiveInteger(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
@@ -68,7 +68,7 @@ async function collectFiles(root: string, dir: string, limit: number, acc: strin
 }
 
 export async function readLegacySourceFiles(root: string, input: Record<string, unknown>): Promise<readonly LegacySourceFile[]> {
-  const target = await resolveExistingPathInsideRoot(root, textInput(input.targetPath, "."));
+  const target = await resolveExistingPathInsideRoot(root, legacyTextInput(input.targetPath, "."));
   if (!target) throw new Error("Legacy analysis target path is outside configured root");
   const configuredRoot = await resolveExistingPathInsideRoot(root, ".");
   const base = configuredRoot ?? root;
@@ -77,12 +77,12 @@ export async function readLegacySourceFiles(root: string, input: Record<string, 
   const files = isFileTarget && INCLUDED_EXTENSIONS.has(path.extname(target))
     ? [portableRelative(base, target)]
     : [];
-  if (!isFileTarget) await collectFiles(base, start, positiveInteger(input.maxFiles, 160), files);
+  if (!isFileTarget) await collectFiles(base, start, legacyPositiveInteger(input.maxFiles, 160), files);
   const sources: LegacySourceFile[] = [];
   for (const relative of files) {
     const absolute = await resolveExistingPathInsideRoot(base, relative);
     if (!absolute) continue;
-    const content = (await readFile(absolute, "utf8")).slice(0, positiveInteger(input.maxFileChars, 20_000));
+    const content = (await readFile(absolute, "utf8")).slice(0, legacyPositiveInteger(input.maxFileChars, 20_000));
     sources.push({ path: relative, content, lines: content.split(/\r?\n/) });
   }
   return sources;

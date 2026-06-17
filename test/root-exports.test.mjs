@@ -27,14 +27,17 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "aggregateButtonTraces",
   "aggregationDriftCheck",
   "appendJsonLine",
+  "appendNamingProposalEvent",
   "appendWikiErrorBookRecord",
   "atomicMarkdownWrite",
   "boundedText",
   "buildContextPacket",
+  "buildNamingIndex",
   "buttonWorkerResultCheck",
   "buttonWorkflowDoneClaim",
   "checkArtifactMarkdown",
   "checkMermaidMarkdown",
+  "checkNamingDictionary",
   "createAnalysisWorkflowDefinition",
   "createAnalysisWorkflowStart",
   "createApiBackendTrace",
@@ -69,6 +72,7 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "createJsonPatchPreview",
   "createJsonYamlTransformPreview",
   "createLegacyRepoIndex",
+  "createNamingContext",
   "createOrchestrationHealth",
   "createPowerShellCommandGuard",
   "createPowerShellToolchainProbe",
@@ -84,6 +88,7 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "createSessionPreflight",
   "createSmallContextOrchestrationProfile",
   "createSmallContextRunGate",
+  "createSmallModelContributionEvaluation",
   "createSmallModelReplay",
   "createStructuralRewritePreview",
   "createStructuralSearchAst",
@@ -113,15 +118,18 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "createWorkflowStatus",
   "dispatchButtonWorkflow",
   "ensureDir",
+  "extractNamingSymbols",
   "fixMermaidMarkdown",
   "hashSourceTarget",
   "isPathInsideRoot",
   "isWorkerRuntimeMode",
   "loadContextBundle",
+  "loadNamingDictionary",
   "markdownEnvelopeCheck",
   "normalizeMermaidMarkdown",
   "normalizeSafeRelativePath",
   "normalizeTinyChuRuntimeMode",
+  "parseNamingDictionary",
   "parsePlanMarkdown",
   "proposeWikiDocumentsFromRepoMap",
   "readJsonFile",
@@ -146,6 +154,7 @@ const EXPECTED_ROOT_EXPORT_NAMES = [
   "verifyLayoutTruth",
   "writeJsonAtomic",
   "writeLoopGuard",
+  "writeNamingIndex",
   "writePlanTemplate",
   "writeRulesSnapshot",
   "writeTextAtomic",
@@ -163,7 +172,7 @@ test("root module keeps the public ABI stable", async () => {
   assert.equal(tinyRoot.TinyChuOpenCodeTuiPlugin, TinyChuOpenCodeTuiPlugin);
   assert.equal(tinyRoot.POWERSHELL_OPENCODE_RUNTIME.shell.executable, "pwsh");
   const directInstall = tinyRoot.createTinyChuInstallCheck();
-  assert.equal(directInstall.requiredTools.length, 88);
+  assert.equal(directInstall.requiredTools.length, 93);
   assert.equal(directInstall.runtimeMode, "orchestrator_worker");
   assert.equal(directInstall.packageName, "tiny-chu");
   assert.equal(directInstall.opencodeEntrypoint, "./dist/opencode/plugin.js");

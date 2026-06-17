@@ -11,15 +11,15 @@ export interface ScanFact {
   readonly status: EvidenceStatus;
 }
 
-export function positiveInteger(value: unknown, fallback: number): number {
+export function extensionPositiveInteger(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 export function bounded<T>(items: readonly T[], value: unknown, fallback: number): readonly T[] {
-  return items.slice(0, positiveInteger(value, fallback));
+  return items.slice(0, extensionPositiveInteger(value, fallback));
 }
 
-export function textInput(value: unknown, fallback: string): string {
+export function extensionTextInput(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
 }
 
@@ -28,7 +28,7 @@ export function lineFact(kind: string, symbol: string, file: string, line: numbe
 }
 
 export async function scanFacts(root: string, input: Record<string, unknown>, maxFilesFallback = 80): Promise<readonly ScanFact[]> {
-  const sources = await readLegacySourceFiles(root, { ...input, maxFiles: positiveInteger(input.maxFiles, maxFilesFallback) });
+  const sources = await readLegacySourceFiles(root, { ...input, maxFiles: extensionPositiveInteger(input.maxFiles, maxFilesFallback) });
   const facts: ScanFact[] = [];
   for (const source of sources) {
     for (const [index, line] of source.lines.entries()) {

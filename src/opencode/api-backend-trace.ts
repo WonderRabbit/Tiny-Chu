@@ -1,7 +1,7 @@
 import { createLegacyRepoIndex } from "./legacy-repo-index.js";
 import type { LegacyEvidenceFact, LegacySymbolLink, LegacyUnknownLink } from "./legacy-types.js";
 import { unknownLink } from "./legacy-types.js";
-import { textInput } from "./legacy-scanner.js";
+import { legacyTextInput } from "./legacy-scanner.js";
 
 export interface ApiBackendTraceResult {
   readonly status: "matched" | "unmatched_endpoint";
@@ -25,8 +25,8 @@ function link(fact: LegacyEvidenceFact): LegacySymbolLink {
 }
 
 export async function createApiBackendTrace(root: string, input: Record<string, unknown>): Promise<ApiBackendTraceResult> {
-  const method = textInput(input.method, "GET").toUpperCase();
-  const targetPath = textInput(input.path, "");
+  const method = legacyTextInput(input.method, "GET").toUpperCase();
+  const targetPath = legacyTextInput(input.path, "");
   const index = await createLegacyRepoIndex(root, input);
   const api = index.facts.find((fact) => fact.kind === "api_client" && fact.method === method && fact.path === targetPath);
   const route = index.facts.find((fact) => fact.kind === "backend_route" && fact.method === method && fact.path === targetPath);

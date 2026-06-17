@@ -462,7 +462,8 @@ QA 고정 항목:
 - `wiki_search` happy path는 temp wiki에서 id/tag/title/heading/body match 순위와 line span citation을 JSON으로 남긴다.
 - `wiki_context`는 `index`, `query`, `refs` mode, `omitted`, `truncated`, `warnings`, `uncertainties`를 모두 관찰한다.
 - missing/stale warning은 missing document와 `sourceHash` mismatch fixture로 `wiki_index_missing` 또는 `stale_source_hash`를 확인한다.
-- registry parity는 direct registry, OpenCode bridge, `tiny_chu_install_check.requiredTools`가 모두 88개이고 `wiki_search`/`wiki_context`는 `tiny-chu.small-model-resilience`, `wiki_bundle`은 `tiny-chu.core-runtime`인지 확인한다.
+- registry parity는 direct registry, OpenCode bridge, `tiny_chu_install_check.requiredTools`가 모두 93개이고 `wiki_search`/`wiki_context`/`naming_context`/`naming_propose`는 `tiny-chu.small-model-resilience`, `wiki_bundle`은 `tiny-chu.core-runtime`인지 확인한다.
+- 새 변수, 함수, 메소드, 상수, tool 이름을 만들기 전에는 `naming_context` 또는 `naming_lookup`으로 canonical spelling, casing, blocked variant를 확인한다. 후보는 `naming_propose`로 먼저 진단하고, 리뷰할 이름은 `naming_add`로 `.tiny/naming/events.jsonl`에 proposal event만 남긴다.
 - `public_dispatch.wikiRefs`는 metadata only로 저장하며 `public_job_resume_packet`에 wiki body text를 inline하지 않는다.
 - `context_packet` schema와 `transformUserMessage`는 automatic full-wiki injection을 하지 않는다.
 - Error Book은 `.tiny/wiki/error-book.jsonl` append-only이며 기존 wiki index와 Markdown 문서를 바꾸지 않는다.

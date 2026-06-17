@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tiny-chu.local/schemas/naming-dictionary.schema.json",
+  "title": "Tiny-Chu Naming Dictionary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "entries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/namingEntry"
+      }
+    }
+  },
+  "definitions": {
+    "namingEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "normalized",
+        "kind",
+        "namespace",
+        "casing",
+        "tokens",
+        "status",
+        "collisionGroup",
+        "aliases",
+        "blockedVariants",
+        "sourceRefs",
+        "meaning"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "normalized": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "class",
+            "constant",
+            "function",
+            "interface",
+            "method",
+            "setting",
+            "term",
+            "tool",
+            "type",
+            "variable"
+          ]
+        },
+        "namespace": {
+          "type": "string",
+          "enum": [
+            "context",
+            "dispatcher",
+            "model-settings",
+            "opencode",
+            "shared",
+            "state",
+            "ulw-loop",
+            "wiki",
+            "workflow"
+          ]
+        },
+        "casing": {
+          "type": "string",
+          "enum": [
+            "camelCase",
+            "lowerCase",
+            "PascalCase",
+            "SCREAMING_SNAKE_CASE",
+            "snake_case"
+          ]
+        },
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "blocked",
+            "deprecated",
+            "reserved"
+          ]
+        },
+        "collisionGroup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockedVariants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sourceRefs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "meaning": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

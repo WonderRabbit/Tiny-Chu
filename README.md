@@ -203,6 +203,7 @@ OpenCode plugin은 task, public job, context, wiki, workflow, evidence, doctor, 
 - `task_create`, `task_get`, `task_list`, `task_update`, `task_checkpoint`
 - `public_dispatch`, `public_collect`, `public_checkpoint`, `public_retry`, `public_cancel`, `public_complete`, `public_job_resume_packet`
 - `context_bundle`, `context_packet`, `context_digest`, `repo_map`, `business_logic_map`, `wiki_bundle`, `wiki_search`, `wiki_context`
+- `naming_lookup`, `naming_propose`, `naming_context`, `naming_add`
 - `doctor`, `session_preflight`, `task_focus_packet`, `powershell_command_guard`, `tiny_chu_install_check`
 - `dashboard_snapshot`, `rules_snapshot`, `provider_endpoint_preflight`, `tool_call_conformance_probe`, `context_budget_simulation`, `evidence_gate`, `small_model_replay`
 - `analysis_workflow_start`, `workflow_create`, `workflow_status`, `workflow_checkpoint`, `workflow_resume_packet`, `workflow_packet_fit_check`, `workflow_next`, `workflow_progress_heartbeat`, `workflow_sot_audit`
@@ -211,7 +212,9 @@ OpenCode plugin은 task, public job, context, wiki, workflow, evidence, doctor, 
 
 정확한 현재 노출 목록은 실행 중인 package registry와 `tiny_chu_install_check` 결과를 기준으로 확인한다.
 
-LLM wiki retrieval은 `wiki_bundle`의 기존 full bundle 계약을 유지하면서 `wiki_search`/`wiki_context`를 citation-bearing bounded evidence 계약으로 분리한다. Registry parity는 기본 88개 tool 기준으로 확인한다. `public_dispatch.wikiRefs`는 metadata only 경계로 유지하며, `context_packet`이나 `transformUserMessage`가 automatic full-wiki injection을 수행한다고 문서화하지 않는다.
+LLM wiki retrieval은 `wiki_bundle`의 기존 full bundle 계약을 유지하면서 `wiki_search`/`wiki_context`를 citation-bearing bounded evidence 계약으로 분리한다. Registry parity는 기본 93개 tool 기준으로 확인한다. `public_dispatch.wikiRefs`는 metadata only 경계로 유지하며, `context_packet`이나 `transformUserMessage`가 automatic full-wiki injection을 수행한다고 문서화하지 않는다.
+
+Naming dictionary 도구는 새 변수, 함수, 메소드, 상수, tool 이름을 만들기 전에 `naming_context` 또는 `naming_lookup`으로 canonical spelling과 blocked variant를 확인하고, 후보가 있으면 `naming_propose`로 진단을 본 뒤 `naming_add`로 `.tiny/naming/events.jsonl`에 proposal event만 남긴다. `naming_add`는 `docs/naming/dictionary.json`을 직접 수정하지 않는다.
 
 ### Git weekly reports
 

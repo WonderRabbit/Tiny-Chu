@@ -1,0 +1,387 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "load-risk",
+  "docsOnlyProof": {
+    "hasSingleNormalizedContributionScore": false,
+    "individualGateOutputs": {
+      "contextBudget": "context_budget_simulation",
+      "toolCallConformance": "tool_call_conformance_probe",
+      "evidenceGate": "evidence_gate",
+      "smallModelReplay": "small_model_replay",
+      "toolUsagePlan": "tool_usage_plan",
+      "resumePacket": "resume_packet",
+      "qwenRetryPolicy": "qwen_retry_policy",
+      "workflowSotAudit": "workflow_sot_audit"
+    }
+  },
+  "contextBudget": {
+    "status": "split_required",
+    "maxContextTokens": 8192,
+    "usableInputTokens": 7168,
+    "promptChars": 14300
+  },
+  "toolCallConformance": {
+    "status": "fail",
+    "requestAttempted": false,
+    "allowedTools": [
+      "context_packet",
+      "task_focus_packet",
+      "evidence_gate"
+    ]
+  },
+  "evidenceGate": {
+    "status": "fail",
+    "missingRequired": [
+      "red-evidence"
+    ],
+    "evidenceRefs": []
+  },
+  "smallModelReplay": {
+    "status": "fail",
+    "totalCases": 2,
+    "failedCases": 1
+  },
+  "toolUsagePlan": {
+    "status": "fail",
+    "visibleToolCount": 89,
+    "selectedPathLength": 11
+  },
+  "resumePacket": {
+    "status": "fail",
+    "hasCheckpoint": false,
+    "hasNextSteps": false
+  },
+  "qwenRetryPolicy": {
+    "status": "fail",
+    "checkpointBeforeRetry": false,
+    "minimumBatches": 0
+  },
+  "workflowSotAudit": {
+    "status": "fail",
+    "requiresEvidenceGate": true
+  },
+  "rubricRows": [
+    {
+      "id": "A01",
+      "category": "A_working_set_reduction",
+      "title": "Bounded context packet exists",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/evidence-packet.ts:64"
+      ]
+    },
+    {
+      "id": "A02",
+      "category": "A_working_set_reduction",
+      "title": "Context discovery is deterministic",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/context-loader.ts:19"
+      ]
+    },
+    {
+      "id": "A03",
+      "category": "A_working_set_reduction",
+      "title": "Wiki retrieval is bounded and citation-bearing",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/wiki/wiki-context.ts:30"
+      ]
+    },
+    {
+      "id": "A04",
+      "category": "A_working_set_reduction",
+      "title": "Prompt injection stays compact",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "B05",
+      "category": "B_durable_continuation",
+      "title": "Task state survives compaction and interruption",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/state/task-store.ts:9"
+      ]
+    },
+    {
+      "id": "B06",
+      "category": "B_durable_continuation",
+      "title": "Plan progress is machine-readable",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/ulw-loop/plan.ts:15"
+      ]
+    },
+    {
+      "id": "B07",
+      "category": "B_durable_continuation",
+      "title": "Workflow SOT prevents premature final answers",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "B08",
+      "category": "B_durable_continuation",
+      "title": "State writes are safe under concurrency",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "test/state-hardening.test.mjs:111"
+      ]
+    },
+    {
+      "id": "C09",
+      "category": "C_tool_use_reliability",
+      "title": "Tool-call conformance is measurable offline",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/small-model-reliability.ts:104"
+      ]
+    },
+    {
+      "id": "C10",
+      "category": "C_tool_use_reliability",
+      "title": "Tool output is budgeted at the OpenCode bridge",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/output-budget.ts:56"
+      ]
+    },
+    {
+      "id": "C11",
+      "category": "C_tool_use_reliability",
+      "title": "Tool surface is narrowed before action",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "C12",
+      "category": "C_tool_use_reliability",
+      "title": "Runtime modes prevent accidental delegation",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "test/runtime-mode.test.mjs:140"
+      ]
+    },
+    {
+      "id": "D13",
+      "category": "D_evidence_and_anti_hallucination",
+      "title": "Claims require citations or evidence refs",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "D14",
+      "category": "D_evidence_and_anti_hallucination",
+      "title": "Replay catches deterministic behavior drift",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/small-model-reliability.ts:163"
+      ]
+    },
+    {
+      "id": "D15",
+      "category": "D_evidence_and_anti_hallucination",
+      "title": "Artifact and Mermaid outputs are validated",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/tool-plan.ts:138"
+      ]
+    },
+    {
+      "id": "E16",
+      "category": "E_delegation_and_rate_recovery",
+      "title": "Public jobs are compact packets, not raw task dumps",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/dispatcher/public-job.ts:130"
+      ]
+    },
+    {
+      "id": "E17",
+      "category": "E_delegation_and_rate_recovery",
+      "title": "Rate limit recovery is explicit",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "E18",
+      "category": "E_delegation_and_rate_recovery",
+      "title": "Delegation is routed by task type",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "F19",
+      "category": "F_benchmark_alignment",
+      "title": "Repeated-trial reliability is tracked",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "F20",
+      "category": "F_benchmark_alignment",
+      "title": "Freshness and contamination are controlled",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "F21",
+      "category": "F_benchmark_alignment",
+      "title": "Format sensitivity is tested",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    },
+    {
+      "id": "F22",
+      "category": "F_benchmark_alignment",
+      "title": "Terminal execution is measured by final state",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": []
+    }
+  ],
+  "loadObservations": [
+    {
+      "factorId": "command_output_overload",
+      "kind": "command",
+      "severity": "fail",
+      "measured": 11000,
+      "threshold": 8000,
+      "blockedReason": "Command output exceeds the small-model readback budget.",
+      "fixPaths": [
+        {
+          "tool": "renderBudgetedOutput",
+          "nextCommand": "rerun command with a focused rg or sed range"
+        }
+      ]
+    },
+    {
+      "factorId": "file_write_too_large",
+      "kind": "file_write",
+      "severity": "fail",
+      "measured": 3600,
+      "threshold": 2000,
+      "blockedReason": "The write chunk is too large for reliable local review.",
+      "fixPaths": [
+        {
+          "tool": "chunked_write_plan",
+          "nextCommand": "split the generated artifact into sub-2000 character chunks"
+        }
+      ]
+    },
+    {
+      "factorId": "missing_evidence_ref",
+      "kind": "evidence",
+      "severity": "fail",
+      "measured": 0,
+      "threshold": 1,
+      "blockedReason": "Required proof lacks an evidence reference.",
+      "fixPaths": [
+        {
+          "tool": "evidence_gate",
+          "nextCommand": "record the failing command output under .omo/evidence"
+        }
+      ]
+    },
+    {
+      "factorId": "missing_recovery_state",
+      "kind": "recovery",
+      "severity": "fail",
+      "measured": 0,
+      "threshold": 1,
+      "blockedReason": "The worker has no checkpoint or resume packet for continuation.",
+      "fixPaths": [
+        {
+          "tool": "task_checkpoint",
+          "nextCommand": "write a checkpoint before retrying the work"
+        }
+      ]
+    },
+    {
+      "factorId": "provider_call_attempted",
+      "kind": "provider_call",
+      "severity": "fail",
+      "measured": 1,
+      "threshold": 0,
+      "blockedReason": "The offline evaluator must reject provider calls instead of making them.",
+      "fixPaths": [
+        {
+          "tool": "provider_endpoint_preflight",
+          "nextCommand": "replace live provider proof with a fixture transcript"
+        }
+      ]
+    },
+    {
+      "factorId": "prompt_over_budget",
+      "kind": "prompt",
+      "severity": "fail",
+      "measured": 14300,
+      "threshold": 12000,
+      "blockedReason": "The prompt is too large for the small-model contribution harness.",
+      "fixPaths": [
+        {
+          "tool": "context_packet",
+          "nextCommand": "regenerate a bounded context packet with maxChars 6000"
+        }
+      ]
+    },
+    {
+      "factorId": "tool_surface_overload",
+      "kind": "tool",
+      "severity": "fail",
+      "measured": 89,
+      "threshold": 88,
+      "blockedReason": "The visible tool surface is wider than the pinned small-model package.",
+      "fixPaths": [
+        {
+          "tool": "tool_usage_plan",
+          "nextCommand": "narrow the next action to the required Tiny-Chu tools"
+        }
+      ]
+    }
+  ]
+}
