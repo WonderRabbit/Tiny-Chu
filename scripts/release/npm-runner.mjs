@@ -85,7 +85,7 @@ function createNpmResolutionError(attempts) {
 export async function runNpm(args, options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
-  const { candidates } = resolveNpmInvocation({ cwd, env });
+  const { candidates } = resolveNpmInvocation({ cwd, env, platform: options.platform, execPath: options.execPath });
   const attempts = [];
 
   for (const candidate of candidates) {

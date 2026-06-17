@@ -1,6 +1,7 @@
 declare const process: {
   cwd(): string;
   pid: number;
+  platform: string;
   env: Record<string, string | undefined>;
 };
 

@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const maxBuffer = 1024 * 1024 * 32;
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(repoRoot, relativePath), "utf8"));
@@ -59,7 +60,7 @@ test("package metadata exposes offline install assets and commands", async () =>
 test("normal package tarball includes install docs and templates without bundled dependencies", async () => {
   const cacheDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-dry-cache-"));
   try {
-    const result = await execFileAsync("npm", ["pack", "--dry-run", "--json", "--cache", cacheDir], {
+    const result = await execFileAsync(npmCommand, ["pack", "--dry-run", "--json", "--cache", cacheDir], {
       cwd: repoRoot,
       env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
       maxBuffer,
@@ -89,7 +90,7 @@ test("normal package tarball fails in a fresh offline consumer without cached de
   const emptyCache = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-red-empty-cache-"));
 
   try {
-    const packResult = await execFileAsync("npm", ["pack", "--json", "--pack-destination", packDir, "--cache", packCache], {
+    const packResult = await execFileAsync(npmCommand, ["pack", "--json", "--pack-destination", packDir, "--cache", packCache], {
       cwd: repoRoot,
       env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
       maxBuffer,
@@ -100,7 +101,7 @@ test("normal package tarball fails in a fresh offline consumer without cached de
 
     await mkdir(consumerDir, { recursive: true });
     const install = await execFileResult(
-      "npm",
+      npmCommand,
       ["install", tarballPath, "--offline", "--cache", emptyCache, "--ignore-scripts", "--no-audit", "--fund=false"],
       {
         cwd: consumerDir,
@@ -125,7 +126,7 @@ test("offline release bundle exposes Apache-2.0 license artifacts", async () => 
   const releaseCache = process.env.TINY_CHU_RELEASE_NPM_CACHE ?? process.env.npm_config_cache ?? path.join(os.homedir(), ".npm");
 
   try {
-    const result = await execFileAsync("npm", ["run", "release:offline", "--", "--out", outDir], {
+    const result = await execFileAsync(npmCommand, ["run", "release:offline", "--", "--out", outDir], {
       cwd: repoRoot,
       env: { ...process.env, TINY_CHU_RELEASE_NPM_CACHE: releaseCache, npm_config_audit: "false", npm_config_fund: "false" },
       maxBuffer,

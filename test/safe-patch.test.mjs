@@ -1,9 +1,24 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import { acquireSafeToolingLock, createSafePatchApply, createSafePatchCheck, hashSourceTarget, SAFE_TOOLING_LIMITS } from "../dist/index.js";
+
+const execFileAsync = promisify(execFile);
+
+async function makeDirectoryUnwritable(directory) {
+  if (process.platform !== "win32") {
+    await chmod(directory, 0o500);
+    return () => chmod(directory, 0o700);
+  }
+  const identity = process.env.USERDOMAIN && process.env.USERNAME ? `${process.env.USERDOMAIN}\\${process.env.USERNAME}` : process.env.USERNAME;
+  assert.ok(identity, "Windows ACL tests need USERNAME");
+  await execFileAsync("icacls", [directory, "/deny", `${identity}:(OI)(CI)(W,D)`]);
+  return () => execFileAsync("icacls", [directory, "/remove:d", identity]);
+}
 
 test("safe_patch_check accepts a hash-matched patch without mutating source", async () => {
   // Given: a source file and an allowlisted patch with the correct before hash.
@@ -182,13 +197,13 @@ test("safe_patch_apply rolls back after a multi-file write failure", async () =>
   ].join("\n");
 
   // When: the second target directory becomes unwritable after validation data is captured.
-  await chmod(path.join(root, "z"), 0o500);
+  const restoreWritable = await makeDirectoryUnwritable(path.join(root, "z"));
   const result = await createSafePatchApply(root, {
     patch,
     allowedTargets: ["a/**", "z/**"],
     expectedFiles: { "a/one.txt": oneBefore.hash, "z/two.txt": twoBefore.hash },
   });
-  await chmod(path.join(root, "z"), 0o700);
+  await restoreWritable();
 
   // Then: no partial write remains.
   assert.equal(result.applied, false);
