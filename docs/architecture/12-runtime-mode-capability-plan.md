@@ -62,4 +62,4 @@ Tiny-Chu는 worker-only mode와 orchestrator+worker mode를 지원한다. README
 
 - runtime에서 사용자가 임의 package graph를 disable하는 기능은 넣지 않는다.
 - OpenCode host의 top-level mode object와 Tiny-Chu mode를 자동 동기화하지 않는다.
-- provider call capability를 chat/generate 실행으로 확장하지 않는다.
+- provider call capability를 본문 생성 실행으로 확장하지 않는다.

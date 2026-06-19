@@ -62,3 +62,30 @@ test("extractNamingSymbols allows repeated local names", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("extractNamingSymbols records overloaded exported functions once", async () => {
+  // Given: a temporary fixture with TypeScript overload signatures and one implementation.
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-naming-overload-test-"));
+  try {
+    await mkdir(path.join(root, "src"), { recursive: true });
+    await writeFile(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
+    await writeFile(path.join(root, "tsconfig.json"), JSON.stringify({ compilerOptions: { module: "NodeNext", moduleResolution: "NodeNext", target: "ES2022" }, include: ["src/**/*.ts"] }));
+    await writeFile(
+      path.join(root, "src", "fixture.ts"),
+      [
+        "export function configure(input: string): string;",
+        "export function configure(input: number): string;",
+        "export function configure(input: string | number): string { return String(input) }",
+      ].join("\n"),
+    );
+
+    // When: the extractor scans the fixture.
+    const result = await extractNamingSymbols(root);
+
+    // Then: duplicate public-export checks see the callable once, not every overload signature.
+    assert.equal(result.diagnostics.length, 0);
+    assert.equal(result.symbols.filter((symbol) => symbol.name === "configure" && symbol.kind === "function" && symbol.exported).length, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

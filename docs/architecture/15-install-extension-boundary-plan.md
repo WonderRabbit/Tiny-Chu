@@ -4,7 +4,7 @@
 
 현재 프로젝트는 upstream main 대비 설치와 운영 표면이 커졌다. `package.json`은 package export뿐 아니라 `tiny-chu` bin, governance 문서, naming docs, scripts를 배포 files에 포함한다 ([package.json](../../package.json), `package.json:16`, `package.json:21`, `package.json:24`). README는 `npx tiny-chu install`과 offline bundle, internal registry, developer local checkout을 설명한다 ([README.md](../../README.md), `README.md:9`, `README.md:98`).
 
-동시에 feature inventory는 dynamic package discovery, npm subpackage loading, MCP server adapters, Figma API calls, provider chat/generate/completion을 아직 미구현 범위로 둔다 ([docs/feature/2026-06-15-unimplemented-features.md](../feature/2026-06-15-unimplemented-features.md), `docs/feature/2026-06-15-unimplemented-features.md:76`, `docs/feature/2026-06-15-unimplemented-features.md:99`, `docs/feature/2026-06-15-unimplemented-features.md:115`).
+동시에 feature inventory는 dynamic package discovery, npm subpackage loading, MCP server adapters, Figma API calls, provider 본문 생성 호출을 아직 미구현 범위로 둔다 ([docs/feature/2026-06-15-unimplemented-features.md](../feature/2026-06-15-unimplemented-features.md), `docs/feature/2026-06-15-unimplemented-features.md:76`, `docs/feature/2026-06-15-unimplemented-features.md:99`, `docs/feature/2026-06-15-unimplemented-features.md:115`).
 
 설치 표면과 확장 후보가 같은 문서에 섞이면, 사용자는 "지원되는 설치 모드"와 "향후 검토할 adapter"를 혼동할 수 있다.
 
@@ -64,6 +64,6 @@
 
 ## 하지 않을 것
 
-- MCP server, Figma API, provider chat/generate 호출을 이번 개선으로 구현하지 않는다.
+- MCP server, Figma API, provider 본문 생성 호출을 이번 개선으로 구현하지 않는다.
 - runtime에서 외부 npm subpackage를 자동 로드하지 않는다.
 - package manager별 복잡한 plugin installer를 모두 내장하지 않는다.

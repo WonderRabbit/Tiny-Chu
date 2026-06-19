@@ -35,13 +35,13 @@ test("architecture docs keep package ids and default tool counts synchronized wi
 
   // When: architecture docs describe package ids, package count, and tool count.
   // Then: every active package id appears and stale hard-coded counts are rejected.
-  assert.equal(registryToolCount, 94);
+  assert.equal(registryToolCount, 99);
   assert.equal(registryPackageCount, 14);
   assertMentionsEvery("docs/architecture/03-feature-packages.md", featurePackages, tiny.registry.packageIds);
   assertMentionsEvery("docs/architecture/04-tool-catalog.md", toolCatalog, tiny.registry.packageIds);
-  assertMentionsEvery("docs/architecture/README.md", architectureReadme, ["14개 기본 패키지", "기본 94개 툴"]);
+  assertMentionsEvery("docs/architecture/README.md", architectureReadme, ["14개 기본 패키지", "기본 99개 툴"]);
   assertMentionsEvery("docs/architecture/03-feature-packages.md", featurePackages, ["mode 2 기준 14개"]);
-  assertMentionsEvery("docs/architecture/04-tool-catalog.md", toolCatalog, ["기본 94개 툴", "safeTooling", "102개", "106개"]);
+  assertMentionsEvery("docs/architecture/04-tool-catalog.md", toolCatalog, ["기본 99개 툴", "safeTooling", "107개", "111개"]);
 
   for (const [docName, docText] of [
     ["docs/architecture/01-overview.md", overview],
@@ -54,12 +54,17 @@ test("architecture docs keep package ids and default tool counts synchronized wi
   ]) {
     assertOmitsEvery(docName, docText, [
       /기본\s*93개/,
+      /기본\s*94개/,
       /93개\s*(?:툴|tool|핸들러)/i,
+      /94개\s*(?:툴|tool|핸들러)/i,
       /12개\s*기본\s*패키지/,
       /mode 2 기준 12개/,
       /기본 레지스트리는 93개/,
+      /기본 레지스트리는 94개/,
       /101개/,
       /105개/,
+      /102개/,
+      /106개/,
     ]);
   }
 });

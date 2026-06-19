@@ -75,7 +75,10 @@ function visitSourceFile(root: string, sourceFile: ts.SourceFile, symbols: Namin
 }
 
 function symbolFromNode(sourceFile: ts.SourceFile, modulePath: string, namespace: NamingNamespace, node: ts.Node, ancestors: readonly ts.Node[]): NamingSymbolRecord | undefined {
-  if (ts.isFunctionDeclaration(node)) return namedRecord(sourceFile, modulePath, namespace, node, ancestors, node.name?.text, "function", "declaration");
+  if (ts.isFunctionDeclaration(node)) {
+    if (node.body === undefined) return undefined;
+    return namedRecord(sourceFile, modulePath, namespace, node, ancestors, node.name?.text, "function", "declaration");
+  }
   if (ts.isClassDeclaration(node)) return namedRecord(sourceFile, modulePath, namespace, node, ancestors, node.name?.text, "class", "declaration");
   if (ts.isInterfaceDeclaration(node)) return namedRecord(sourceFile, modulePath, namespace, node, ancestors, node.name.text, "interface", "declaration");
   if (ts.isTypeAliasDeclaration(node)) return namedRecord(sourceFile, modulePath, namespace, node, ancestors, node.name.text, "type", "declaration");

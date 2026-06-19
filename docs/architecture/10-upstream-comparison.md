@@ -51,7 +51,7 @@
 
 ## 명시적 비목표
 
-- Team Mode, Hyperplan, Atlas/parallel hooks, 원본 delegate-task 엔진을 다시 들여오지 않는다.
+- 대형 협업 오케스트레이션, 계층형 계획 엔진, 병렬 hook, 원본 delegate-task 엔진을 다시 들여오지 않는다.
 - 외부 feature package를 자동 실행하거나 신뢰하지 않는다.
-- provider chat/generate/completion을 Tiny-Chu 기본 기능으로 넣지 않는다.
+- provider 본문 생성 호출을 Tiny-Chu 기본 기능으로 넣지 않는다.
 - 현재 dirty worktree의 다른 코드 변경을 되돌리거나 병합하지 않는다.
