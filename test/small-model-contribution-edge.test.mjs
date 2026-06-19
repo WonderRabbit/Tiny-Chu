@@ -122,6 +122,7 @@ test("CLI rejects symlinked output directories before writing outside root", asy
   const outsideFile = path.join(outsideNested, "leak.json");
   const linkPath = path.join(process.cwd(), ".omo", "evidence", "symlink-output-guard-test");
   await mkdir(outsideDir, { recursive: true });
+  await mkdir(path.dirname(linkPath), { recursive: true });
   await rm(linkPath, { recursive: true, force: true });
   await symlink(outsideDir, linkPath, "dir");
 
