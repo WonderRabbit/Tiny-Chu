@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { acquireSafeToolingLock, createSafePatchApply, createSafePatchCheck, hashSourceTarget, SAFE_TOOLING_LIMITS } from "../dist/index.js";
+import { createPortableSymlink as symlink } from "./support/symlink.mjs";
 
 const execFileAsync = promisify(execFile);
 

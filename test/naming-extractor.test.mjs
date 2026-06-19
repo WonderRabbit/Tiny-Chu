@@ -13,7 +13,7 @@ const execFileAsync = promisify(execFile);
 test("extractNamingSymbols returns source declarations and package tool names", async () => {
   // Given: the Tiny-Chu source tree and installed TypeScript compiler.
   const packageJson = JSON.parse(await readFile("package.json", "utf8"));
-  const expectedMajor = packageJson.devDependencies.typescript.match(/\d+/)?.[0];
+  const expectedMajor = packageJson.dependencies.typescript.match(/\d+/)?.[0];
 
   // When: the extractor scans src/**/*.ts through the compiler API.
   const result = await extractNamingSymbols(process.cwd());

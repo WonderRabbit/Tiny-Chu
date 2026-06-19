@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { proposeWikiDocumentsFromRepoMap, resolveTinyChuPaths } from "../dist/index.js";
+import { createPortableSymlink as symlink } from "./support/symlink.mjs";
 
 async function makeWikiRoot(prefix) {
   const root = await mkdtemp(path.join(os.tmpdir(), prefix));

@@ -8,9 +8,15 @@ The format follows Keep a Changelog, and Tiny-Chu version numbers follow SemVer.
 
 ### Added
 
+- Added a `tiny-chu install` package CLI that creates the `.opencode` plugin shims, TUI config, package dependency, and runs `.opencode` dependency installation.
+
 ### Changed
 
+- Made the package metadata npm-installable by clearing the private package flag, bundling runtime dependencies in packed artifacts, and documenting the direct `npx tiny-chu install` path.
+
 ### Fixed
+
+- Fixed packed package root imports by treating `typescript` as a runtime dependency for the public `extractNamingSymbols()` API.
 
 ### Security
 
@@ -38,4 +44,3 @@ The format follows Keep a Changelog, and Tiny-Chu version numbers follow SemVer.
 ### Security
 
 - No security fixes were shipped in this release.
-

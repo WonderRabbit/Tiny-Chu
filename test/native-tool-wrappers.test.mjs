@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createJsonPatchPreview, createJsonYamlTransformPreview, createStructuralRewritePreview, createStructuralSearchAst } from "../dist/index.js";
+import { createPortableSymlink as symlink } from "./support/symlink.mjs";
 
 function runnerFor(map) {
   return async (command, args) => {

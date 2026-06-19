@@ -52,8 +52,9 @@ export { default } from "../../src/opencode/tui-plugin.ts";
 
 계획이나 리서치 단계에서 다뤘지만 아직 Tiny-Chu 제품 기능으로 들어오지 않은 항목은 [docs/feature/2026-06-15-unimplemented-features.md](./docs/feature/2026-06-15-unimplemented-features.md)에 분리해 둔다.
 
-설치 경로는 세 가지로 구분한다.
+설치 경로는 네 가지로 구분한다.
 
+- `npm package`: registry를 사용할 수 있을 때 대상 프로젝트 root에서 `npx tiny-chu install`을 실행한다. installable tarball만 있을 때는 `npx --package /path/to/tiny-chu-X.Y.Z.tgz tiny-chu install --package-spec file:/path/to/tiny-chu-X.Y.Z.tgz`를 실행한다.
 - `closed-network install`: GitHub Release 또는 배포 저장소에서 `release asset download`를 먼저 수행한 뒤, 폐쇄망 안에서는 offline bundle과 `.opencode/vendor/`의 `local tarball(.tgz) install`만 사용한다.
 - `internal registry`: 조직 내부 npm registry에 Tiny-Chu와 production dependency를 mirror한 뒤 `.opencode/package.json`에서 registry version을 pin한다.
 - 개발용 source checkout: Tiny-Chu 소스 수정과 smoke test에만 사용한다. 운영 배포는 `package bundle distribution`을 기준으로 하고, source checkout을 폐쇄망 기본 경로로 문서화하지 않는다.
@@ -127,7 +128,7 @@ node --input-type=module -e "import { TinyChuOpenCodePlugin } from './dist/openc
 
 ### 직접 의존성과 latest 확인
 
-Tiny-Chu의 직접 런타임 의존성은 `@opencode-ai/plugin`과 `@opentui/solid` 두 개다. `@opencode-ai/plugin`은 OpenCode plugin bridge와 `tiny-chu/opencode` export에 필요하고, `@opentui/solid`는 `tiny-chu/tui` export와 TUI dashboard runtime에 필요하다. 개발 의존성은 `typescript` 하나다.
+Tiny-Chu의 직접 런타임 의존성은 `@opencode-ai/plugin`, `@opentui/solid`, `typescript` 세 개다. `@opencode-ai/plugin`은 OpenCode plugin bridge와 `tiny-chu/opencode` export에 필요하고, `@opentui/solid`는 `tiny-chu/tui` export와 TUI dashboard runtime에 필요하다. `typescript`는 root export의 `extractNamingSymbols()`가 TypeScript compiler API로 source symbol을 읽기 때문에 package import 시 함께 설치되어야 한다.
 
 현재 `package.json`은 `@opencode-ai/plugin` range를 `^1.17.4`로 유지한다. `package-lock.json`은 이 range에서 실제 해석된 설치 상태를 고정하며, registry 최신값과 같은 의미가 아니다. planning 중 `npm view @opencode-ai/plugin version --json` 결과는 `1.17.7`로 observed as of 2026-06-16이었다. 이 관찰값은 문서 freshness 정보일 뿐 자동 upgrade 지시가 아니며, range나 lockfile 변경은 별도 scope에서만 다룬다.
 

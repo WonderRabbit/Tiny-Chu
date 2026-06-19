@@ -63,7 +63,7 @@ git tag -a vX.Y.Z -m "tiny-chu vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-Those commands are documentation only. Do not run `git tag`, `git push`, or `npm publish` without separate user authorization at execution time. This package currently keeps `private: true`; do not change that as part of release preparation unless a separate release policy explicitly authorizes npm publication.
+Those commands are documentation only. Do not run `git tag`, `git push`, or `npm publish` without separate user authorization at execution time. The package metadata is npm-installable, but publication is still a separate release action that requires explicit authorization.
 
 ## Bus-Factor Handoff
 

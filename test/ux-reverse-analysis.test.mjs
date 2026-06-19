@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { ARTIFACT_TYPES, checkArtifactMarkdown, createTinyChuPlugin, uxSourceFingerprint } from "../dist/index.js";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
+import { createPortableSymlink as symlink } from "./support/symlink.mjs";
 
 async function writeFixture(root, relative, lines) {
   const target = path.join(root, relative);

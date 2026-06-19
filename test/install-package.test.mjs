@@ -37,19 +37,35 @@ function assertPackedLicenseMetadata(packPayload) {
   return files;
 }
 
+async function packPackage(packDir, cacheDir) {
+  const packResult = await execFileAsync(npmCommand, ["pack", "--json", "--pack-destination", packDir, "--cache", cacheDir], {
+    ...npmExecOptions,
+    cwd: repoRoot,
+    env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
+    maxBuffer,
+  });
+  const packed = JSON.parse(packResult.stdout);
+  assertPackedLicenseMetadata(packed[0]);
+  return path.join(packDir, packed[0].filename);
+}
+
 test("package metadata exposes offline install assets and commands", async () => {
   const packageJson = await readJson("package.json");
   const templatePackage = await readJson("templates/opencode/package.json");
 
+  assert.equal(packageJson.private, false);
   assert.equal(packageJson.license, "Apache-2.0");
   assert.equal(packageJson.engines.node, ">=20.18.0");
+  assert.equal(packageJson.bundleDependencies, true);
   assert.equal(packageJson.scripts["pack:check"], "npm run build && node --test test/install-package.test.mjs");
   assert.equal(packageJson.scripts["release:offline"], "node scripts/release/build-offline-bundle.mjs");
   assert.equal(packageJson.scripts["verify:offline"], "node scripts/release/verify-offline-bundle.mjs");
   assert.equal(packageJson.exports["./tui"], "./dist/opencode/tui-plugin.js");
-  assert.deepEqual(Object.keys(packageJson.dependencies).sort(), ["@opencode-ai/plugin", "@opentui/solid"]);
+  assert.equal(packageJson.bin["tiny-chu"], "./scripts/tiny-chu.mjs");
+  assert.deepEqual(Object.keys(packageJson.dependencies).sort(), ["@opencode-ai/plugin", "@opentui/solid", "typescript"]);
   assert.equal(packageJson.dependencies["@opencode-ai/plugin"], "^1.17.4");
   assert.equal(packageJson.dependencies["@opentui/solid"], "^0.3.4");
+  assert.equal(packageJson.dependencies.typescript, "^6.0.3");
   assert.equal(packageJson.dependencies["solid-js"], undefined);
   assert.ok(packageJson.files.includes("LICENSE"));
   assert.ok(packageJson.files.includes("INSTALL.md"));
@@ -59,10 +75,11 @@ test("package metadata exposes offline install assets and commands", async () =>
   assert.ok(packageJson.files.includes("SECURITY.md"));
   assert.ok(packageJson.files.includes("CHANGELOG.md"));
   assert.ok(packageJson.files.includes("templates"));
+  assert.ok(packageJson.files.includes("scripts/tiny-chu.mjs"));
   assert.equal(templatePackage.dependencies["tiny-chu"], "file:./vendor/tiny-chu-vX.Y.Z-bundled.tgz");
 });
 
-test("normal package tarball includes install docs and templates without bundled dependencies", async () => {
+test("normal package tarball includes install docs, templates, and bundled runtime dependencies", async () => {
   const cacheDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-dry-cache-"));
   try {
     const result = await execFileAsync(npmCommand, ["pack", "--dry-run", "--json", "--cache", cacheDir], {
@@ -85,30 +102,82 @@ test("normal package tarball includes install docs and templates without bundled
     assert.ok(files.has("templates/opencode/tui.json"));
     assert.ok(files.has("templates/opencode/plugins/tiny-chu.ts"));
     assert.ok(files.has("templates/opencode/plugins/tiny-chu-tui.ts"));
+    assert.ok(files.has("scripts/tiny-chu.mjs"));
     assert.ok(files.has("dist/index.js"));
     assert.ok(files.has("dist/opencode/tui-plugin.js"));
-    assert.equal([...files].some((file) => file.startsWith("node_modules/")), false);
+    assert.ok(files.has("node_modules/@opencode-ai/plugin/package.json"));
+    assert.ok(files.has("node_modules/@opentui/solid/package.json"));
+    assert.ok(files.has("node_modules/typescript/package.json"));
   } finally {
     await rm(cacheDir, { recursive: true, force: true });
   }
 });
 
-test("normal package tarball fails in a fresh offline consumer without cached dependencies", async () => {
-  const packDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-red-"));
-  const packCache = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-red-cache-"));
-  const consumerDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-red-consumer-"));
-  const emptyCache = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-red-empty-cache-"));
+test("package installer creates an OpenCode project shim and installs Tiny-Chu", async () => {
+  const packDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-cli-pack-"));
+  const packCache = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-cli-pack-cache-"));
+  const consumerDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-cli-consumer-"));
+  const targetDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-cli-target-"));
+  const emptyCache = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-cli-empty-cache-"));
 
   try {
-    const packResult = await execFileAsync(npmCommand, ["pack", "--json", "--pack-destination", packDir, "--cache", packCache], {
+    const tarballPath = await packPackage(packDir, packCache);
+    const packageSpec = `file:${tarballPath}`;
+
+    await mkdir(consumerDir, { recursive: true });
+    await execFileAsync(npmCommand, ["install", tarballPath, "--offline", "--cache", emptyCache, "--ignore-scripts", "--no-audit", "--fund=false"], {
       ...npmExecOptions,
-      cwd: repoRoot,
-      env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
+      cwd: consumerDir,
+      env: { ...process.env, npm_config_registry: "http://127.0.0.1:9/", npm_config_audit: "false", npm_config_fund: "false" },
       maxBuffer,
     });
-    const packed = JSON.parse(packResult.stdout);
-    assertPackedLicenseMetadata(packed[0]);
-    const tarballPath = path.join(packDir, packed[0].filename);
+    const installer = path.join(consumerDir, "node_modules", ".bin", process.platform === "win32" ? "tiny-chu.cmd" : "tiny-chu");
+    const installResult = await execFileAsync(
+      installer,
+      ["install", targetDir, "--package-spec", packageSpec],
+      {
+        ...npmExecOptions,
+        cwd: consumerDir,
+        env: { ...process.env, npm_config_registry: "http://127.0.0.1:9/", npm_config_cache: emptyCache },
+        maxBuffer,
+      },
+    );
+    const openCodeDir = path.join(targetDir, ".opencode");
+    const openCodePackage = JSON.parse(await readFile(path.join(openCodeDir, "package.json"), "utf8"));
+    const opencodeImport = await execFileAsync(
+      process.execPath,
+      ["--input-type=module", "-e", "import { TinyChuOpenCodePlugin } from 'tiny-chu/opencode'; console.log(typeof TinyChuOpenCodePlugin);"],
+      { cwd: openCodeDir, maxBuffer },
+    );
+    const tuiImport = await execFileAsync(
+      process.execPath,
+      ["--input-type=module", "-e", "const mod = await import('tiny-chu/tui'); console.log(mod.default.id, typeof mod.default.tui);"],
+      { cwd: openCodeDir, maxBuffer },
+    );
+
+    assert.match(installResult.stdout, /Tiny-Chu installed/);
+    assert.equal(openCodePackage.dependencies["tiny-chu"], packageSpec);
+    assert.match(await readFile(path.join(openCodeDir, "plugins", "tiny-chu.ts"), "utf8"), /tiny-chu\/opencode/);
+    assert.match(await readFile(path.join(openCodeDir, "plugins", "tiny-chu-tui.ts"), "utf8"), /tiny-chu\/tui/);
+    assert.equal(opencodeImport.stdout.trim(), "function");
+    assert.equal(tuiImport.stdout.trim(), "tiny-chu.logo function");
+  } finally {
+    await rm(packDir, { recursive: true, force: true });
+    await rm(packCache, { recursive: true, force: true });
+    await rm(consumerDir, { recursive: true, force: true });
+    await rm(targetDir, { recursive: true, force: true });
+    await rm(emptyCache, { recursive: true, force: true });
+  }
+});
+
+test("normal package tarball installs in a fresh offline consumer and exposes public entrypoints", async () => {
+  const packDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-install-"));
+  const packCache = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-install-cache-"));
+  const consumerDir = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-install-consumer-"));
+  const emptyCache = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-pack-install-empty-cache-"));
+
+  try {
+    const tarballPath = await packPackage(packDir, packCache);
 
     await mkdir(consumerDir, { recursive: true });
     const install = await execFileResult(
@@ -120,10 +189,27 @@ test("normal package tarball fails in a fresh offline consumer without cached de
         env: { ...process.env, npm_config_registry: "http://127.0.0.1:9/", npm_config_audit: "false", npm_config_fund: "false" },
       },
     );
-    const output = `${install.stdout}\n${install.stderr}`;
 
-    assert.notEqual(install.code, 0);
-    assert.match(output, /ENOTCACHED|cache mode is 'only-if-cached'|@opencode-ai%2fplugin|@opencode-ai\/plugin|@opentui%2fsolid|@opentui\/solid/);
+    assert.equal(install.code, 0, `${install.stdout}\n${install.stderr}`);
+    const rootImport = await execFileAsync(
+      process.execPath,
+      ["--input-type=module", "-e", "import { createTinyChuPlugin } from 'tiny-chu'; console.log(typeof createTinyChuPlugin);"],
+      { cwd: consumerDir, maxBuffer },
+    );
+    const opencodeImport = await execFileAsync(
+      process.execPath,
+      ["--input-type=module", "-e", "import { TinyChuOpenCodePlugin } from 'tiny-chu/opencode'; console.log(typeof TinyChuOpenCodePlugin);"],
+      { cwd: consumerDir, maxBuffer },
+    );
+    const tuiImport = await execFileAsync(
+      process.execPath,
+      ["--input-type=module", "-e", "const mod = await import('tiny-chu/tui'); console.log(mod.default.id, typeof mod.default.tui);"],
+      { cwd: consumerDir, maxBuffer },
+    );
+
+    assert.equal(rootImport.stdout.trim(), "function");
+    assert.equal(opencodeImport.stdout.trim(), "function");
+    assert.equal(tuiImport.stdout.trim(), "tiny-chu.logo function");
   } finally {
     await rm(packDir, { recursive: true, force: true });
     await rm(packCache, { recursive: true, force: true });

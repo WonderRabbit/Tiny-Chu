@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { extractNamingSymbols } from "../dist/naming/naming-extract.js";
 import { appendNamingEvent } from "../dist/naming/naming-storage.js";
+import { createPortableSymlink as symlink } from "./support/symlink.mjs";
 
 test("naming storage rejects symlinked naming directory before outside writes", async (t) => {
   // Given: .tiny/naming is a symlink to a directory outside the configured root.

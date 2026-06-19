@@ -2,12 +2,12 @@
 
 ## Supported Versions
 
-Tiny-Chu currently supports source checkouts and offline bundles for the current `0.1.x` line while `package.json.version` is `0.1.0`.
+Tiny-Chu currently supports npm package installs, source checkouts, and offline bundles for the current `0.1.x` line while `package.json.version` is `0.1.0`.
 
-| Version | Source checkout | Offline bundle | Status |
-| --- | --- | --- | --- |
-| `0.1.x` | Supported | Supported | Current |
-| Earlier versions | Not supported | Not supported | No security fixes planned |
+| Version | npm package | Source checkout | Offline bundle | Status |
+| --- | --- | --- | --- | --- |
+| `0.1.x` | Supported | Supported | Supported | Current |
+| Earlier versions | Not supported | Not supported | Not supported | No security fixes planned |
 
 ## Reporting a Vulnerability
 
@@ -20,7 +20,7 @@ If GitHub private vulnerability reporting is enabled for the repository, use tha
 Please include:
 
 - Affected Tiny-Chu version or source commit.
-- Whether the issue affects source checkout usage, offline bundle usage, or both.
+- Whether the issue affects npm package install, source checkout usage, offline bundle usage, or more than one channel.
 - Reproduction steps and expected impact.
 - Any logs, proof of concept, or affected files that can be shared safely.
 
@@ -46,4 +46,3 @@ Repository administrators should configure and periodically verify:
 - Branch protection and required checks.
 - Credential recovery inventory outside the repository.
 - Release checklist rehearsal by a backup maintainer.
-

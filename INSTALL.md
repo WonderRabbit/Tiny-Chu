@@ -1,8 +1,8 @@
 # Tiny-Chu 설치 가이드
 
-이 문서는 Tiny-Chu를 OpenCode 프로젝트에 설치하는 canonical A-Z 절차다. 로컬 개발 설치, 폐쇄망 설치, internal registry 배포, developer local checkout 검증을 모두 다루지만 운영 폐쇄망 기본 경로는 offline bundle이다.
+이 문서는 Tiny-Chu를 OpenCode 프로젝트에 설치하는 canonical A-Z 절차다. registry 또는 installable tarball을 사용할 수 있는 환경에서는 `npx tiny-chu install`이 기본 경로이고, 폐쇄망에서는 offline bundle이 기본 경로다. 로컬 개발 설치, 폐쇄망 설치, internal registry 배포, developer local checkout 검증을 모두 다룬다.
 
-Tiny-Chu 폐쇄망 설치는 대상 프로젝트의 `.opencode/` 아래에 project-local OpenCode plugin file과 local package dependency를 둔다. OpenCode 시작 시점에 npm plugin을 외부에서 내려받는 방식에 의존하지 않는다.
+Tiny-Chu npm package는 root, `tiny-chu/opencode`, `tiny-chu/tui` entrypoint와 필요한 runtime dependency를 함께 제공한다. 폐쇄망 설치는 대상 프로젝트의 `.opencode/` 아래에 project-local OpenCode plugin file과 local package dependency를 둔다. OpenCode 시작 시점에 npm plugin을 외부에서 내려받는 방식에 의존하지 않는다.
 
 프로젝트의 목적과 제공 범위는 [README.md](./README.md)를 먼저 보고, 설치 후 운영 사용법은 [HOW_TO_USE.md](./HOW_TO_USE.md)를 기준으로 확인한다.
 릴리스와 거버넌스 기준은 [CONTRIBUTING.md](./CONTRIBUTING.md), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md), [CHANGELOG.md](./CHANGELOG.md)를 함께 확인한다.
@@ -27,13 +27,47 @@ $PSNativeCommandArgumentPassing = 'Standard'
 
 | 경로 | 선택 기준 | 대상 프로젝트의 network 요구 |
 | --- | --- | --- |
+| npm package | npm registry 또는 installable `.tgz`에 접근할 수 있을 때 | registry 또는 tarball 접근 |
 | offline bundle | 대상 프로젝트가 폐쇄망이거나 registry 접근이 없을 때 | release asset을 복사한 뒤에는 없음 |
 | internal registry | 조직이 Tiny-Chu와 production dependency를 Verdaccio, Artifactory, Nexus, GitHub Packages 같은 내부 registry에 mirror할 때 | 내부 registry 접근 |
 | developer local checkout | Tiny-Chu 자체를 개발하거나 로컬 소스 변경을 빠르게 검증할 때 | 로컬 checkout과 그 dependency 접근 |
 
-운영 폐쇄망에는 offline bundle을 사용한다. developer local checkout은 빌드 산출물과 실제 release asset의 상태가 달라질 수 있으므로 개발 검증 용도로만 둔다.
+registry 접근이 가능하면 npm package 경로를 먼저 사용한다. 운영 폐쇄망에는 offline bundle을 사용한다. developer local checkout은 빌드 산출물과 실제 release asset의 상태가 달라질 수 있으므로 개발 검증 용도로만 둔다.
 
-## 2단계: release asset download
+## 2단계: one-command npm package install
+
+대상 프로젝트 root에서 Tiny-Chu installer를 실행한다. 이 명령은 아래 작업을 한 번에 수행한다.
+
+- `.opencode/package.json` 생성 또는 갱신
+- `.opencode/plugins/tiny-chu.ts` 생성
+- `.opencode/plugins/tiny-chu-tui.ts` 생성
+- `.opencode/tui.json` 생성
+- `.opencode` 안에서 `npm install --ignore-scripts --no-audit --fund=false` 실행
+
+```bash
+cd target-project
+npx tiny-chu install
+```
+
+release tarball 파일을 직접 받은 경우에도 같은 installer를 사용한다.
+
+```bash
+cd target-project
+npx --package /path/to/tiny-chu-0.1.0.tgz tiny-chu install --package-spec file:/path/to/tiny-chu-0.1.0.tgz
+```
+
+Windows PowerShell에서도 같은 명령을 사용하되, path에 공백이나 특수 문자가 있으면 single quote로 감싼다.
+
+```powershell
+cd C:\path\to\target-project
+npx --package 'C:\path\to\tiny-chu-0.1.0.tgz' tiny-chu install --package-spec 'file:C:\path\to\tiny-chu-0.1.0.tgz'
+```
+
+이미 `.opencode` dependency install을 다른 도구가 관리한다면 `--skip-npm-install`을 붙여 파일 생성만 수행한다. 기존 shim 파일을 덮어써야 할 때만 `--force`를 사용한다.
+
+설치 후 10단계의 package import smoke를 실행한다.
+
+## 3단계: release asset download
 
 폐쇄망에 들어가기 전, 연결 가능한 release machine에서 Tiny-Chu release asset을 받는다.
 
@@ -78,7 +112,7 @@ macOS에서는 아래 명령을 사용한다.
 shasum -a 256 -c SHA256SUMS
 ```
 
-## 3단계: maintainer용 offline bundle 생성
+## 4단계: maintainer용 offline bundle 생성
 
 maintainer는 인터넷에 연결된 release machine에서 새 offline bundle을 만들고 검증한다.
 
@@ -97,7 +131,7 @@ release version은 `package.json.version`에서만 가져온다. installer scrip
 
 release tag는 [CONTRIBUTING.md](./CONTRIBUTING.md)의 checklist를 따른다. `CHANGELOG.md`와 `package.json.version`을 먼저 맞추고, 현재 `0.1.0` 준비 상태는 `git tag --list v0.1.0`로 읽기 전용 확인만 한다. 실제 annotated tag 예시는 `git tag -a vX.Y.Z -m "tiny-chu vX.Y.Z"`지만, tag 생성, `git push`, `npm publish`는 별도 승인 없이는 실행하지 않는다.
 
-## 4단계: 폐쇄망으로 bundle 반입
+## 5단계: 폐쇄망으로 bundle 반입
 
 검증된 `tiny-chu-offline-vX.Y.Z.tar.gz`와 checksum/provenance 파일을 폐쇄망으로 복사한다. 대상 프로젝트 근처나 내부에서 압축을 푼다.
 
@@ -107,7 +141,7 @@ tar -xzf tiny-chu-offline-vX.Y.Z.tar.gz
 
 압축 해제 후 `manifest.json`, `SHA256SUMS`, `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `vendor/tiny-chu-vX.Y.Z-bundled.tgz`, `templates/opencode/`가 있는지 확인한다.
 
-## 5단계: 대상 프로젝트 `.opencode` 준비
+## 6단계: 대상 프로젝트 `.opencode` 준비
 
 대상 프로젝트에 OpenCode plugin layout을 만든다.
 
@@ -144,7 +178,7 @@ target-project/
 }
 ```
 
-## 6단계: `.opencode` 안에서 offline install 실행
+## 7단계: `.opencode` 안에서 offline install 실행
 
 설치는 대상 프로젝트의 `.opencode` 디렉터리 안에서 실행한다.
 
@@ -184,7 +218,7 @@ bundle에 installer script가 포함되어 있으면 수동 copy/install 절차 
 .\install-offline.ps1 -TargetProject C:\path\to\target-project
 ```
 
-## 7단계: OpenCode shim 확인
+## 8단계: OpenCode shim 확인
 
 Tiny-Chu는 runtime plugin download가 아니라 project-local OpenCode shim으로 로드된다.
 
@@ -212,7 +246,7 @@ TUI plugin은 `home_logo`를 `TinyChu`로 유지하고 `home_prompt_right`, `sid
 
 Dashboard는 OpenCode-visible `dashboard_snapshot` tool을 사용한다. 이 tool은 기존 `.tiny` task, public job, workflow, evidence, context 상태를 읽으며 새 dashboard state store를 만들지 않는다. provider network preflight는 기본값에서 꺼져 있고 `includeProviderPreflight`가 명시될 때만 실행한다.
 
-## 8단계: runtime mode 선택
+## 9단계: runtime mode 선택
 
 Tiny-Chu runtime mode는 OpenCode의 deprecated top-level `mode` object가 아니라 Tiny-Chu plugin option으로 선택한다. mode 1은 worker-only, mode 2는 orchestrator + worker surface이며 기본값이다.
 
@@ -242,7 +276,7 @@ createTinyChuPlugin({ mode: "worker" });
 createTinyChuPlugin({ mode: "orchestrator_worker" });
 ```
 
-## 9단계: 설치 검증
+## 10단계: 설치 검증
 
 아래 명령은 `target-project/.opencode`에서 실행한다.
 
@@ -270,7 +304,7 @@ node --input-type=module -e "import { createTinyChuPlugin } from 'tiny-chu'; con
 - TUI plugin이 켜지면 `home_logo`에는 `TinyChu`가 보이고 dashboard slot이 채워진다.
 - Tiny-Chu tool 목록에는 `tiny_chu_install_check`와 `dashboard_snapshot`이 포함된다.
 
-## 10단계: internal registry 경로
+## 11단계: internal registry 경로
 
 조직 내부 registry에 Tiny-Chu와 production dependency가 mirror되어 있다면 이 경로를 쓴다.
 
@@ -298,7 +332,7 @@ export { TinyChuOpenCodePlugin as TinyChu } from "tiny-chu/opencode";
 }
 ```
 
-## 11단계: developer local checkout 경로
+## 12단계: developer local checkout 경로
 
 Tiny-Chu 자체 개발이나 로컬 source smoke test가 목적일 때만 사용한다.
 

@@ -16,7 +16,8 @@ export function toPortablePath(value: string): string {
 }
 
 export function portableRelative(from: string, to: string): string {
-  return toPortablePath(path.relative(from, to));
+  const relative = isWindowsAbsolute(from) || isWindowsAbsolute(to) ? path.win32.relative(from, to) : path.relative(from, to);
+  return toPortablePath(relative);
 }
 
 export function resolvePathInsideRoot(root: string, candidate: string): string | undefined {
