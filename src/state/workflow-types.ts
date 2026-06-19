@@ -1,8 +1,8 @@
-export type WorkflowRunStatus = "ready" | "running" | "checkpointed" | "blocked" | "done" | "failed" | "cancelled";
+export type WorkflowRunStatus = "ready" | "running" | "checkpointed" | "blocked" | "done" | "closed" | "failed" | "cancelled";
 
 export type WorkflowNodeStatus = "blocked" | "ready" | "running" | "checkpointed" | "done" | "failed" | "cancelled";
 
-export type WorkflowEventType = "run_created" | "checkpoint_created";
+export type WorkflowEventType = "run_created" | "checkpoint_created" | "workflow_closed";
 
 export type WorkflowPacketKind = "agent_packet" | "split_required" | "command" | "gate" | "blocked" | "done";
 
@@ -81,6 +81,8 @@ export interface WorkflowRun {
   readonly checkpoints: readonly WorkflowCheckpoint[];
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly closedAt?: string;
+  readonly closeSummary?: string;
 }
 
 export interface WorkflowEvent {

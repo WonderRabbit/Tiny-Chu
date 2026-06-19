@@ -4,6 +4,7 @@ import { PublicDispatcher, type PublicJob } from "../dispatcher/public-job.js";
 import { writeTextAtomic } from "../state/file-store.js";
 import { resolveExistingPathInsideRoot, resolvePathInsideRoot } from "../state/path-safety.js";
 import { readLegacySourceFiles } from "./legacy-scanner.js";
+import { rejectRejectedPlanReviewGate } from "./plan-review-gate.js";
 
 export { aggregationDriftCheck } from "./button-drift.js";
 
@@ -153,6 +154,8 @@ export function createButtonWorkerPacket(input: Record<string, unknown>): Record
 }
 
 export async function dispatchButtonWorkflow(root: string, input: Record<string, unknown>): Promise<{ readonly dispatched: readonly PublicJob[]; readonly remaining: readonly ButtonWorkItem[] }> {
+  const gateInput = input.planReviewGate === undefined ? input.plan : { ...record(input.plan), ...record(input.planReviewGate) };
+  await rejectRejectedPlanReviewGate(gateInput, root);
   const plan = record(input.plan);
   const workItems = Array.isArray(plan?.workItems) ? plan.workItems.flatMap((item) => {
     const parsed = buttonWorkItem(item);

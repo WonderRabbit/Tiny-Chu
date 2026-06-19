@@ -34,16 +34,20 @@ function appendBounded(current: string, chunk: string, maxBytes: number): string
   return Buffer.byteLength(combined, "utf8") <= maxBytes ? combined : combined.slice(0, maxBytes);
 }
 
+function nativePreviewEnv(env: Readonly<Record<string, string>> | undefined): Record<string, string> {
+  const pathValue = env?.PATH ?? process.env.PATH;
+  return {
+    ...(pathValue ? { PATH: pathValue } : {}),
+    NO_COLOR: "1",
+  };
+}
+
 export function runNativeCommand(command: string, args: readonly string[], options: NativeRunOptions = {}): Promise<NativeCommandResult> {
   return new Promise((resolve) => {
     const child = spawn(command, [...args], {
       cwd: options.cwd,
       shell: false,
-      env: {
-        ...process.env,
-        NO_COLOR: "1",
-        ...options.env,
-      },
+      env: nativePreviewEnv(options.env),
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";

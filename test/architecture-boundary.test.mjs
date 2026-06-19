@@ -6,7 +6,7 @@ import { createTinyChuPlugin } from "../dist/index.js";
 
 const SRC_ROOT = path.resolve("src");
 const CORE_PREFIXES = ["src/context/", "src/dispatcher/", "src/state/", "src/ulw-loop/", "src/wiki/"];
-const HOST_FILES = new Set(["src/index.ts", "src/opencode/plugin.ts", "src/opencode/tiny-plugin.ts", "src/opencode/install-check.ts"]);
+const HOST_FILES = new Set(["src/index.ts", "src/opencode/plugin.ts", "src/opencode/tiny-plugin.ts", "src/opencode/project-governance-tools.ts", "src/opencode/install-check.ts", "src/opencode/mcp/stdio-entrypoint.ts"]);
 const SHARED_FILES = new Set([
   "src/markdown/mermaid.ts",
   "src/opencode/artifact-contract.ts",

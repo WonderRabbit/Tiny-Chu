@@ -29,6 +29,7 @@ export interface TinyChuConfig {
   mode?: TinyChuRuntimeModeInput;
   safeTooling?: boolean;
   nativePreviews?: boolean;
+  disabledPackages?: readonly string[];
   publicDispatcher?: {
     softRpm?: number;
     softTpm?: number;

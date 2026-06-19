@@ -7,6 +7,8 @@
 - Tiny-Chu의 기본 기능은 파일 기반 task/context/wiki/public job/workflow 상태 관리와 OpenCode plugin shell이다.
 - 안전한 소스 변경 흐름은 `safeTooling`과 `nativePreviews` opt-in으로 제한된다.
 - 현재 안전 도구 표면은 `safe_patch_check`, `safe_patch_apply`, `artifact_workspace_prepare`, `artifact_workspace_commit`, `artifact_publish_manifest`, `artifact_publish_apply`, `powershell_toolchain_probe`, `run_diagnostics`, `structural_search_ast`, `structural_rewrite_preview`, `json_yaml_transform_preview`, `json_patch_preview` 중심이다.
+- `disabledPackages`는 dependency closure 검증을 거쳐 default feature package 일부를 명시적으로 제외할 수 있고, `tiny_chu_install_check`가 active/excluded/disabled package metadata를 보고한다.
+- MCP 표면은 composed registry 위의 stdio descriptor/call adapter로 제공되며 HTTP/SSE transport와 external registry publish는 포함하지 않는다.
 - `provider_endpoint_preflight`는 metadata readiness probe일 뿐 provider chat이나 generation prompt를 보내지 않는다.
 
 ## 미구현 범위
@@ -87,21 +89,14 @@
 - 아직 구현하지 않는 범위: runtime에서 npm subpackage를 찾아 feature package로 attach하지 않는다.
 - 향후 검토 조건: offline bundle packaging, dependency pinning, ESM loading failure isolation이 정리되면 검토한다.
 
-#### `runtime disabling of default feature packages`
-
-- 현재 상태: mode 1/2는 tool surface를 제한하지만 default feature package graph 자체를 임의로 끄는 기능은 아니다.
-- 근거: registry composer는 duplicate, missing dependency, cycle을 검증한 뒤 default graph를 만든다.
-- 아직 구현하지 않는 범위: 사용자가 runtime option으로 default package 일부를 disable하는 기능을 두지 않았다.
-- 향후 검토 조건: dependency closure, hidden tool diagnostics, install-check expectation, backward compatibility를 테스트로 고정하면 검토한다.
-
 ### external adapter boundaries
 
-#### `MCP server adapters`
+#### `MCP HTTP/SSE transports and registry publish`
 
-- 현재 상태: Tiny-Chu는 OpenCode plugin tool surface를 제공하며 별도 MCP server adapter를 만들지 않는다.
-- 근거: 현재 설치 문서는 `.opencode/plugins/` shim과 package subpath import를 기준으로 한다.
-- 아직 구현하지 않는 범위: MCP server lifecycle, schema export, auth, transport 설정을 제품 기능으로 묶지 않았다.
-- 향후 검토 조건: host별 adapter boundary, security model, offline behavior, schema drift 검증이 준비되면 검토한다.
+- 현재 상태: MCP stdio descriptor/call adapter는 composed registry와 install-check metadata를 기준으로 제공한다.
+- 근거: `tiny-chu.host-mcp`는 host package로 tool을 소유하지 않고, stdio JSON-RPC entrypoint는 registry descriptor를 소비한다.
+- 아직 구현하지 않는 범위: HTTP/SSE transport, auth layer, external registry publish, remote host lifecycle 관리는 제품 기능으로 묶지 않았다.
+- 향후 검토 조건: transport별 security model, offline behavior, token handling, schema drift 검증이 준비되면 검토한다.
 
 #### `Figma API calls`
 
@@ -155,7 +150,7 @@
 
 - README와 HOW_TO_USE의 phase 1 설명은 내부 `TinyFeaturePackage` descriptor compose와 고정된 default package graph를 기준으로 한다.
 - 안전 도구 범위는 `SAFE_TOOLING_TOOLS`와 `NATIVE_PREVIEW_TOOLS` seed에 묶여 있으며, native executable이 없을 때 unavailable/degraded 결과를 반환하는 방식이다.
-- architecture 문서는 `requiredRuntime` 같은 package metadata가 advisory 성격이며 host enforcement나 runtime package disabling과 다르다고 설명한다.
+- architecture 문서는 `requiredRuntime` 같은 package metadata가 advisory 성격이며 host enforcement와 다르다고 설명한다.
 - small-model 관련 리서치 문서에는 `compact tool index`, `content-aware packet fit`, prompt-injection 감소 같은 후보가 있지만 현재 public API 계약으로 옮기지 않았다.
 
 ## 향후 검토 조건

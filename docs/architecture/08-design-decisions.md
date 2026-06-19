@@ -79,7 +79,7 @@ Tiny-Chu는 **순수 로컬 오케스트레이션 프레임**입니다. 실제 L
 툴 핸들러가 `Record<string, unknown>`을 받고, `stringInput()`/`numberInput()`/`stringListInput()`으로 런타임 검증.
 
 ### 근거
-- **기본 93개 툴의 일관된 노출**: 각 툴마다 상세 JSON 스키마를 유지하는 부담 회피
+- **기본 99개 툴의 일관된 노출**: 각 툴마다 상세 JSON 스키마를 유지하는 부담 회피
 - **핸들러 단순성**: 비즈니스 로직에 집중
 - **OpenCode 브리지 단순화**: 모든 툴이 동일한 자유 형식 객체 입력
 
@@ -152,7 +152,7 @@ safe-tooling 툴(`safe_patch_check` 등)은 상세 `inputSchema`를 가집니다
 ### 공통 철학
 > "이 리포지토리는 의도적으로 작게 유지됩니다. 큰 추상화는 피합니다." (AGENTS.md)
 
-제외는 영구적 제약이 아니라 **v0.1의 범위**입니다. README: "Phase 1은 의도적으로 내부적입니다. Tiny-Chu는 아직 동적 패키지 디스커버리, npm 서브패키지 로딩, MCP 서버 어댑터, Figma API 호출, 프로바이더 chat/generate/completion 호출, 또는 기본 패키지의 런타임 비활성화를 제공하지 않습니다. `provider_endpoint_preflight`는 명시적으로 켜는 metadata readiness probe 예외입니다."
+제외는 영구적 제약이 아니라 **v0.1의 범위**입니다. 현재 보류 범위는 동적 패키지 디스커버리, npm 서브패키지 로딩, Figma API 호출, 프로바이더 chat/generate/completion 호출, HTTP/SSE MCP transport, MCP registry publish이다. `provider_endpoint_preflight`는 명시적으로 켜는 metadata readiness probe 예외입니다.
 
 ## 결정 10: 위상 정렬된 패키지 의존성
 

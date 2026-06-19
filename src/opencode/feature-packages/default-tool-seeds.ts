@@ -71,6 +71,9 @@ export const WORKFLOW_ORCHESTRATION_TOOLS: readonly ToolSeed[] = [
   writeState("workflow_create", "Create a durable workflow run and initial stop point."),
   readJson("workflow_status", "Read workflow run status, checkpoints, and resume command metadata."),
   writeState("workflow_checkpoint", "Checkpoint workflow node progress with evidence and next steps."),
+  writeState("workflow_close", "Close a done workflow run after evidence gate and source-of-truth checks."),
+  readJson("workflow_audit", "Read-only audit for workflow evidence gaps, stale state, projection drift, and orphan reports."),
+  readJson("plan_review_gate", "Deterministically validate plan artifacts before workflow or worker dispatch."),
   readJson("workflow_resume_packet", "Return the bounded resume packet for a workflow run."),
   readJson("workflow_packet_fit_check", "Check whether a workflow worker packet fits the target worker budget."),
   readJson("workflow_next", "Return the next workflow command, gate, or worker packet."),
@@ -79,6 +82,7 @@ export const WORKFLOW_ORCHESTRATION_TOOLS: readonly ToolSeed[] = [
 ];
 
 export const SMALL_MODEL_TOOLS: readonly ToolSeed[] = [
+  readJson("code_context_scan", "Scan @TC and compatible @MX annotations as navigation hints only; not primary evidence."),
   readJson("context_budget_simulation", "Estimate static packet token budget before small-model execution."),
   readJson("wiki_search", "Return deterministic cited wiki chunks without bundling full documents."),
   readJson("wiki_context", "Return bounded citation-bearing wiki context for canonical project knowledge."),
@@ -103,6 +107,11 @@ export const SMALL_MODEL_TOOLS: readonly ToolSeed[] = [
   writeState("naming_add", "Append a pending naming proposal event under .tiny/naming without mutating canonical docs."),
   readJson("chunked_write_plan", "Split large Markdown output into bounded write chunks before editing files."),
   writeState("git_weekly_report", "Write a five-business-day Git activity report under .tiny/reports/git-weekly."),
+];
+
+export const PROJECT_GOVERNANCE_TOOLS: readonly ToolSeed[] = [
+  writeState("project_snapshot", "Write .tiny/project snapshot JSON and Markdown projection from the composed registry."),
+  readJson("docs_consistency_check", "Compare documented Tiny-Chu tool mentions against the composed registry."),
 ];
 
 export const UX_REVERSE_ENGINEERING_TOOLS: readonly ToolSeed[] = [

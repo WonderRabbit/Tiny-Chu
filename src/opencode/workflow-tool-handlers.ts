@@ -6,6 +6,7 @@ import {
   createWorkflowResumePacket,
   createWorkflowStatus,
 } from "../state/workflow-helpers.js";
+import { createWorkflowAudit, createWorkflowClose } from "./workflow-reliability.js";
 import { resolveTinyChuPaths } from "../state/paths.js";
 import { resolvePathInsideRoot } from "../state/path-safety.js";
 import type { WorkflowNodeInput, WorkflowNodeStatus, WorkflowPacketInput, WorkflowWorkerAgent, WorkflowWorkerAgentConfig } from "../state/workflow-types.js";
@@ -38,6 +39,19 @@ export function createWorkflowToolHandlers(root: string | undefined): Record<str
       packet: packetInput(input.packet),
     }),
     workflow_next: async (input) => createWorkflowNextPacket({ root, runId: stringInput(input, "runId") }),
+    workflow_close: async (input) => createWorkflowClose(root, {
+      root,
+      runId: stringInput(input, "runId"),
+      summary: optionalString(input, "summary"),
+      evidenceGate: evidenceGateInput(input.evidenceGate),
+    }),
+    workflow_audit: async (input) => createWorkflowAudit(root, {
+      root,
+      runId: optionalString(input, "runId"),
+      now: optionalString(input, "now"),
+      staleAfterSeconds: numberInput(input, "staleAfterSeconds"),
+      finalResponse: optionalString(input, "finalResponse"),
+    }),
   };
 }
 
@@ -64,6 +78,12 @@ function workerAgentInput(value: unknown): WorkflowWorkerAgent | undefined {
     id: optionalString(value, "id"),
     config: workerAgentConfigInput(value.config),
   };
+}
+
+function evidenceGateInput(value: unknown): { readonly status?: string } | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) throw new Error("Invalid evidenceGate input");
+  return { status: optionalString(value, "status") };
 }
 
 function workerAgentConfigInput(value: unknown): WorkflowWorkerAgentConfig | undefined {

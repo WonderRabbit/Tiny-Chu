@@ -6,6 +6,18 @@ import test from "node:test";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
 import { createTinyChuPlugin } from "../dist/index.js";
 
+function acceptedButtonPlan(workItems) {
+  return {
+    objective: "Dispatch button workers with evidence",
+    scopePaths: ["src/App.tsx"],
+    workItems,
+    evidenceRequirements: ["public job JSON", "button evidence refs"],
+    qaCommands: ["node --test test/hardening-tools.test.mjs"],
+    stopConditions: ["all dispatched jobs persisted"],
+    sourceOfTruthRefs: ["AGENTS.md"],
+  };
+}
+
 test("hardening tools guard commands sessions claims and trace diagrams", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-hardening-tools-"));
   const plugin = createTinyChuPlugin({ root });
@@ -127,12 +139,10 @@ test("button worker result guard rejects markdown and missing evidence", async (
 test("button workflow dispatch persists distinct parallel public jobs", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-button-dispatch-"));
   const plugin = createTinyChuPlugin({ root });
-  const plan = {
-    workItems: [
-      { buttonId: "save", file: "src/App.tsx", line: 10, label: "Save", handler: "save", evidenceRefs: ["src/App.tsx:10"] },
-      { buttonId: "delete", file: "src/App.tsx", line: 20, label: "Delete", handler: "remove", evidenceRefs: ["src/App.tsx:20"] },
-    ],
-  };
+  const plan = acceptedButtonPlan([
+    { buttonId: "save", file: "src/App.tsx", line: 10, label: "Save", handler: "save", evidenceRefs: ["src/App.tsx:10"] },
+    { buttonId: "delete", file: "src/App.tsx", line: 20, label: "Delete", handler: "remove", evidenceRefs: ["src/App.tsx:20"] },
+  ]);
 
   const result = await plugin.tools.button_workflow_dispatch({ plan, maxParallel: 2, taskId: "T-buttons" });
 

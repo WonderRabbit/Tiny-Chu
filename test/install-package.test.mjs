@@ -60,6 +60,8 @@ test("package metadata exposes offline install assets and commands", async () =>
   assert.equal(packageJson.scripts["pack:check"], "npm run build && node --test test/install-package.test.mjs");
   assert.equal(packageJson.scripts["release:offline"], "node scripts/release/build-offline-bundle.mjs");
   assert.equal(packageJson.scripts["verify:offline"], "node scripts/release/verify-offline-bundle.mjs");
+  assert.equal(packageJson.exports["./opencode/mcp"], "./dist/opencode/mcp/server.js");
+  assert.equal(packageJson.exports["./opencode/mcp/stdio"], "./dist/opencode/mcp/stdio-entrypoint.js");
   assert.equal(packageJson.exports["./tui"], "./dist/opencode/tui-plugin.js");
   assert.equal(packageJson.bin["tiny-chu"], "./scripts/tiny-chu.mjs");
   assert.deepEqual(Object.keys(packageJson.dependencies).sort(), ["@opencode-ai/plugin", "@opentui/solid", "typescript"]);
@@ -104,6 +106,8 @@ test("normal package tarball includes install docs, templates, and bundled runti
     assert.ok(files.has("templates/opencode/plugins/tiny-chu-tui.ts"));
     assert.ok(files.has("scripts/tiny-chu.mjs"));
     assert.ok(files.has("dist/index.js"));
+    assert.ok(files.has("dist/opencode/mcp/server.js"));
+    assert.ok(files.has("dist/opencode/mcp/stdio-entrypoint.js"));
     assert.ok(files.has("dist/opencode/tui-plugin.js"));
     assert.ok(files.has("node_modules/@opencode-ai/plugin/package.json"));
     assert.ok(files.has("node_modules/@opentui/solid/package.json"));

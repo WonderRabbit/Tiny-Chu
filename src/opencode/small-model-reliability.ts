@@ -1,3 +1,5 @@
+import { resolveQualityProfile, type QualityProfile, type QualityProfileToolCall } from "./quality-profile.js";
+
 export type SmallModelGateStatus = "pass" | "warning" | "fail";
 
 export interface SmallModelDiagnostic {
@@ -15,6 +17,7 @@ export interface ToolCallConformanceResult {
     readonly argumentKeys: readonly string[];
   }[];
   readonly diagnostics: readonly SmallModelDiagnostic[];
+  readonly nextToolCalls: readonly QualityProfileToolCall[];
 }
 
 export interface ContextBudgetSimulationResult {
@@ -30,12 +33,15 @@ export interface ContextBudgetSimulationResult {
     readonly estimatedTokens: number;
   }[];
   readonly diagnostics: readonly SmallModelDiagnostic[];
+  readonly nextToolCalls: readonly QualityProfileToolCall[];
 }
 
 export interface EvidenceGateResult {
   readonly status: SmallModelGateStatus;
+  readonly profile?: QualityProfile;
   readonly missingRequired: readonly string[];
   readonly diagnostics: readonly SmallModelDiagnostic[];
+  readonly nextToolCalls: readonly QualityProfileToolCall[];
 }
 
 export interface SmallModelReplayResult {
@@ -48,6 +54,7 @@ export interface SmallModelReplayResult {
     readonly diagnostics: readonly SmallModelDiagnostic[];
   }[];
   readonly diagnostics: readonly SmallModelDiagnostic[];
+  readonly nextToolCalls: readonly QualityProfileToolCall[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -66,6 +73,17 @@ function strictStringList(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
 }
 
+function uniqueOrdered(values: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
 function positiveInteger(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
 }
@@ -73,6 +91,31 @@ function positiveInteger(value: unknown, fallback: number): number {
 function evidenceRefs(value: Record<string, unknown>): readonly string[] {
   const singular = text(value.evidenceRef);
   return [...(singular ? [singular] : []), ...strictStringList(value.evidenceRefs)];
+}
+
+function hasProfileId(input: Record<string, unknown>): boolean {
+  return typeof input.profileId === "string" && input.profileId.trim() !== "";
+}
+
+function staleEvidence(check: Record<string, unknown>): boolean {
+  return check.stale === true || text(check.freshness) === "stale";
+}
+
+function profileContextSplitCalls(profileId: string): readonly QualityProfileToolCall[] {
+  return [
+    {
+      tool: "context_budget_simulation",
+      input: { profileId },
+      reason: "Re-run the context budget simulation after reducing packet size.",
+      advisory: false,
+    },
+    {
+      tool: "worker_packet_optimizer",
+      input: { dispatch: false },
+      reason: "Split oversized worker packets before dispatch.",
+      advisory: false,
+    },
+  ];
 }
 
 function extractToolCalls(value: unknown): readonly unknown[] {
@@ -102,14 +145,19 @@ function parseToolCall(value: unknown, allowedTools: ReadonlySet<string>): ToolC
 }
 
 export function createToolCallConformanceProbe(input: Record<string, unknown>): ToolCallConformanceResult {
+  const profileResolution = hasProfileId(input) ? resolveQualityProfile(input) : undefined;
   const allowedTools = new Set(stringList(input.allowedTools));
   const calls = extractToolCalls(input.fixture).map((item) => parseToolCall(item, allowedTools)).filter((item) => item !== undefined);
   const diagnostics: SmallModelDiagnostic[] = [];
+  if (profileResolution?.valid === false) diagnostics.push(...profileResolution.diagnostics);
   if (calls.length === 0) diagnostics.push({ code: "missing_tool_calls", severity: "error", message: "Fixture does not contain structured tool_calls." });
   for (const call of calls) {
     if (!call.valid) diagnostics.push({ code: "invalid_tool_arguments", severity: "error", message: `Tool call ${call.toolName || "<missing>"} is not allowed or has invalid JSON object arguments.` });
   }
-  return { status: diagnostics.some((item) => item.severity === "error") ? "fail" : "pass", requestAttempted: false, toolCalls: calls, diagnostics };
+  const nextToolCalls = diagnostics.some((item) => item.severity === "error") && profileResolution?.valid === true && profileResolution.profile.id === "strict"
+    ? [{ tool: "tool_call_conformance_probe", input: { profileId: "strict" }, reason: "Retry with structured tool_calls matching the exposed registry.", advisory: false }]
+    : profileResolution?.valid === false ? profileResolution.nextToolCalls : [];
+  return { status: diagnostics.some((item) => item.severity === "error") ? "fail" : "pass", requestAttempted: false, toolCalls: calls, diagnostics, nextToolCalls };
 }
 
 function estimateTokens(value: string): number {
@@ -117,6 +165,7 @@ function estimateTokens(value: string): number {
 }
 
 export function createContextBudgetSimulation(input: Record<string, unknown>): ContextBudgetSimulationResult {
+  const profileResolution = hasProfileId(input) ? resolveQualityProfile(input) : undefined;
   const model = text(input.model, "small-local-model");
   const maxContextTokens = positiveInteger(input.maxContextTokens, 8192);
   const reservedOutputTokens = positiveInteger(input.reservedOutputTokens, 1024);
@@ -128,6 +177,15 @@ export function createContextBudgetSimulation(input: Record<string, unknown>): C
   });
   const estimatedInputTokens = packets.reduce((sum, packet) => sum + packet.estimatedTokens, 0);
   const fits = estimatedInputTokens <= usableInputTokens;
+  const profileSplitBlocked = !fits && profileResolution?.valid === true && profileResolution.profile.contextBudget.splitRequired === "block";
+  const diagnostics: SmallModelDiagnostic[] = [
+    { code: fits ? "context_budget_fit" : "context_budget_exceeded", severity: fits ? "info" : "warning", message: fits ? "Estimated packet content fits the usable input budget." : "Estimated packet content should be split before worker execution." },
+    ...(profileSplitBlocked ? [{ code: "quality_profile_context_split_blocked", severity: "error" as const, message: `${profileResolution.profile.id} profile blocks worker dispatch until context_budget_simulation fits.` }] : []),
+    ...(profileResolution?.valid === false ? profileResolution.diagnostics : []),
+  ];
+  const nextToolCalls = profileSplitBlocked
+    ? profileContextSplitCalls(profileResolution.profile.id)
+    : profileResolution?.valid === false ? profileResolution.nextToolCalls : [];
   return {
     status: fits ? "fit" : "split_required",
     model,
@@ -137,12 +195,18 @@ export function createContextBudgetSimulation(input: Record<string, unknown>): C
     estimatedInputTokens,
     tokenEstimateMode: "static_char_4",
     packets,
-    diagnostics: [{ code: fits ? "context_budget_fit" : "context_budget_exceeded", severity: fits ? "info" : "warning", message: fits ? "Estimated packet content fits the usable input budget." : "Estimated packet content should be split before worker execution." }],
+    diagnostics,
+    nextToolCalls,
   };
 }
 
 export function createEvidenceGate(input: Record<string, unknown>): EvidenceGateResult {
-  const required = stringList(input.required);
+  const profileResolution = hasProfileId(input) ? resolveQualityProfile(input) : undefined;
+  if (profileResolution?.valid === false) {
+    return { status: "fail", missingRequired: stringList(input.required), diagnostics: profileResolution.diagnostics, nextToolCalls: profileResolution.nextToolCalls };
+  }
+  const profile = profileResolution?.profile;
+  const required = uniqueOrdered([...(profile?.requiredChecks ?? []), ...stringList(input.required)]);
   const requiredSet = new Set(required);
   const checks = Array.isArray(input.checks) ? input.checks.filter(isRecord) : [];
   const seen = new Set(checks.map((check) => text(check.name)).filter((name) => name !== ""));
@@ -156,11 +220,26 @@ export function createEvidenceGate(input: Record<string, unknown>): EvidenceGate
     if (isRequired && evidenceRefs(check).length === 0) diagnostics.push({ code: "required_check_evidence_missing", severity: "error", message: `Required evidence check has no evidenceRef or evidenceRefs: ${name}` });
     if (status === "fail") diagnostics.push({ code: "required_check_failed", severity: "error", message: text(check.summary, `Evidence check failed: ${name}`) });
     if (status === "warning") diagnostics.push({ code: "check_warning", severity: isRequired ? "error" : "warning", message: text(check.summary, `Evidence check needs attention: ${name}`) });
+    if (profile && staleEvidence(check)) {
+      diagnostics.push({
+        code: profile.evidenceFreshness.staleEvidence === "fail" ? "stale_evidence_rejected" : "stale_evidence_warning",
+        severity: profile.evidenceFreshness.staleEvidence === "fail" ? "error" : "warning",
+        message: `Evidence check is stale under ${profile.id} profile: ${name}`,
+      });
+    }
   }
-  return { status: diagnostics.some((item) => item.severity === "error") ? "fail" : diagnostics.length > 0 ? "warning" : "pass", missingRequired, diagnostics };
+  const staleRejected = diagnostics.some((item) => item.code === "stale_evidence_rejected");
+  const nextToolCalls = staleRejected
+    ? [
+        { tool: "evidence_snapshot", input: {}, reason: "Refresh stale evidence metadata before strict evidence gating.", advisory: false },
+        { tool: "evidence_gate", input: { profileId: profile?.id ?? "strict" }, reason: "Re-run the profile evidence gate after refreshing stale evidence.", advisory: false },
+      ]
+    : diagnostics.some((item) => item.severity === "error") && profile ? [{ tool: "evidence_gate", input: { profileId: profile.id }, reason: "Re-run evidence_gate after satisfying missing or failed required checks.", advisory: false }] : [];
+  return { status: diagnostics.some((item) => item.severity === "error") ? "fail" : diagnostics.length > 0 ? "warning" : "pass", profile, missingRequired, diagnostics, nextToolCalls };
 }
 
 export function createSmallModelReplay(input: Record<string, unknown>): SmallModelReplayResult {
+  const profileResolution = hasProfileId(input) ? resolveQualityProfile(input) : undefined;
   const cases = (Array.isArray(input.cases) ? input.cases : []).filter(isRecord).map((item, index) => {
     const expected = text(item.expected);
     const actual = text(item.actual);
@@ -171,6 +250,15 @@ export function createSmallModelReplay(input: Record<string, unknown>): SmallMod
     return { name: text(item.name, `case-${index + 1}`), passed: diagnostics.length === 0, diagnostics };
   });
   const failedCases = cases.filter((item) => !item.passed).length;
-  const diagnostics: SmallModelDiagnostic[] = cases.length === 0 ? [{ code: "missing_replay_cases", severity: "error", message: "At least one replay case is required." }] : [];
-  return { status: failedCases === 0 && diagnostics.length === 0 ? "pass" : "fail", totalCases: cases.length, failedCases, cases, diagnostics };
+  const diagnostics: SmallModelDiagnostic[] = [
+    ...(cases.length === 0 ? [{ code: "missing_replay_cases", severity: "error" as const, message: "At least one replay case is required." }] : []),
+    ...(profileResolution?.valid === false ? profileResolution.diagnostics : []),
+  ];
+  const nextToolCalls = (failedCases > 0 || diagnostics.some((item) => item.severity === "error")) && profileResolution?.valid === true && profileResolution.profile.id === "strict"
+    ? [
+        { tool: "small_model_replay", input: { profileId: "strict" }, reason: "Re-run deterministic replay after fixing failed cases.", advisory: false },
+        { tool: "claim_evidence_check", input: { profileId: "strict" }, reason: "Verify unsupported claims have evidence before strict completion.", advisory: false },
+      ]
+    : profileResolution?.valid === false ? profileResolution.nextToolCalls : [];
+  return { status: failedCases === 0 && diagnostics.length === 0 ? "pass" : "fail", totalCases: cases.length, failedCases, cases, diagnostics, nextToolCalls };
 }

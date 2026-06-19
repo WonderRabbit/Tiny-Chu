@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
 import { resolveTinyChuPaths } from "../state/paths.js";
 import { ensureDir, writeTextAtomic } from "../state/file-store.js";
 import { tinyStatePlanLockName, withTinyStateLock } from "../state/lock-store.js";
@@ -62,7 +63,8 @@ export function selectPlanFocus(status: PlanStatus, options: { readonly maxOpenI
 }
 
 export async function readPlanStatus(root: string | undefined, planRef: string): Promise<PlanStatus> {
-  const absolute = path.resolve(resolveTinyChuPaths(root).root, planRef);
+  const absolute = await resolveExistingPathInsideRoot(resolveTinyChuPaths(root).root, planRef);
+  if (!absolute) throw new Error("Plan path must stay inside the project root.");
   return parsePlanMarkdown(await readFile(absolute, "utf8"), planRef);
 }
 

@@ -3,8 +3,10 @@ import path from "node:path";
 import { appendJsonLine, readJsonFile, readJsonLines, writeJsonAtomic } from "./file-store.js";
 import { withTinyStateLock } from "./lock-store.js";
 import { resolveTinyChuPaths } from "./paths.js";
+import { closeWorkflowRunState } from "./workflow-close-store.js";
 import { withWorkflowCheckpointLock } from "./workflow-lock.js";
 import { workflowStageReportRef, writeWorkflowPlanProjection, writeWorkflowStageReport } from "./workflow-projection.js";
+import type { WorkflowCloseStoreInput } from "./workflow-close-audit-types.js";
 import type { WorkflowCheckpoint, WorkflowCheckpointInput, WorkflowCreateRunInput, WorkflowEvent, WorkflowNode, WorkflowNodeInput, WorkflowNodeStatus, WorkflowRun, WorkflowStoreOptions } from "./workflow-types.js";
 
 function workflowStamp(now: Date): string {
@@ -248,6 +250,17 @@ export class WorkflowStore {
       await lock.assertActive();
       await writeWorkflowPlanProjection(this.root, updated);
       return checkpoint;
+    });
+  }
+
+  async closeRun(input: WorkflowCloseStoreInput): Promise<WorkflowRun> {
+    return closeWorkflowRunState({
+      root: this.root,
+      now: this.now,
+      runId: input.runId,
+      summary: input.summary,
+      getRun: (runId) => this.getRun(runId),
+      readEvents: (runId) => this.readEvents(runId),
     });
   }
 }

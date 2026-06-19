@@ -142,6 +142,10 @@ export class FeaturePackageError extends Error {
     readonly code:
       | "invalid_package"
       | "duplicate_package_id"
+      | "duplicate_disabled_package"
+      | "unknown_package"
+      | "required_package_disabled"
+      | "dependency_disabled"
       | "missing_dependency"
       | "dependency_cycle"
       | "duplicate_tool_name"

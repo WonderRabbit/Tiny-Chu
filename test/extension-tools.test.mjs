@@ -75,6 +75,18 @@ async function fixture() {
   return root;
 }
 
+function acceptedButtonPlan(workItems) {
+  return {
+    objective: "Dispatch button workers with evidence",
+    scopePaths: ["src/Page.jsx"],
+    workItems,
+    evidenceRequirements: ["public job JSON", "button evidence refs"],
+    qaCommands: ["node --test test/extension-tools.test.mjs"],
+    stopConditions: ["all dispatched jobs persisted"],
+    sourceOfTruthRefs: ["AGENTS.md"],
+  };
+}
+
 test("extension tools produce bounded JSON evidence for small-model analysis", async () => {
   const root = await fixture();
   const plugin = createTinyChuPlugin({ root });
@@ -263,8 +275,8 @@ test("button workflow dispatch is sequential by default and capped at two", asyn
   assert.equal(plan.workItems[0].label, "Submit Order");
 
   const task = await plugin.tools.task_create({ title: "Button workflow" });
-  const many = {
-    workItems: ["a", "b", "c"].map((id, index) => ({
+  const many = acceptedButtonPlan(
+    ["a", "b", "c"].map((id, index) => ({
       buttonId: id,
       file: "src/Page.jsx",
       line: index + 1,
@@ -272,7 +284,7 @@ test("button workflow dispatch is sequential by default and capped at two", asyn
       handler: id,
       evidenceRefs: [`src/Page.jsx:${index + 1}`],
     })),
-  };
+  );
   const one = await plugin.tools.button_workflow_dispatch({ taskId: task.id, plan: many });
   assert.equal(one.dispatched.length, 1);
   assert.equal(one.remaining.length, 2);

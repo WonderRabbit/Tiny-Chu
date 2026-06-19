@@ -37,6 +37,8 @@ const WORKFLOW_TOOLS = [
   "workflow_create",
   "workflow_status",
   "workflow_checkpoint",
+  "workflow_close",
+  "workflow_audit",
   "workflow_resume_packet",
   "workflow_packet_fit_check",
   "workflow_next",

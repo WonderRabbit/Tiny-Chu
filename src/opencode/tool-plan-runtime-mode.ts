@@ -13,6 +13,8 @@ const WORKER_HIDDEN_TOOLS = new Set([
   "public_job_resume_packet",
   "public_retry",
   "workflow_checkpoint",
+  "workflow_close",
+  "workflow_audit",
   "workflow_create",
   "workflow_next",
   "workflow_packet_fit_check",
@@ -21,7 +23,7 @@ const WORKER_HIDDEN_TOOLS = new Set([
   "workflow_sot_audit",
   "workflow_status",
 ]);
-const WORKER_HIDDEN_TOOL_PATTERN = /\b(analysis_workflow_start|button_workflow_dispatch|public_cancel|public_checkpoint|public_collect|public_complete|public_dispatch|public_job_resume_packet|public_retry|workflow_checkpoint|workflow_create|workflow_next|workflow_packet_fit_check|workflow_progress_heartbeat|workflow_resume_packet|workflow_sot_audit|workflow_status)\b/;
+const WORKER_HIDDEN_TOOL_PATTERN = /\b(analysis_workflow_start|button_workflow_dispatch|public_cancel|public_checkpoint|public_collect|public_complete|public_dispatch|public_job_resume_packet|public_retry|workflow_audit|workflow_checkpoint|workflow_close|workflow_create|workflow_next|workflow_packet_fit_check|workflow_progress_heartbeat|workflow_resume_packet|workflow_sot_audit|workflow_status)\b/;
 
 function isHiddenTool(name: string | undefined): boolean {
   return typeof name === "string" && WORKER_HIDDEN_TOOLS.has(name);

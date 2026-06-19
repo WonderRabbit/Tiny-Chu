@@ -11,6 +11,7 @@ import { createApiBackendTrace } from "./api-backend-trace.js";
 import { createBusinessLogicMap } from "./business-logic-map.js";
 import { aggregationDriftCheck, atomicMarkdownWrite, buttonWorkerResultCheck, buttonWorkflowDoneClaim, createButtonWorkerPacket, createButtonWorkflowPlan, dispatchButtonWorkflow, aggregateButtonTraces, markdownEnvelopeCheck, writeLoopGuard } from "./button-workflow.js";
 import { createClaimEvidenceCheck } from "./claim-evidence-check.js";
+import { createCodeContextScan } from "./code-context-scan.js";
 import { createPowerShellCommandGuard } from "./command-guard.js";
 import { createDoctor } from "./doctor.js";
 import { createEvidenceSnapshot } from "./evidence-snapshot.js";
@@ -20,19 +21,21 @@ import { createApiContractCatalog, createDtoSchemaMap } from "./extension-contra
 import { createEnvironmentDoctor } from "./extension-environment.js";
 import { createAuthPermissionTrace, createErrorTransactionMap, createReduxStateFlowMap, createTestImpactPlanner } from "./extension-flow.js";
 import { composeFeaturePackages, type TinyComposedRegistry } from "./feature-package.js";
-import { createDefaultTinyFeaturePackages } from "./feature-packages/default-packages.js";
+import { createDefaultTinyFeaturePackageSelection } from "./feature-packages/default-packages.js";
 import { createGitWeeklyReport } from "./git-weekly-report.js";
 import { createIntegrationCatalog } from "./integration-catalog.js";
 import { createDashboardSnapshot } from "./dashboard-snapshot.js";
-import { createTinyChuInstallCheck } from "./install-check.js";
 import { createLegacyRepoIndex } from "./legacy-repo-index.js";
 import { createOrchestrationHealth } from "./orchestration-health.js";
 import { POWERSHELL_TOOLING_PROFILE, renderCompactPowerShellToolingGuide } from "./powershell-tooling.js";
+import { createPlanReviewGateFromInput } from "./plan-review-gate.js";
+import { createProjectGovernanceTools } from "./project-governance-tools.js";
+import { createPublicDispatchHandler } from "./public-dispatch-handler.js";
 import { createProviderEndpointPreflight } from "./provider-endpoint-preflight.js";
+import { QUALITY_PROFILES, resolveQualityProfile } from "./quality-profile.js";
 import { createQwenRetryPolicy } from "./qwen-retry-policy.js";
 import { createRepoMap } from "./repo-map.js";
 import { isWorkerRuntimeMode, normalizeTinyChuRuntimeMode, TinyChuModeDispatchError } from "./runtime-mode.js";
-import { writeRulesSnapshot } from "./rules-snapshot.js";
 import { renderCompactSmallContextGuide } from "./small-context-compact.js";
 import { createSmallContextOrchestrationProfile } from "./small-context-profile.js";
 import { createSmallModelContributionEvaluation } from "./small-model-contribution.js";
@@ -80,6 +83,7 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
   const orchestrationProfile = createSmallContextOrchestrationProfile(POWERSHELL_OPENCODE_RUNTIME, runtimeMode);
   const workflowTools = createWorkflowToolHandlers(root);
   let registry: TinyComposedRegistry;
+  let packageSelection: ReturnType<typeof createDefaultTinyFeaturePackageSelection>;
 
   const tools: Record<string, TinyToolHandler> = {
       task_create: async (input) => tasks.create({
@@ -103,17 +107,7 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
         const id = stringInput(input, "id");
         return tasks.update(id, taskPatchInput(input));
       },
-      public_dispatch: async (input) => publicDispatcher().dispatch({
-        taskId: typeof input.taskId === "string" ? input.taskId : undefined,
-        prompt: stringInput(input, "prompt"),
-        rulesRefs: Array.isArray(input.rulesRefs) ? input.rulesRefs.map(String) : [],
-        wikiRefs: Array.isArray(input.wikiRefs) ? input.wikiRefs.map(String) : [],
-        planRef: typeof input.planRef === "string" ? input.planRef : undefined,
-        checkpointSummary: typeof input.checkpointSummary === "string" ? input.checkpointSummary : undefined,
-        mustReturn: stringListInput(input, "mustReturn"),
-        artifactType: typeof input.artifactType === "string" ? input.artifactType : undefined,
-        format: publicJobFormatInput(input.format),
-      }),
+      public_dispatch: createPublicDispatchHandler(resolveTinyChuPaths(root).root, publicDispatcher),
       public_collect: async (input) => publicDispatcher().get(stringInput(input, "id")),
       public_checkpoint: async (input) => publicDispatcher().checkpoint(stringInput(input, "id"), stringInput(input, "summary"), typeof input.result === "string" ? input.result : undefined),
       public_retry: async (input) => publicDispatcher().retry(stringInput(input, "id"), typeof input.reason === "string" ? input.reason : undefined),
@@ -122,6 +116,7 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       public_job_resume_packet: async (input) => createPublicJobResumePacket(root, input),
       context_bundle: async (input, context) => loadContextBundle(root, typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? "."),
       context_packet: async (input, context) => buildContextPacket({ root: resolveTinyChuPaths(root).root, targetPath: typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? ".", maxChars: numberInput(input, "maxChars"), evidenceRefs: stringListInput(input, "evidenceRefs"), notes: stringListInput(input, "notes") }),
+      code_context_scan: async (input, context) => createCodeContextScan(resolveTinyChuPaths(root).root, { ...input, targetPath: typeof input.targetPath === "string" ? input.targetPath : context?.targetPath ?? "." }),
       context_budget_simulation: async (input) => createContextBudgetSimulation(input),
       context_digest: async (input) => createContextDigest(resolveTinyChuPaths(root).root, input),
       repo_map: async (input) => createRepoMap(resolveTinyChuPaths(root).root, input),
@@ -145,7 +140,12 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       },
       powershell_command_guard: async (input) => createPowerShellCommandGuard(input),
       trace_diagram_render: async (input) => createTraceDiagramRender(input),
-      tiny_chu_install_check: async () => createTinyChuInstallCheck(registry.requiredToolNames, registry.packages, registry.nativeToolNames, runtimeMode),
+      ...createProjectGovernanceTools({
+        root,
+        runtimeMode,
+        registry: () => registry,
+        packageSelection: () => packageSelection,
+      }),
       environment_doctor: async (input) => createEnvironmentDoctor(input),
       ...createSafeToolHandlers(root),
       api_contract_catalog: async (input) => createApiContractCatalog(resolveTinyChuPaths(root).root, input),
@@ -174,11 +174,17 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       wiki_bundle: async (input) => wiki.bundle(Array.isArray(input.refs) ? input.refs.map(String) : []),
       wiki_search: async (input) => (await wikiToolModule()).createWikiSearch(root, input),
       wiki_context: async (input) => (await wikiToolModule()).createWikiContext(root, input),
-      orchestration_profile: async () => orchestrationProfile,
+      orchestration_profile: async (input) => {
+        const profileResolution = resolveQualityProfile(input);
+        const includeQualityProfile = runtimeMode !== "worker" || typeof input.profileId === "string";
+        if (!includeQualityProfile) return orchestrationProfile;
+        return profileResolution.valid
+          ? { ...orchestrationProfile, qualityProfiles: QUALITY_PROFILES, qualityProfile: profileResolution.profile }
+          : { ...orchestrationProfile, qualityProfiles: QUALITY_PROFILES, qualityProfileResolution: profileResolution };
+      },
       qwen_retry_policy: async (input) => createQwenRetryPolicy(input, runtimeMode),
       orchestration_health: async () => createOrchestrationHealth(root, runtimeMode),
       dashboard_snapshot: async (input) => createDashboardSnapshot(root, { ...input, mode: runtimeMode }),
-      rules_snapshot: async (input) => writeRulesSnapshot(root, input),
       tool_usage_plan: async (input) => createToolUsagePlan(input, runtimeMode),
       ui_layout_catalog: async (input) => createUiLayoutCatalog(resolveTinyChuPaths(root).root, input),
       ux_rationale_trace: async (input) => createUxRationaleTrace(resolveTinyChuPaths(root).root, input),
@@ -208,13 +214,16 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
       analysis_workflow_start: async (input) => createAnalysisWorkflowStart(root, input),
       workflow_progress_heartbeat: async (input) => createWorkflowProgressHeartbeat(root, input),
       workflow_sot_audit: async (input) => createWorkflowSotAudit(root, input),
+      plan_review_gate: async (input) => createPlanReviewGateFromInput(input, resolveTinyChuPaths(root).root),
       ...workflowTools,
     };
-  registry = composeFeaturePackages(createDefaultTinyFeaturePackages(tools, {
+  packageSelection = createDefaultTinyFeaturePackageSelection(tools, {
     safeTooling: config.safeTooling,
     nativePreviews: config.safeTooling === true && config.nativePreviews === true,
     mode: runtimeMode,
-  }));
+    disabledPackages: config.disabledPackages,
+  });
+  registry = composeFeaturePackages(packageSelection.packages);
 
   return {
     name: "tiny-chu",

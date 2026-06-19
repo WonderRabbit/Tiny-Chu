@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { loadContextBundle } from "../dist/index.js";
+import { createTinyChuPlugin, loadContextBundle, readPlanStatus } from "../dist/index.js";
 import { createPortableSymlink as symlink } from "./support/symlink.mjs";
 
 test("context loader skips AGENTS and rules whose realpath escapes root", async () => {
@@ -62,4 +62,23 @@ test("context loader preserves inside-root symlinks and nearest AGENTS precedenc
     "first rule via symlink",
     "second rule",
   ]);
+});
+
+test("plan status and task focus reject absolute and symlinked outside-root plan refs", async () => {
+  // Given: an outside Markdown plan is reachable by both absolute path and an inside-root symlink.
+  const parent = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-planref-escape-"));
+  const root = path.join(parent, "repo");
+  const outside = path.join(parent, "outside");
+  await mkdir(path.join(root, ".tiny", "plans"), { recursive: true });
+  await mkdir(outside, { recursive: true });
+  const outsidePlan = path.join(outside, "secret-plan.md");
+  await writeFile(outsidePlan, "## Secret\n- [ ] secret open item\n", "utf8");
+  await symlink(outsidePlan, path.join(root, ".tiny", "plans", "linked-secret.md"));
+  const tiny = createTinyChuPlugin({ root });
+  const task = await tiny.tools.task_create({ title: "Read plan safely", planRef: ".tiny/plans/linked-secret.md" });
+
+  // When/Then: direct plan reads and task focus packets fail closed without returning outside checkbox text.
+  await assert.rejects(() => readPlanStatus(root, outsidePlan), /plan/i);
+  await assert.rejects(() => readPlanStatus(root, ".tiny/plans/linked-secret.md"), /plan/i);
+  await assert.rejects(() => tiny.tools.task_focus_packet({ id: task.id }), /plan/i);
 });

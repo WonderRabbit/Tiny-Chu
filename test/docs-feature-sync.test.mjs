@@ -139,10 +139,9 @@ test("Korean root and installation docs expose canonical feature inventory", asy
     "mergiraf",
     "dynamic package discovery",
     "npm subpackage loading",
-    "MCP server adapters",
+    "MCP HTTP/SSE transports and registry publish",
     "Figma API calls",
     "provider chat/generate/completion calls",
-    "runtime disabling of default feature packages",
     "compact tool index",
     "ULW prompt injection follow-up",
     "content-aware packet fit",
@@ -166,10 +165,9 @@ test("Korean root and installation docs expose canonical feature inventory", asy
     "mergiraf",
     "dynamic package discovery",
     "npm subpackage loading",
-    "MCP server adapters",
+    "MCP HTTP/SSE transports and registry publish",
     "Figma API calls",
     "provider chat/generate/completion calls",
-    "runtime disabling of default feature packages",
     "compact tool index",
     "ULW prompt injection follow-up",
     "content-aware packet fit",
@@ -179,6 +177,13 @@ test("Korean root and installation docs expose canonical feature inventory", asy
   }
 
   assert.equal(/구현 완료|현재 사용 가능|지원됩니다|available now/i.test(featureInventory), false);
+  for (const implementedHeading of ["MCP server adapters", "runtime disabling of default feature packages", "workflow close/audit", "code_context_scan", "quality profiles", "plan_review_gate", "project snapshot/docs consistency"]) {
+    assert.equal(
+      featureInventory.includes(`#### \`${implementedHeading}\``),
+      false,
+      `${implementedHeading} is implemented and must not remain in the unimplemented inventory`,
+    );
+  }
 });
 
 test("wiki retrieval QA docs name the required boundaries and evidence scenarios", async () => {
@@ -190,7 +195,7 @@ test("wiki retrieval QA docs name the required boundaries and evidence scenarios
   assertMentionsEvery("README.md wiki roadmap note", readme, [
     "wiki_search",
     "wiki_context",
-    "기본 93개 tool",
+    "기본 99개 tool",
     "citation-bearing bounded evidence",
     "public_dispatch.wikiRefs",
     "metadata only",
@@ -207,7 +212,7 @@ test("wiki retrieval QA docs name the required boundaries and evidence scenarios
     "wiki_index_missing",
     "stale_source_hash",
     "registry parity",
-    "93개",
+    "99개",
     "tiny-chu.small-model-resilience",
     "tiny-chu.core-runtime",
     "public_job_resume_packet",

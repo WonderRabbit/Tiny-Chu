@@ -2,8 +2,15 @@ declare const process: {
   cwd(): string;
   pid: number;
   platform: string;
+  argv: string[];
+  stdin: import("node:stream").Readable;
+  stdout: import("node:stream").Writable;
   env: Record<string, string | undefined>;
 };
+
+interface ImportMeta {
+  url: string;
+}
 
 declare function setTimeout(callback: () => void, ms: number): unknown;
 declare function clearTimeout(timeout: unknown): void;
@@ -39,6 +46,7 @@ declare module "node:path" {
     relative(from: string, to: string): string;
     extname(path: string): string;
     isAbsolute(path: string): boolean;
+    sep: string;
     win32: {
       resolve(...paths: string[]): string;
       relative(from: string, to: string): string;
@@ -145,4 +153,29 @@ declare module "node:fs/promises" {
   export function unlink(path: string): Promise<void>;
   export function readdir(path: string): Promise<string[]>;
   export function readdir(path: string, options: { withFileTypes: true }): Promise<Dirent[]>;
+}
+
+declare module "node:readline" {
+  import type { Readable } from "node:stream";
+
+  export interface Interface extends AsyncIterable<string> {
+    close(): void;
+  }
+
+  export function createInterface(options: { input: Readable; crlfDelay?: number }): Interface;
+}
+
+declare module "node:stream" {
+  export interface Readable extends AsyncIterable<string> {
+    setEncoding?(encoding: "utf8"): void;
+  }
+
+  export interface Writable {
+    write(chunk: string): void;
+    end(): void;
+  }
+}
+
+declare module "node:url" {
+  export function fileURLToPath(url: string): string;
 }

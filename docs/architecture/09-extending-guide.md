@@ -246,10 +246,10 @@ test("my_new_tool appears in registry", () => {
 ## FAQ
 
 ### Q: 툴을 동적으로 비활성화하고 싶다면?
-현재 불가능. README: "기본 기능 패키지의 런타임 비활성화"는 Phase 1에서 제외. 모든 기본 툴은 항상 노출됩니다. `safeTooling`만 설정 기반 옵트인/아웃을 지원.
+`disabledPackages` runtime option을 사용한다. required package나 dependency closure를 깨는 비활성화는 composition 단계에서 실패하며, `tiny_chu_install_check`는 active/excluded/disabled package metadata를 반환한다.
 
-### Q: 외부 MCP 서버를 어댑터로 추가하고 싶다면?
-현재 불가능. "MCP 서버 어댑터"는 Phase 1에서 제외. Tiny-Chu는 자체 툴만 노출합니다.
+### Q: MCP transport나 publish surface를 확장하고 싶다면?
+현재 제공 범위는 composed registry 위의 stdio descriptor/call adapter다. HTTP/SSE transport, auth layer, external registry publish는 아직 보류 범위이며 별도 security model과 schema drift 검증이 필요하다.
 
 ### Q: 새 패키지를 npm 서브패키지로 분리하고 싶다면?
 현재 불가능. "npm 서브패키지 로딩"은 Phase 1에서 제외. 모든 패키지는 단일 `tiny-chu` 패키지 안에 있습니다.

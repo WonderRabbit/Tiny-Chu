@@ -3,7 +3,9 @@ import { resolveTinyChuPaths } from "../state/paths.js";
 import { resolvePathInsideRoot } from "../state/path-safety.js";
 import { TaskStore, type TinyTask } from "../state/task-store.js";
 import { createWorkflow, createWorkflowStatus } from "../state/workflow-helpers.js";
-import type { WorkflowCreateResult, WorkflowStatusResult, WorkflowToolCommand, WorkflowWorkerAgent } from "../state/workflow-types.js";
+import type { WorkflowCreateResult, WorkflowRunStatus, WorkflowStatusResult, WorkflowToolCommand, WorkflowWorkerAgent } from "../state/workflow-types.js";
+
+export { createWorkflowAudit, createWorkflowClose } from "./workflow-close-audit.js";
 
 export type WorkflowReliabilityStatus = "active" | "waiting" | "stalled" | "blocked" | "done";
 
@@ -90,8 +92,12 @@ function ageSeconds(status: WorkflowStatusResult, now: Date): number {
   return Math.max(0, Math.floor((now.getTime() - Date.parse(status.updatedAt)) / 1000));
 }
 
+function isCompletedWorkflowStatus(status: WorkflowRunStatus): boolean {
+  return status === "done" || status === "closed";
+}
+
 function heartbeatStatus(status: WorkflowStatusResult, staleAfterSeconds: number, now: Date): WorkflowReliabilityStatus {
-  if (status.status === "done") return "done";
+  if (isCompletedWorkflowStatus(status.status)) return "done";
   if (status.status === "failed" || status.status === "cancelled") return "blocked";
   if (status.status === "checkpointed") return "waiting";
   return ageSeconds(status, now) > staleAfterSeconds ? "stalled" : "active";
@@ -158,7 +164,7 @@ export async function createWorkflowSotAudit(root: string | undefined, input: Re
   const status = await createWorkflowStatus({ root, runId });
   const answer = finalText(input);
   const diagnostics: WorkflowSotAuditResult["diagnostics"] = [
-    ...(status.status !== "done" ? [{ code: "workflow_not_done", severity: "error" as const, message: "Final response was attempted before the workflow source of truth reached done." }] : []),
+    ...(!isCompletedWorkflowStatus(status.status) ? [{ code: "workflow_not_done", severity: "error" as const, message: "Final response was attempted before the workflow source of truth reached done." }] : []),
     ...(!answer.includes(status.runId) || !answer.includes(status.stateRef) ? [{ code: "missing_sot_reference", severity: "error" as const, message: "Final response must cite the workflow run id and stateRef." }] : []),
     ...(evidenceGateStatus(input.evidenceGate) !== "pass" ? [{ code: "evidence_gate_not_passed", severity: "error" as const, message: "Evidence gate must pass before final response." }] : []),
   ];

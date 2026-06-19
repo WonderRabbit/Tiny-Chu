@@ -123,3 +123,24 @@ test("structural_rewrite_preview and data previews return apply-through metadata
   assert.equal(patch.status, "ready");
   assert.equal(patch.requiresApplyTool, "artifact_publish_apply");
 });
+
+test("json_yaml_transform_preview does not expose parent process environment through jq", async () => {
+  // Given: the parent process contains a secret-looking environment value.
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-native-env-"));
+  process.env.TINY_CHU_SECRET_PROBE = "leak-value";
+
+  try {
+    // When: jq tries to read that value through its env builtin.
+    const result = await createJsonYamlTransformPreview(root, {
+      tool: "jq",
+      expression: "env.TINY_CHU_SECRET_PROBE // \"\"",
+      input: "{}",
+    });
+
+    // Then: the preview may run, but it must not return the inherited secret.
+    assert.equal(result.status, "ready");
+    assert.doesNotMatch(result.output, /leak-value/);
+  } finally {
+    delete process.env.TINY_CHU_SECRET_PROBE;
+  }
+});

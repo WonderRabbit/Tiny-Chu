@@ -1,4 +1,4 @@
-import { BUTTON_WORKFLOW_DISPATCH_TOOLS, BUTTON_WORKFLOW_LOCAL_TOOLS, CORE_RUNTIME_TOOLS, DOCTOR_ARTIFACT_TOOLS, EXTENSION_UTILITY_TOOLS, LEGACY_ANALYSIS_TOOLS, NATIVE_PREVIEW_TOOLS, PUBLIC_QUEUE_TOOLS, SAFE_TOOLING_TOOLS, SMALL_MODEL_TOOLS, UX_REVERSE_ENGINEERING_TOOLS, WORKFLOW_ORCHESTRATION_TOOLS } from "./default-tool-seeds.js";
+import { BUTTON_WORKFLOW_DISPATCH_TOOLS, BUTTON_WORKFLOW_LOCAL_TOOLS, CORE_RUNTIME_TOOLS, DOCTOR_ARTIFACT_TOOLS, EXTENSION_UTILITY_TOOLS, LEGACY_ANALYSIS_TOOLS, NATIVE_PREVIEW_TOOLS, PROJECT_GOVERNANCE_TOOLS, PUBLIC_QUEUE_TOOLS, SAFE_TOOLING_TOOLS, SMALL_MODEL_TOOLS, UX_REVERSE_ENGINEERING_TOOLS, WORKFLOW_ORCHESTRATION_TOOLS } from "./default-tool-seeds.js";
 import { instruction, resource, type PackageSeed } from "./tool-seed.js";
 
 export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
@@ -89,6 +89,15 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
     tools: DOCTOR_ARTIFACT_TOOLS,
   },
   {
+    id: "tiny-chu.project-governance",
+    title: "Project Governance",
+    category: "support",
+    dependsOn: ["tiny-chu.core-runtime", "tiny-chu.shared-support"],
+    tools: PROJECT_GOVERNANCE_TOOLS,
+    resources: [resource("project-governance", "Project snapshot and docs consistency projections under .tiny/project.", "src/project")],
+    instructions: [instruction("project-docs-projection-rule", "Project docs are checked as projections of the composed registry and never become runtime source of truth.")],
+  },
+  {
     id: "tiny-chu.host-opencode",
     title: "OpenCode Host Adapter",
     category: "support",
@@ -99,6 +108,7 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
       "tiny-chu.button-workflow-dispatch",
       "tiny-chu.ux-reverse-engineering",
       "tiny-chu.workflow-orchestration",
+      "tiny-chu.project-governance",
     ],
     tools: [],
     resources: [resource("opencode-adapter", "OpenCode bridge, output budget wrapper, install-check, and host hooks.", "src/opencode/plugin.ts")],
@@ -106,6 +116,15 @@ export const DEFAULT_PACKAGE_SEEDS: readonly PackageSeed[] = [
     hooks: {
       beforeRun: ["chat.message", "shell.env", "experimental.session.compacting"],
     },
+  },
+  {
+    id: "tiny-chu.host-mcp",
+    title: "MCP Stdio Host Adapter",
+    category: "support",
+    dependsOn: ["tiny-chu.host-opencode"],
+    tools: [],
+    resources: [resource("mcp-stdio-adapter", "MCP stdio JSON-RPC host entrypoint over the composed Tiny-Chu registry.", "src/opencode/mcp/stdio-entrypoint.ts")],
+    instructions: [instruction("mcp-registry-rule", "MCP host adapters consume composed descriptors and do not own feature tool lists.")],
   },
 ];
 

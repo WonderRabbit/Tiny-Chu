@@ -16,6 +16,8 @@
   "exports": {
     ".": "./dist/index.js",
     "./opencode": "./dist/opencode/plugin.js",
+    "./opencode/mcp": "./dist/opencode/mcp/server.js",
+    "./opencode/mcp/stdio": "./dist/opencode/mcp/stdio-entrypoint.js",
     "./tui": "./dist/opencode/tui-plugin.js"
   },
   "bin": {

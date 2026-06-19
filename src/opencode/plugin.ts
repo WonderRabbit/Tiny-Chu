@@ -9,6 +9,7 @@ type TinyChuPluginOptions = {
   readonly mode: TinyChuRuntimeMode;
   readonly safeTooling?: boolean;
   readonly nativePreviews?: boolean;
+  readonly disabledPackages?: readonly string[];
 };
 
 function optionRoot(options?: Record<string, unknown>): string | undefined {
@@ -21,7 +22,14 @@ function pluginOptions(options?: Record<string, unknown>): TinyChuPluginOptions 
     mode: normalizeTinyChuRuntimeMode(options?.mode),
     safeTooling: options?.safeTooling === true,
     nativePreviews: options?.nativePreviews === true,
+    disabledPackages: optionDisabledPackages(options),
   };
+}
+
+function optionDisabledPackages(options?: Record<string, unknown>): readonly string[] {
+  const value = options?.disabledPackages;
+  if (!Array.isArray(value)) return [];
+  return value.every((item) => typeof item === "string") ? value : [];
 }
 
 function toolContext(context: ToolContext): TinyToolContext {
@@ -40,7 +48,7 @@ function tinyTool(spec: TinyComposedToolSpec, handler: TinyToolHandler): ToolDef
     async execute(args, context) {
       const value = await handler(args.input, toolContext(context));
       const budgetInput = spec.name === "tiny_chu_install_check" && args.input.maxOutputChars === undefined
-        ? { ...args.input, maxOutputChars: 20_000, maxArrayItems: 200 }
+        ? { ...args.input, maxOutputChars: 40_000, maxArrayItems: 500 }
         : args.input;
       const budgeted = renderBudgetedOutput(value, budgetInput);
       return {
@@ -58,7 +66,13 @@ function tinyTool(spec: TinyComposedToolSpec, handler: TinyToolHandler): ToolDef
 export const TinyChuOpenCodePlugin: Plugin = async (input, options): Promise<Hooks> => {
   const parsedOptions = pluginOptions(options);
   const root = parsedOptions.root ?? input.worktree ?? input.directory;
-  const tiny = createTinyChuPlugin({ root, mode: parsedOptions.mode, safeTooling: parsedOptions.safeTooling, nativePreviews: parsedOptions.nativePreviews });
+  const tiny = createTinyChuPlugin({
+    root,
+    mode: parsedOptions.mode,
+    safeTooling: parsedOptions.safeTooling,
+    nativePreviews: parsedOptions.nativePreviews,
+    disabledPackages: parsedOptions.disabledPackages,
+  });
   const toolMap: Record<string, ToolDefinition> = {};
   for (const spec of tiny.registry.toolSpecs) {
     const handler = tiny.tools[spec.name];

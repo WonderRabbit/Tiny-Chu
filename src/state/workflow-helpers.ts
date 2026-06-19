@@ -105,7 +105,7 @@ export async function createWorkflowResumePacket(input: WorkflowResumePacketInpu
 
 export async function createWorkflowNextPacket(input: WorkflowNextPacketInput): Promise<WorkflowNextPacket> {
   const status = await createWorkflowStatus(input);
-  if (status.status === "done") return { kind: "done", runId: status.runId, reason: "Workflow run is already done." };
+  if (status.status === "done" || status.status === "closed") return { kind: "done", runId: status.runId, reason: "Workflow run is already done." };
   if (!status.currentStopPoint.nodeId) return { kind: "blocked", runId: status.runId, reason: "No current workflow node is available." };
   return { kind: "agent_packet", runId: status.runId, packet: await createWorkflowResumePacket(input) };
 }

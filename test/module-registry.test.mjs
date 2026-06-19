@@ -25,11 +25,13 @@ const EXPECTED_TOOL_NAMES = [
   "button_workflow_plan",
   "chunked_write_plan",
   "claim_evidence_check",
+  "code_context_scan",
   "context_budget_simulation",
   "context_bundle",
   "context_digest",
   "context_packet",
   "dashboard_snapshot",
+  "docs_consistency_check",
   "doctor",
   "dto_schema_map",
   "environment_doctor",
@@ -53,7 +55,9 @@ const EXPECTED_TOOL_NAMES = [
   "naming_propose",
   "orchestration_health",
   "orchestration_profile",
+  "plan_review_gate",
   "powershell_command_guard",
+  "project_snapshot",
   "provider_endpoint_preflight",
   "public_cancel",
   "public_checkpoint",
@@ -91,7 +95,9 @@ const EXPECTED_TOOL_NAMES = [
   "wiki_context",
   "wiki_search",
   "worker_packet_optimizer",
+  "workflow_audit",
   "workflow_checkpoint",
+  "workflow_close",
   "workflow_create",
   "workflow_next",
   "workflow_packet_fit_check",
@@ -120,21 +126,24 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
 
   assert.equal(typeof tiny.tools.git_weekly_report, "function");
   assert.equal(typeof hooks.tool.git_weekly_report?.execute, "function");
-  assert.equal(directToolNames.length, 93);
-  assert.equal(bridgeToolNames.length, 93);
-  assert.equal(tiny.registry.packages.length, 12);
-  assert.equal(tiny.registry.toolSpecs.length, 93);
-  assert.equal(new Set(tiny.registry.toolSpecs.map((spec) => spec.packageId)).size, 10);
+  assert.equal(directToolNames.length, 99);
+  assert.equal(bridgeToolNames.length, 99);
+  assert.equal(tiny.registry.packages.length, 14);
+  assert.equal(tiny.registry.toolSpecs.length, 99);
+  assert.equal(new Set(tiny.registry.toolSpecs.map((spec) => spec.packageId)).size, 11);
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.public-worker-queue"));
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.legacy-analysis"));
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.button-workflow-hardening"));
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.button-workflow-dispatch"));
   assert.ok(tiny.registry.packageIds.includes("tiny-chu.workflow-orchestration"));
+  assert.ok(tiny.registry.packageIds.includes("tiny-chu.host-mcp"));
+  assert.ok(tiny.registry.packageIds.includes("tiny-chu.project-governance"));
   assert.equal(tiny.registry.packageIds.includes("tiny-chu.workflow-hardening"), false);
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "public_dispatch")?.packageId, "tiny-chu.public-worker-queue");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "button_workflow_plan")?.packageId, "tiny-chu.button-workflow-hardening");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "button_workflow_dispatch")?.packageId, "tiny-chu.button-workflow-dispatch");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "workflow_next")?.packageId, "tiny-chu.workflow-orchestration");
+  assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "plan_review_gate")?.packageId, "tiny-chu.workflow-orchestration");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "wiki_bundle")?.packageId, "tiny-chu.core-runtime");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "wiki_context")?.packageId, "tiny-chu.small-model-resilience");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "small_model_contribution_evaluation")?.packageId, "tiny-chu.small-model-resilience");
@@ -142,6 +151,8 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "naming_add")?.permission?.writesState, true);
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "wiki_search")?.packageId, "tiny-chu.small-model-resilience");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "dashboard_snapshot")?.packageId, "tiny-chu.small-model-resilience");
+  assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "project_snapshot")?.packageId, "tiny-chu.project-governance");
+  assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "docs_consistency_check")?.packageId, "tiny-chu.project-governance");
   assert.equal(tiny.registry.toolSpecs.find((spec) => spec.name === "provider_endpoint_preflight")?.permission?.network, "optional");
   assert.ok(tiny.registry.toolSpecs.every((spec) => spec.smallModel?.deterministic === true));
   assert.equal(tiny.registry.packages.find((item) => item.id === "tiny-chu.core-runtime")?.compatibility?.manifestVersion, 1);
@@ -152,10 +163,14 @@ test("direct, install-check, and OpenCode tool registries stay in parity", async
     "experimental.session.compacting",
     "shell.env",
   ]);
-  assert.equal(install.requiredTools.length, 93);
+  assert.equal(install.requiredTools.length, 99);
   assert.equal(install.runtimeMode, "orchestrator_worker");
   assert.equal(install.packageName, "tiny-chu");
   assert.equal(install.opencodeEntrypoint, "./dist/opencode/plugin.js");
+  assert.equal(install.mcpEntrypoint, "./dist/opencode/mcp/stdio-entrypoint.js");
+  assert.equal(install.mcpHostPackageId, "tiny-chu.host-mcp");
+  assert.equal(install.mcpToolCount, 99);
+  assert.equal(install.mcpSchemaFingerprints.length, 99);
   assert.equal(install.status, "ready");
   assert.equal(install.installDocs, "INSTALL.md");
   assert.equal(install.opencodeShim, "templates/opencode/plugins/tiny-chu.ts");
