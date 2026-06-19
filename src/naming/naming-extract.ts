@@ -40,9 +40,10 @@ export async function extractNamingSymbols(root: string): Promise<NamingExtracti
   const sourceRoot = await resolveSafeSourceRoot(absoluteRoot);
   const files = await collectTsFiles(sourceRoot);
   const program = ts.createProgram(files, readCompilerOptions(absoluteRoot));
+  const canonicalFiles = new Set(files.map(canonicalTsPath));
   const symbols: NamingSymbolRecord[] = [];
 
-  for (const sourceFile of program.getSourceFiles().filter((file) => files.includes(file.fileName))) {
+  for (const sourceFile of program.getSourceFiles().filter((file) => canonicalFiles.has(canonicalTsPath(file.fileName)))) {
     visitSourceFile(absoluteRoot, sourceFile, symbols);
   }
 
@@ -194,6 +195,11 @@ function readCompilerOptions(root: string): ts.CompilerOptions {
 
 function toModulePath(root: string, fileName: string): string {
   return path.relative(root, fileName).replaceAll(/[\\\/]+/g, "/");
+}
+
+function canonicalTsPath(fileName: string): string {
+  const normalized = path.resolve(fileName);
+  return ts.sys.useCaseSensitiveFileNames ? normalized : normalized.toLowerCase();
 }
 
 function namespaceForModule(modulePath: string): NamingNamespace {
