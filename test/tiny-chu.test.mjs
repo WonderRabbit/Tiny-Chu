@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, mkdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { appendJsonLine, buildContextPacket, createTinyChuPlugin, POWERSHELL_OPENCODE_RUNTIME, POWERSHELL_TOOLING_PROFILE, renderPowerShellToolingGuide, loadContextBundle, parsePlanMarkdown, PublicDispatcher, readJsonLines, resolveTinyChuPaths, selectPlanFocus, TaskStore, WikiBundler, isPathInsideRoot, ARTIFACT_TYPES } from "../dist/index.js";
+import { createPortableSymlink as symlink } from "./support/symlink.mjs";
 
 test("TaskStore persists tasks under .tiny/tasks", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-task-"));

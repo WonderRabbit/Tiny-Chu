@@ -109,6 +109,30 @@ async function sleep(ms: number): Promise<void> {
   });
 }
 
+function isRetriableWindowsFsError(error: unknown): boolean {
+  return process.platform === "win32"
+    && error instanceof Error
+    && "code" in error
+    && (error.code === "EPERM" || error.code === "EACCES" || error.code === "EBUSY" || error.code === "ENOTEMPTY");
+}
+
+async function withRetriableWindowsFsMutation<T>(operation: () => Promise<T>, pollMs: number): Promise<T> {
+  const maxAttempts = 8;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetriableWindowsFsError(error) || attempt === maxAttempts - 1) throw error;
+      await sleep(pollMs * (attempt + 1));
+    }
+  }
+  throw new Error("unreachable");
+}
+
+async function removeDirectoryIfExists(directory: string, pollMs: number): Promise<void> {
+  await withRetriableWindowsFsMutation(() => rm(directory, { recursive: true, force: true }), pollMs);
+}
+
 async function readOwner(ownerFile: string): Promise<LockOwner | undefined> {
   let raw: string;
   try {
@@ -140,10 +164,10 @@ async function writeOwner(lockDir: string, owner: LockOwner): Promise<void> {
   await utimes(lockDir, now, now);
 }
 
-async function tryAcquireReaperLock(reaperDir: string, staleMs: number): Promise<boolean> {
+async function tryAcquireReaperLock(reaperDir: string, staleMs: number, pollMs: number): Promise<boolean> {
   for (;;) {
     try {
-      await mkdir(reaperDir, { recursive: false });
+      await withRetriableWindowsFsMutation(() => mkdir(reaperDir, { recursive: false }), pollMs);
       return true;
     } catch (error) {
       if (!hasErrorCode(error, "EEXIST")) throw error;
@@ -154,7 +178,7 @@ async function tryAcquireReaperLock(reaperDir: string, staleMs: number): Promise
       if (!snapshot) continue;
       if (snapshot.isSymbolicLink() || !snapshot.isDirectory()) throw new Error(`Tiny-Chu lock reaper path is not a safe directory: ${reaperDir}`);
       if (Date.now() - snapshot.mtimeMs <= staleMs) return false;
-      await rm(reaperDir, { recursive: true, force: true });
+      await removeDirectoryIfExists(reaperDir, pollMs);
     }
   }
 }
@@ -162,14 +186,14 @@ async function tryAcquireReaperLock(reaperDir: string, staleMs: number): Promise
 async function withLifecycleLock<T>(lockDir: string, staleMs: number, pollMs: number, wait: boolean, operation: () => Promise<T>): Promise<T | undefined> {
   const reaperDir = `${lockDir}.reaper`;
   for (;;) {
-    if (await tryAcquireReaperLock(reaperDir, staleMs)) break;
+    if (await tryAcquireReaperLock(reaperDir, staleMs, pollMs)) break;
     if (!wait) return undefined;
     await sleep(pollMs);
   }
   try {
     return await operation();
   } finally {
-    await rm(reaperDir, { recursive: true, force: true });
+    await removeDirectoryIfExists(reaperDir, pollMs);
   }
 }
 
@@ -179,7 +203,7 @@ async function tryRemoveStaleLock(lockDir: string, staleMs: number, pollMs: numb
       const snapshot = await lstat(lockDir);
       if (snapshot.isSymbolicLink() || !snapshot.isDirectory()) throw new Error(`Tiny-Chu lock path is not a safe directory: ${lockDir}`);
       if (Date.now() - snapshot.mtimeMs <= staleMs) return false;
-      await rm(lockDir, { recursive: true, force: true });
+      await removeDirectoryIfExists(lockDir, pollMs);
       return true;
     } catch (error) {
       if (hasErrorCode(error, "ENOENT")) return true;
@@ -196,7 +220,7 @@ async function releaseLock(lockDir: string, owner: LockOwner, staleMs: number, p
       if (hasErrorCode(error, "ENOENT") || error instanceof SyntaxError) return;
       return;
     }
-    await rm(lockDir, { recursive: true, force: true });
+    await removeDirectoryIfExists(lockDir, pollMs);
   });
 }
 
@@ -283,7 +307,7 @@ export async function acquireTinyStateLock(root: string | undefined, name: strin
       try {
         await writeOwner(lockDir, owner);
       } catch (error) {
-        await rm(lockDir, { recursive: true, force: true });
+        await removeDirectoryIfExists(lockDir, resolved.pollMs);
         throw error;
       }
       const renewal = startRenewal(name, lockDir, owner, resolved.staleMs, resolved.renewMs, resolved.pollMs);

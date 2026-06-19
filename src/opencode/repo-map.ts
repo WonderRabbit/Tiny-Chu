@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
+import { portableRelative, resolveExistingPathInsideRoot } from "../state/path-safety.js";
 
 export type RepoLayerName = "ui" | "api" | "database" | "domain" | "config" | "test";
 
@@ -54,7 +54,7 @@ async function collectFiles(root: string, dir: string, limit: number, acc: strin
       continue;
     }
     if (!entry.isFile() || !INCLUDED_EXTENSIONS.has(path.extname(entry.name))) continue;
-    acc.push(path.relative(root, absolute));
+    acc.push(portableRelative(root, absolute));
   }
 }
 
@@ -94,7 +94,7 @@ export async function createRepoMap(root: string, input: Record<string, unknown>
   const configuredRoot = await resolveExistingPathInsideRoot(root, ".");
   const base = configuredRoot ?? root;
   const limit = positiveInteger(input.maxFiles, 120);
-  const relativeFiles: string[] = isFileTarget && INCLUDED_EXTENSIONS.has(path.extname(scanRoot)) ? [path.relative(base, scanRoot)] : [];
+  const relativeFiles: string[] = isFileTarget && INCLUDED_EXTENSIONS.has(path.extname(scanRoot)) ? [portableRelative(base, scanRoot)] : [];
   if (!isFileTarget) await collectFiles(base, start, limit, relativeFiles);
   const files: RepoMapFile[] = [];
   for (const relative of relativeFiles) {
@@ -105,7 +105,7 @@ export async function createRepoMap(root: string, input: Record<string, unknown>
   }
   const layers = layerSummary(files);
   return {
-    root: path.relative(base, start) || ".",
+    root: portableRelative(base, start) || ".",
     scannedFiles: relativeFiles.length,
     files,
     layers,

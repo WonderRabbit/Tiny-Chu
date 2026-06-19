@@ -190,7 +190,7 @@ test("wiki retrieval QA docs name the required boundaries and evidence scenarios
   assertMentionsEvery("README.md wiki roadmap note", readme, [
     "wiki_search",
     "wiki_context",
-    "기본 88개 tool",
+    "기본 93개 tool",
     "citation-bearing bounded evidence",
     "public_dispatch.wikiRefs",
     "metadata only",
@@ -207,7 +207,7 @@ test("wiki retrieval QA docs name the required boundaries and evidence scenarios
     "wiki_index_missing",
     "stale_source_hash",
     "registry parity",
-    "88개",
+    "93개",
     "tiny-chu.small-model-resilience",
     "tiny-chu.core-runtime",
     "public_job_resume_packet",

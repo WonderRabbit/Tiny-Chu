@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { resolveExistingPathInsideRoot } from "../state/path-safety.js";
-import { bounded, positiveInteger, scanFacts, textInput, type EvidenceStatus, type ScanFact } from "./extension-scan.js";
+import { portableRelative, resolveExistingPathInsideRoot } from "../state/path-safety.js";
+import { bounded, extensionPositiveInteger, extensionTextInput, scanFacts, type EvidenceStatus, type ScanFact } from "./extension-scan.js";
 
 export interface FlowItem {
   readonly symbol: string;
@@ -60,7 +60,7 @@ function maxPairSide(maxLinks: number): number {
 
 export async function createReduxStateFlowMap(root: string, input: Record<string, unknown>): Promise<ReduxStateFlowMapResult> {
   const facts = await scanFacts(root, input, 80);
-  const maxLinks = positiveInteger(input.maxLinks, 160);
+  const maxLinks = extensionPositiveInteger(input.maxLinks, 160);
   const selectors = bounded(facts.filter((fact) => fact.kind === "selector").map(item), input.maxItems, 80);
   const reducers = bounded(facts.filter((fact) => fact.kind === "reducer").map(item), input.maxItems, 80);
   const reads = bounded(facts.filter((fact) => fact.kind === "redux_read").map(item), input.maxItems, 80);
@@ -75,7 +75,7 @@ export async function createReduxStateFlowMap(root: string, input: Record<string
 }
 
 export async function createAuthPermissionTrace(root: string, input: Record<string, unknown>): Promise<AuthPermissionTraceResult> {
-  const maxLinks = positiveInteger(input.maxLinks, 160);
+  const maxLinks = extensionPositiveInteger(input.maxLinks, 160);
   const facts = bounded((await scanFacts(root, input, 80)).filter((fact) => fact.kind === "auth_condition"), input.maxConditions, 120);
   const conditions = facts.map((fact) => ({
     layer: fact.file.includes("/ui/") ? "ui" : fact.file.includes("/api/") ? "api" : "backend",
@@ -119,7 +119,7 @@ async function collectTestFiles(root: string, dir: string, acc: string[]): Promi
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     const absolute = path.join(dir, entry.name);
     if (entry.isDirectory() && !["node_modules", ".git", "dist"].includes(entry.name)) await collectTestFiles(root, absolute, acc);
-    if (entry.isFile() && /\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)) acc.push(path.relative(root, absolute).replace(/\\/g, "/"));
+    if (entry.isFile() && /\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)) acc.push(portableRelative(root, absolute));
   }
 }
 
@@ -128,7 +128,7 @@ export async function createTestImpactPlanner(root: string, input: Record<string
   const base = configuredRoot ?? root;
   const tests: string[] = [];
   await collectTestFiles(base, base, tests);
-  const changeSummary = textInput(input.changeRequest, textInput(input.changeRequestPath, "Unspecified change request"));
+  const changeSummary = extensionTextInput(input.changeRequest, extensionTextInput(input.changeRequestPath, "Unspecified change request"));
   return {
     changeSummary,
     impactedAreas: ["UI", "FE flow", "API", "Backend", "DB/RFC", "Tests"],

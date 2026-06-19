@@ -1,7 +1,7 @@
 import { createLegacyRepoIndex } from "./legacy-repo-index.js";
 import type { LegacyEvidenceFact, LegacyRepoIndexResult, LegacySymbolLink, LegacyUnknownLink } from "./legacy-types.js";
 import { unknownLink } from "./legacy-types.js";
-import { textInput } from "./legacy-scanner.js";
+import { legacyTextInput } from "./legacy-scanner.js";
 
 export interface UiActionTraceRow {
   readonly uiElement: LegacySymbolLink & { readonly label: string };
@@ -61,7 +61,7 @@ function traceRow(index: LegacyRepoIndexResult, label: string): UiActionTraceRow
 
 export async function createUiActionTrace(root: string, input: Record<string, unknown>): Promise<UiActionTraceResult> {
   const index = await createLegacyRepoIndex(root, input);
-  const label = textInput(input.label, "");
+  const label = legacyTextInput(input.label, "");
   const row = traceRow(index, label);
   return {
     rows: row ? [row] : [],

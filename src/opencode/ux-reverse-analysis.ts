@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { scanFacts, bounded, positiveInteger, type EvidenceStatus } from "./extension-scan.js";
+import { scanFacts, bounded, extensionPositiveInteger, type EvidenceStatus } from "./extension-scan.js";
 import { readLegacySourceFiles } from "./legacy-scanner.js";
 import { controlCandidates } from "./ux-jsx-controls.js";
 
@@ -169,7 +169,7 @@ function isUiSource(file: string): boolean {
 }
 
 export async function createUiLayoutCatalog(root: string, input: Record<string, unknown>): Promise<UxLayoutCatalogResult> {
-  const sources = await readLegacySourceFiles(root, { ...input, maxFiles: positiveInteger(input.maxFiles, 80) });
+  const sources = await readLegacySourceFiles(root, { ...input, maxFiles: extensionPositiveInteger(input.maxFiles, 80) });
   const elements: UxLayoutElement[] = [];
   for (const source of sources) {
     const counts: Record<UxElementArea, number> = { search_condition: 0, result_field: 0, action_control: 0, message: 0, unknown: 0 };

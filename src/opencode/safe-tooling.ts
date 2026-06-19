@@ -63,6 +63,13 @@ export function isTargetAllowed(target: string, allowedTargets: readonly string[
   return allowedTargets.some((pattern) => targetMatchesPattern(target, pattern));
 }
 
+export function accessDiagnostic(error: unknown, target: string): SafeToolingDiagnostic | undefined {
+  if (error instanceof Error && "code" in error && (error.code === "EPERM" || error.code === "EACCES")) {
+    return { code: "target_access_failed", message: error.message, path: target };
+  }
+  return undefined;
+}
+
 export async function ensureWritableTarget(root: string, target: string, allowMissing: boolean): Promise<SafeToolingDiagnostic | undefined> {
   const normalized = normalizeSafeRelativePath(target);
   if (!normalized) return { code: "unsafe_path", message: "Target path must be root-relative and must not traverse.", path: target };
@@ -76,6 +83,8 @@ export async function ensureWritableTarget(root: string, target: string, allowMi
     if (relative.startsWith("..") || path.isAbsolute(relative)) return { code: "realpath_escape", message: "Target realpath escapes root.", path: target };
     return undefined;
   } catch (error) {
+    const access = accessDiagnostic(error, target);
+    if (access) return access;
     if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
     if (!allowMissing) return { code: "missing_target", message: "Target file is missing.", path: target };
     const parent = path.dirname(resolved);
@@ -113,6 +122,8 @@ export async function hashSourceTarget(root: string, target: string): Promise<So
     const bytes = await readFile(resolved);
     return { path: normalized, status: "present", hash: `sha256:${createHash("sha256").update(bytes).digest("hex")}` };
   } catch (error) {
+    const access = accessDiagnostic(error, normalized);
+    if (access) return { path: normalized, status: "present", hash: "unreadable" };
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return { path: normalized, status: "missing", hash: "missing" };
     throw error;
   }

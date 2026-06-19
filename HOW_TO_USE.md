@@ -48,10 +48,13 @@ export { default } from "../../src/opencode/tui-plugin.ts";
 
 운영 환경이나 다른 프로젝트에 설치할 때는 전체 절차를 [INSTALL.md](./INSTALL.md)를 기준으로 맞춘다. 이 문서는 사용법을 설명하고, 설치의 canonical source는 `INSTALL.md`다.
 
+기여, 보안 보고, release checklist, 변경 이력은 [CONTRIBUTING.md](./CONTRIBUTING.md), [SECURITY.md](./SECURITY.md), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [CHANGELOG.md](./CHANGELOG.md)를 기준으로 한다. `docs/` 아래 history 입구는 [docs/HISTORY.md](./docs/HISTORY.md)다. 운영자는 offline bundle이나 release asset을 검증할 때 `CHANGELOG.md`와 `CONTRIBUTING.md`의 tag/checksum policy를 함께 확인한다.
+
 계획이나 리서치 단계에서 다뤘지만 아직 Tiny-Chu 제품 기능으로 들어오지 않은 항목은 [docs/feature/2026-06-15-unimplemented-features.md](./docs/feature/2026-06-15-unimplemented-features.md)에 분리해 둔다.
 
-설치 경로는 세 가지로 구분한다.
+설치 경로는 네 가지로 구분한다.
 
+- `npm package`: registry를 사용할 수 있을 때 대상 프로젝트 root에서 `npx tiny-chu install`을 실행한다. installable tarball만 있을 때는 `npx --package /path/to/tiny-chu-X.Y.Z.tgz tiny-chu install --package-spec file:/path/to/tiny-chu-X.Y.Z.tgz`를 실행한다.
 - `closed-network install`: GitHub Release 또는 배포 저장소에서 `release asset download`를 먼저 수행한 뒤, 폐쇄망 안에서는 offline bundle과 `.opencode/vendor/`의 `local tarball(.tgz) install`만 사용한다.
 - `internal registry`: 조직 내부 npm registry에 Tiny-Chu와 production dependency를 mirror한 뒤 `.opencode/package.json`에서 registry version을 pin한다.
 - 개발용 source checkout: Tiny-Chu 소스 수정과 smoke test에만 사용한다. 운영 배포는 `package bundle distribution`을 기준으로 하고, source checkout을 폐쇄망 기본 경로로 문서화하지 않는다.
@@ -125,7 +128,7 @@ node --input-type=module -e "import { TinyChuOpenCodePlugin } from './dist/openc
 
 ### 직접 의존성과 latest 확인
 
-Tiny-Chu의 직접 런타임 의존성은 `@opencode-ai/plugin`과 `@opentui/solid` 두 개다. `@opencode-ai/plugin`은 OpenCode plugin bridge와 `tiny-chu/opencode` export에 필요하고, `@opentui/solid`는 `tiny-chu/tui` export와 TUI dashboard runtime에 필요하다. 개발 의존성은 `typescript` 하나다.
+Tiny-Chu의 직접 런타임 의존성은 `@opencode-ai/plugin`, `@opentui/solid`, `typescript` 세 개다. `@opencode-ai/plugin`은 OpenCode plugin bridge와 `tiny-chu/opencode` export에 필요하고, `@opentui/solid`는 `tiny-chu/tui` export와 TUI dashboard runtime에 필요하다. `typescript`는 root export의 `extractNamingSymbols()`가 TypeScript compiler API로 source symbol을 읽기 때문에 package import 시 함께 설치되어야 한다.
 
 현재 `package.json`은 `@opencode-ai/plugin` range를 `^1.17.4`로 유지한다. `package-lock.json`은 이 range에서 실제 해석된 설치 상태를 고정하며, registry 최신값과 같은 의미가 아니다. planning 중 `npm view @opencode-ai/plugin version --json` 결과는 `1.17.7`로 observed as of 2026-06-16이었다. 이 관찰값은 문서 freshness 정보일 뿐 자동 upgrade 지시가 아니며, range나 lockfile 변경은 별도 scope에서만 다룬다.
 
@@ -460,7 +463,8 @@ QA 고정 항목:
 - `wiki_search` happy path는 temp wiki에서 id/tag/title/heading/body match 순위와 line span citation을 JSON으로 남긴다.
 - `wiki_context`는 `index`, `query`, `refs` mode, `omitted`, `truncated`, `warnings`, `uncertainties`를 모두 관찰한다.
 - missing/stale warning은 missing document와 `sourceHash` mismatch fixture로 `wiki_index_missing` 또는 `stale_source_hash`를 확인한다.
-- registry parity는 direct registry, OpenCode bridge, `tiny_chu_install_check.requiredTools`가 모두 88개이고 `wiki_search`/`wiki_context`는 `tiny-chu.small-model-resilience`, `wiki_bundle`은 `tiny-chu.core-runtime`인지 확인한다.
+- registry parity는 direct registry, OpenCode bridge, `tiny_chu_install_check.requiredTools`가 모두 93개이고 `wiki_search`/`wiki_context`/`naming_context`/`naming_propose`는 `tiny-chu.small-model-resilience`, `wiki_bundle`은 `tiny-chu.core-runtime`인지 확인한다.
+- 새 변수, 함수, 메소드, 상수, tool 이름을 만들기 전에는 `naming_context` 또는 `naming_lookup`으로 canonical spelling, casing, blocked variant를 확인한다. 후보는 `naming_propose`로 먼저 진단하고, 리뷰할 이름은 `naming_add`로 `.tiny/naming/events.jsonl`에 proposal event만 남긴다.
 - `public_dispatch.wikiRefs`는 metadata only로 저장하며 `public_job_resume_packet`에 wiki body text를 inline하지 않는다.
 - `context_packet` schema와 `transformUserMessage`는 automatic full-wiki injection을 하지 않는다.
 - Error Book은 `.tiny/wiki/error-book.jsonl` append-only이며 기존 wiki index와 Markdown 문서를 바꾸지 않는다.

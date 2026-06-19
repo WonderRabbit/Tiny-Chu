@@ -4,7 +4,7 @@ import path from "node:path";
 import { writeJsonAtomic } from "../state/file-store.js";
 import { resolvePathInsideRoot } from "../state/path-safety.js";
 import { readWorkspaceFile } from "./artifact-workspace.js";
-import { acquireSafeToolingLock, ensureWritableTarget, hashSourceTarget, isPathUnderDirectory, isPreparedArtifactWorkspace, isTargetAllowed, normalizeSafeRelativePath, removePathIfExists, SAFE_TOOLING_LIMITS, writeBytesAtomic, type SafeToolingDiagnostic, type SourceTargetHash } from "./safe-tooling.js";
+import { accessDiagnostic, acquireSafeToolingLock, ensureWritableTarget, hashSourceTarget, isPathUnderDirectory, isPreparedArtifactWorkspace, isTargetAllowed, normalizeSafeRelativePath, removePathIfExists, SAFE_TOOLING_LIMITS, writeBytesAtomic, type SafeToolingDiagnostic, type SourceTargetHash } from "./safe-tooling.js";
 
 interface ArtifactPublishEntryInput {
   readonly source: string;
@@ -171,7 +171,13 @@ async function validateApply(root: string, manifest: ArtifactPublishManifest): P
     if (!isTargetAllowed(entry.target, [entry.allowedTargetPattern])) diagnostics.push({ code: "disallowed_target", message: "Target is not allowlisted.", path: entry.target });
     const unsafe = await ensureWritableTarget(root, entry.target, entry.targetBefore.status === "missing");
     if (unsafe) diagnostics.push(unsafe);
-    const current = await hashSourceTarget(root, entry.target);
+    const current = await hashSourceTarget(root, entry.target).catch((error: unknown) => {
+      const diagnostic = accessDiagnostic(error, entry.target);
+      if (diagnostic) diagnostics.push(diagnostic);
+      else throw error;
+      return undefined;
+    });
+    if (!current) continue;
     if (current.hash !== entry.targetBefore.hash) diagnostics.push({ code: "stale_hash", message: "Target hash changed after manifest creation.", path: entry.target });
     const bytes = await readWorkspaceFile(manifest.workspaceRoot, entry.source);
     if (!bytes || sha256(bytes) !== entry.sourceHash) diagnostics.push({ code: "workspace_source_changed", message: "Workspace source is missing or changed.", path: entry.source });

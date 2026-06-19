@@ -3,16 +3,16 @@ import { TaskStore } from "../state/task-store.js";
 import { createTaskFocusPacket, type TaskFocusPacket } from "./task-focus-packet.js";
 import {
   dashboardInterrupts,
+  dashboardPositiveInteger,
   dashboardTask,
+  dashboardTextInput,
   errorMessage,
   evidenceSnapshot,
   isRecord,
-  positiveInteger,
   providerSnapshot,
   publicJobsSnapshot,
   snapshotStatus,
   taskFocusInput,
-  textInput,
   validIsoTimestamp,
   warning,
   workflowSnapshot,
@@ -37,8 +37,8 @@ const DEFAULT_MAX_EVIDENCE_REFS = 8;
 export async function createDashboardSnapshot(root: string | undefined, rawInput: Record<string, unknown> = {}): Promise<DashboardSnapshotResult> {
   const input = isRecord(rawInput) ? rawInput : {};
   const runtimeMode = normalizeTinyChuRuntimeMode(input.mode);
-  const generatedAt = validIsoTimestamp(textInput(input, "now")) ?? new Date().toISOString();
-  const maxEvidenceRefs = positiveInteger(input, "maxEvidenceRefs", DEFAULT_MAX_EVIDENCE_REFS);
+  const generatedAt = validIsoTimestamp(dashboardTextInput(input, "now")) ?? new Date().toISOString();
+  const maxEvidenceRefs = dashboardPositiveInteger(input, "maxEvidenceRefs", DEFAULT_MAX_EVIDENCE_REFS);
   const warnings: string[] = [];
   const tasks = new TaskStore({ root });
 

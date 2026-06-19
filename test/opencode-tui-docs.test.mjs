@@ -51,9 +51,12 @@ test("architecture docs include dashboard snapshot in current tool counts", asyn
   };
   const combined = Object.values(docs).join("\n");
 
-  assert.match(combined, /기본 88개 툴/);
-  assert.match(docs.packages, /tiny-chu\.small-model-resilience[\s\S]*19[\s\S]*dashboard_snapshot/);
+  assert.match(combined, /기본 93개 툴/);
+  assert.match(docs.packages, /tiny-chu\.small-model-resilience[\s\S]*24[\s\S]*dashboard_snapshot/);
   assert.match(docs.catalog, /dashboard_snapshot/);
-  assert.match(docs.catalog, /기본 레지스트리는 88개/);
-  assert.doesNotMatch(combined, /기본 85개 툴|기본 86개 툴|기본 레지스트리는 85개|기본 레지스트리는 86개|safeTooling`을 켜면 93개|safeTooling`을 켜면 94개|nativePreviews`까지 켜면 97개|nativePreviews`까지 켜면 98개/);
+  assert.match(docs.catalog, /small_model_contribution_evaluation/);
+  assert.match(docs.catalog, /기본 레지스트리는 93개/);
+  assert.match(docs.catalog, /safeTooling`을 켜면 101개/);
+  assert.match(docs.catalog, /nativePreviews`까지 켜면 105개/);
+  assert.doesNotMatch(combined, /기본 85개 툴|기본 86개 툴|기본 88개 툴|기본 92개 툴|기본 레지스트리는 85개|기본 레지스트리는 86개|기본 레지스트리는 88개|기본 레지스트리는 92개|safeTooling`을 켜면 93개|safeTooling`을 켜면 94개|safeTooling`을 켜면 96개|safeTooling`을 켜면 100개|nativePreviews`까지 켜면 97개|nativePreviews`까지 켜면 98개|nativePreviews`까지 켜면 100개|nativePreviews`까지 켜면 104개/);
 });

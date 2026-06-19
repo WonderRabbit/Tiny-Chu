@@ -4,6 +4,13 @@ export { PublicDispatcher, type PublicJob, type PublicJobBudget, type PublicJobS
 export { appendJsonLine, ensureDir, readJsonFile, readJsonLines, removeIfExists, writeJsonAtomic, writeTextAtomic } from "./state/file-store.js";
 export { resolveTinyChuPaths, type TinyChuPaths } from "./state/paths.js";
 export { TaskStore, type TinyTask, type TaskStatus, type TaskCheckpoint } from "./state/task-store.js";
+export { loadNamingDictionary, parseNamingDictionary } from "./naming/naming-dictionary.js";
+export { buildNamingIndex, type NamingIndex } from "./naming/naming-index.js";
+export { appendNamingProposalEvent, writeNamingIndex, type NamingProposalEvent } from "./naming/naming-storage.js";
+export { extractNamingSymbols, type NamingExtractionResult, type NamingSymbolRecord } from "./naming/naming-extract.js";
+export { checkNamingDictionary, type NamingCheckResult, type NamingDiagnostic } from "./naming/naming-check.js";
+export { createNamingContext, type NamingContextResult } from "./naming/naming-context.js";
+export type { NamingCasing, NamingDictionary, NamingEntry, NamingEntryKind, NamingEntryStatus, NamingNamespace } from "./naming/naming-types.js";
 export { ANALYSIS_WORKFLOW_PHASE_IDS, createAnalysisWorkflowDefinition, createWorkflowDefinition, createWorkflowDefinitionNodes } from "./state/workflow-definitions.js";
 export { createWorkflow, createWorkflowCheckpoint, createWorkflowNextPacket, createWorkflowPacketFitCheck, createWorkflowResumePacket, createWorkflowStatus } from "./state/workflow-helpers.js";
 export { WorkflowStore } from "./state/workflow-store.js";
@@ -41,6 +48,7 @@ export { writeRulesSnapshot, type RulesSnapshotResult } from "./opencode/rules-s
 export { createToolUsagePlan, type ToolPlanStep, type ToolUsagePlanResult } from "./opencode/tool-plan.js";
 export type { DeterministicToolCap } from "./opencode/tool-plan-caps.js";
 export { createProviderEndpointPreflight, type ProviderEndpointPreflightDiagnostic, type ProviderEndpointPreflightResult, type ProviderEndpointPreflightStatus, type ProviderNetworkMode } from "./opencode/provider-endpoint-preflight.js";
+export { createSmallModelContributionEvaluation, type SmallModelContributionDiagnostic, type SmallModelContributionEvaluation, type SmallModelContributionFactorId, type SmallModelContributionFixPath, type SmallModelContributionInput, type SmallModelContributionLoadFactor, type SmallModelContributionLoadKind, type SmallModelContributionScoreBand, type SmallModelContributionStatus } from "./opencode/small-model-contribution.js";
 export { createContextBudgetSimulation, createEvidenceGate, createSmallModelReplay, createToolCallConformanceProbe, type ContextBudgetSimulationResult, type EvidenceGateResult, type SmallModelDiagnostic, type SmallModelGateStatus, type SmallModelReplayResult, type ToolCallConformanceResult } from "./opencode/small-model-reliability.js";
 export { createAnalysisWorkflowStart, createPublicJobResumePacket, createWorkflowProgressHeartbeat, createWorkflowSotAudit, type AnalysisWorkflowStartResult, type PublicJobResumePacketResult, type WorkflowProgressHeartbeatResult, type WorkflowReliabilityStatus, type WorkflowSotAuditResult } from "./opencode/workflow-reliability.js";
 export { createGitWeeklyReport, type GitWeeklyReportCommit, type GitWeeklyReportResult } from "./opencode/git-weekly-report.js";

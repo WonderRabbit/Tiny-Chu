@@ -119,7 +119,7 @@ export async function createSafePatchCheck(root: string, input: SafePatchInput):
   if (validation.diagnostics.length > 0) return { valid: false, wouldMutate: false, touchedFiles: validation.touchedFiles, diagnostics: validation.diagnostics };
   const sandbox = await createPatchSandbox(root, validation.targets);
   try {
-    const result = await runNativeCommand("git", ["apply", "--check"], {
+    const result = await runNativeCommand("git", ["-c", "core.autocrlf=false", "-c", "core.eol=lf", "apply", "--check"], {
       cwd: sandbox,
       input: input.patch,
       timeoutMs: SAFE_TOOLING_LIMITS.gitApplyCheckTimeoutMs,
@@ -163,7 +163,7 @@ export async function createSafePatchApply(root: string, input: SafePatchInput):
   const backups = new Map<string, Buffer | undefined>();
   try {
     await assertSafeToolingLockActive(lock);
-    const apply = await runNativeCommand("git", ["apply"], { cwd: sandbox, input: input.patch, timeoutMs: SAFE_TOOLING_LIMITS.gitApplyCheckTimeoutMs });
+    const apply = await runNativeCommand("git", ["-c", "core.autocrlf=false", "-c", "core.eol=lf", "apply"], { cwd: sandbox, input: input.patch, timeoutMs: SAFE_TOOLING_LIMITS.gitApplyCheckTimeoutMs });
     if (apply.status !== "ok" || apply.exitCode !== 0) return { applied: false, touchedFiles: check.touchedFiles.map((file) => ({ ...file, after: file.before })), diagnostics: [{ code: "git_apply_failed", message: "git apply failed in sandbox." }], lock: { path: lock.path } };
     const patched = await readPatchedBytes(sandbox, check.touchedFiles.map((file) => file.path));
     for (const file of check.touchedFiles) {

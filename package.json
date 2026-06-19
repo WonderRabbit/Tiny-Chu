@@ -1,13 +1,14 @@
 {
   "name": "tiny-chu",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "Tiny-Chu OpenCode shell and file-backed orchestration primitives.",
   "license": "Apache-2.0",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "naming:check": "node scripts/naming-check.mjs --root . --dictionary docs/naming/dictionary.json",
+    "test": "npm run build && npm run naming:check && node scripts/run-tests.mjs",
     "pack:check": "npm run build && node --test test/install-package.test.mjs",
     "release:offline": "node scripts/release/build-offline-bundle.mjs",
     "verify:offline": "node scripts/release/verify-offline-bundle.mjs"
@@ -17,22 +18,32 @@
     "./opencode": "./dist/opencode/plugin.js",
     "./tui": "./dist/opencode/tui-plugin.js"
   },
+  "bin": {
+    "tiny-chu": "./scripts/tiny-chu.mjs"
+  },
   "files": [
     "dist",
     "LICENSE",
     "README.md",
     "HOW_TO_USE.md",
     "INSTALL.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "docs/naming",
+    "scripts/tiny-chu.mjs",
+    "scripts/naming-check.mjs",
+    "scripts/naming-extract.mjs",
     "templates"
   ],
+  "bundleDependencies": true,
   "engines": {
     "node": ">=20.18.0"
   },
-  "devDependencies": {
-    "typescript": "^6.0.3"
-  },
   "dependencies": {
     "@opencode-ai/plugin": "^1.17.4",
-    "@opentui/solid": "^0.3.4"
+    "@opentui/solid": "^0.3.4",
+    "typescript": "^6.0.3"
   }
 }

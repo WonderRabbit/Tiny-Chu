@@ -136,6 +136,7 @@ test("runNpm reports resolver context when npm_execpath and PATH are both unavai
       runNpm(["--version"], {
         cwd: root,
         env: { ...process.env, PATH: emptyPathDir, npm_execpath: "missing/npm-cli.js" },
+        platform: "linux",
         maxBuffer: 1024,
       }),
     (error) => {

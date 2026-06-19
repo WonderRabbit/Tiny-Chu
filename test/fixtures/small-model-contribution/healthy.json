@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "healthy",
+  "docsOnlyProof": {
+    "hasSingleNormalizedContributionScore": false,
+    "individualGateOutputs": {
+      "contextBudget": "context_budget_simulation",
+      "toolCallConformance": "tool_call_conformance_probe",
+      "evidenceGate": "evidence_gate",
+      "smallModelReplay": "small_model_replay",
+      "toolUsagePlan": "tool_usage_plan",
+      "resumePacket": "resume_packet",
+      "qwenRetryPolicy": "qwen_retry_policy",
+      "workflowSotAudit": "workflow_sot_audit"
+    }
+  },
+  "contextBudget": {
+    "status": "fit",
+    "maxContextTokens": 8192,
+    "usableInputTokens": 7168,
+    "evidenceRefs": [
+      "src/context/evidence-packet.ts:64"
+    ]
+  },
+  "toolCallConformance": {
+    "status": "pass",
+    "requestAttempted": false,
+    "allowedTools": [
+      "context_packet"
+    ]
+  },
+  "evidenceGate": {
+    "status": "pass",
+    "missingRequired": [],
+    "evidenceRefs": [
+      ".omo/ultraresearch/20260617-221521/verify-tiny-chu-small-model-gates.md"
+    ]
+  },
+  "smallModelReplay": {
+    "status": "pass",
+    "totalCases": 2,
+    "failedCases": 0
+  },
+  "toolUsagePlan": {
+    "status": "pass",
+    "visibleToolCount": 40,
+    "selectedPathLength": 7
+  },
+  "resumePacket": {
+    "status": "pass",
+    "hasCheckpoint": true,
+    "hasNextSteps": true
+  },
+  "qwenRetryPolicy": {
+    "status": "pass",
+    "checkpointBeforeRetry": true,
+    "minimumBatches": 3
+  },
+  "workflowSotAudit": {
+    "status": "pass",
+    "requiresEvidenceGate": true
+  },
+  "rubricRows": [
+    {
+      "id": "A01",
+      "category": "A_working_set_reduction",
+      "title": "Bounded context packet exists",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/evidence-packet.ts:64"
+      ]
+    },
+    {
+      "id": "A02",
+      "category": "A_working_set_reduction",
+      "title": "Context discovery is deterministic",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/context/context-loader.ts:19"
+      ]
+    },
+    {
+      "id": "A03",
+      "category": "A_working_set_reduction",
+      "title": "Wiki retrieval is bounded and citation-bearing",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/wiki/wiki-context.ts:30"
+      ]
+    },
+    {
+      "id": "A04",
+      "category": "A_working_set_reduction",
+      "title": "Prompt injection stays compact",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/plugin.ts:68"
+      ]
+    },
+    {
+      "id": "B05",
+      "category": "B_durable_continuation",
+      "title": "Task state survives compaction and interruption",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/state/task-store.ts:9"
+      ]
+    },
+    {
+      "id": "B06",
+      "category": "B_durable_continuation",
+      "title": "Plan progress is machine-readable",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/ulw-loop/plan.ts:15"
+      ]
+    },
+    {
+      "id": "B07",
+      "category": "B_durable_continuation",
+      "title": "Workflow SOT prevents premature final answers",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/workflow-reliability.ts:156"
+      ]
+    },
+    {
+      "id": "B08",
+      "category": "B_durable_continuation",
+      "title": "State writes are safe under concurrency",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "test/state-hardening.test.mjs:111"
+      ]
+    },
+    {
+      "id": "C09",
+      "category": "C_tool_use_reliability",
+      "title": "Tool-call conformance is measurable offline",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/small-model-reliability.ts:104"
+      ]
+    },
+    {
+      "id": "C10",
+      "category": "C_tool_use_reliability",
+      "title": "Tool output is budgeted at the OpenCode bridge",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/output-budget.ts:56"
+      ]
+    },
+    {
+      "id": "C11",
+      "category": "C_tool_use_reliability",
+      "title": "Tool surface is narrowed before action",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "test/module-registry.test.mjs:102"
+      ]
+    },
+    {
+      "id": "C12",
+      "category": "C_tool_use_reliability",
+      "title": "Runtime modes prevent accidental delegation",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "test/runtime-mode.test.mjs:140"
+      ]
+    },
+    {
+      "id": "D13",
+      "category": "D_evidence_and_anti_hallucination",
+      "title": "Claims require citations or evidence refs",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/small-model-reliability.ts:144"
+      ]
+    },
+    {
+      "id": "D14",
+      "category": "D_evidence_and_anti_hallucination",
+      "title": "Replay catches deterministic behavior drift",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/small-model-reliability.ts:163"
+      ]
+    },
+    {
+      "id": "D15",
+      "category": "D_evidence_and_anti_hallucination",
+      "title": "Artifact and Mermaid outputs are validated",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/tool-plan.ts:138"
+      ]
+    },
+    {
+      "id": "E16",
+      "category": "E_delegation_and_rate_recovery",
+      "title": "Public jobs are compact packets, not raw task dumps",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/dispatcher/public-job.ts:130"
+      ]
+    },
+    {
+      "id": "E17",
+      "category": "E_delegation_and_rate_recovery",
+      "title": "Rate limit recovery is explicit",
+      "score": 2,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/qwen-retry-policy.ts:35"
+      ]
+    },
+    {
+      "id": "E18",
+      "category": "E_delegation_and_rate_recovery",
+      "title": "Delegation is routed by task type",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/small-context-run.ts:45"
+      ]
+    },
+    {
+      "id": "F19",
+      "category": "F_benchmark_alignment",
+      "title": "Repeated-trial reliability is tracked",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        ".omo/ultraresearch/20260617-221521/SYNTHESIS.md"
+      ]
+    },
+    {
+      "id": "F20",
+      "category": "F_benchmark_alignment",
+      "title": "Freshness and contamination are controlled",
+      "score": 0,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        ".omo/ultraresearch/20260617-221521/SYNTHESIS.md"
+      ]
+    },
+    {
+      "id": "F21",
+      "category": "F_benchmark_alignment",
+      "title": "Format sensitivity is tested",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        "src/opencode/small-model-reliability.ts:104"
+      ]
+    },
+    {
+      "id": "F22",
+      "category": "F_benchmark_alignment",
+      "title": "Terminal execution is measured by final state",
+      "score": 1,
+      "maxScore": 2,
+      "required": true,
+      "evidenceRefs": [
+        ".omo/ultraresearch/20260617-221521/verify-tiny-chu-small-model-gates.md"
+      ]
+    }
+  ],
+  "loadObservations": []
+}

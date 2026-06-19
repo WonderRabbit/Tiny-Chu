@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { ARTIFACT_TYPES, checkArtifactMarkdown, createTinyChuPlugin, uxSourceFingerprint } from "../dist/index.js";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
+import { createPortableSymlink as symlink } from "./support/symlink.mjs";
 
 async function writeFixture(root, relative, lines) {
   const target = path.join(root, relative);
@@ -425,7 +426,7 @@ test("layout truth rejects intermediate symlink under ux without outside side ef
 
 test("layout truth report emits PowerShell-safe stale commands", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-layout-pwsh-report-"));
-  const evidencePath = "src/screen';\nsemi.ts";
+  const evidencePath = "src/screen'; semi.ts";
   const evidenceLine = "export const customer = true;";
   const elementName = "customer'; Write-Host PWNED; '\nnext";
   const evidenceRef = `${evidencePath}:1`;
@@ -455,7 +456,7 @@ test("layout truth report emits PowerShell-safe stale commands", async () => {
     assert.ok(staleLine);
     assert.doesNotMatch(staleLine, /'\\''/);
     assert.match(staleLine, /'customer''; Write-Host PWNED; ''\\nnext'/);
-    assert.match(staleLine, /'src\/screen'';\\nsemi\.ts'/);
+    assert.match(staleLine, /'src\/screen''; semi\.ts'/);
     assert.equal(report.markdown.split(/\r?\n/).some((line) => line.startsWith("next")), false);
     assert.equal(report.markdown.split(/\r?\n/).some((line) => line.startsWith("semi.ts")), false);
   } finally {

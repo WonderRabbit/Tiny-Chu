@@ -104,7 +104,7 @@ flowchart TD
 | `tiny-chu.button-workflow-hardening` | workflow-hardening | +legacy-analysis | 9 | 버튼별 local plan/packet/result, 원자적 마크다운 쓰기 |
 | `tiny-chu.button-workflow-dispatch` | workflow-hardening | public-worker-queue, button-workflow-hardening | 1 | button_workflow_dispatch public queue write surface |
 | `tiny-chu.workflow-orchestration` | workflow-orchestration | core-runtime, shared-support | 9 | analysis_workflow_start, workflow_next, heartbeat, SOT audit |
-| `tiny-chu.small-model-resilience` | small-model-resilience | core-runtime, shared-support | 19 | dashboard_snapshot, provider preflight, context budget, wiki_search/wiki_context, evidence gate, replay, resume_packet 등 |
+| `tiny-chu.small-model-resilience` | small-model-resilience | core-runtime, shared-support | 24 | dashboard_snapshot, provider preflight, context budget, wiki_search/wiki_context, naming context/proposal, contribution evaluation, evidence gate, replay, resume_packet 등 |
 | `tiny-chu.ux-reverse-engineering` | ux-reverse-engineering | +legacy-analysis | 7 | ui_layout_catalog, layout_truth_* |
 | `tiny-chu.doctor-artifacts` | doctor-artifacts | +small-model-resilience | 9 | doctor, artifact_check, mermaid_check/fix |
 | `tiny-chu.host-opencode` | support | doctor, ext, button, button-dispatch, public queue, workflow, ux | **0** | 툴 없음. OpenCode 호스트 훅(beforeRun) 선언. **위상 정렬의 끝(leaf)** |
@@ -254,5 +254,5 @@ export interface TinyFeatureHooks {
 
 ## 다음 읽을 문서
 
-- → [04-tool-catalog.md](./04-tool-catalog.md): 각 패키지가 담고 있는 기본 88개 툴의 전체 카탈로그와 책임.
+- → [04-tool-catalog.md](./04-tool-catalog.md): 각 패키지가 담고 있는 기본 93개 툴의 전체 카탈로그와 책임.
 - → [09-extending-guide.md](./09-extending-guide.md): 새 패키지/툴을 이 그래프에 추가하는 절차.

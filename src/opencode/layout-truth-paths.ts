@@ -1,7 +1,7 @@
 import { lstatSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { resolveExistingPathInsideRoot, resolvePathInsideRoot } from "../state/path-safety.js";
+import { portableRelative, resolveExistingPathInsideRoot, resolvePathInsideRoot } from "../state/path-safety.js";
 
 export function truthJsonPath(root: string, candidate?: unknown): string {
   const relative = typeof candidate === "string" && candidate.trim() !== "" ? candidate : ".tiny/ux/layout-truth.json";
@@ -15,7 +15,7 @@ export function truthJsonPath(root: string, candidate?: unknown): string {
 }
 
 export function relativeToRoot(root: string, absolute: string): string {
-  return path.relative(root, absolute).replace(/\\/g, "/");
+  return portableRelative(root, absolute);
 }
 
 export function layoutTruthMarkdownPath(root: string): string {

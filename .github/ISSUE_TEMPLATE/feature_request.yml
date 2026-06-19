@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose a focused Tiny-Chu capability or behavior change.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What workflow, operator need, or integration problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: Proposed behavior
+      description: What should Tiny-Chu do differently or additionally?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Current workarounds or other designs you considered.
+  - type: textarea
+    id: scope-boundaries
+    attributes:
+      label: Scope boundaries
+      description: What should stay out of scope for this request?
+  - type: textarea
+    id: docs-tests-impact
+    attributes:
+      label: Docs and tests impact
+      description: Which docs, examples, or tests would need to change?
+  - type: textarea
+    id: compatibility-risk
+    attributes:
+      label: Compatibility risk
+      description: Could this affect existing task files, plans, wiki indexes, public job packets, or plugin consumers?

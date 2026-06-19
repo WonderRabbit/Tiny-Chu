@@ -79,7 +79,7 @@ Tiny-Chu는 **순수 로컬 오케스트레이션 프레임**입니다. 실제 L
 툴 핸들러가 `Record<string, unknown>`을 받고, `stringInput()`/`numberInput()`/`stringListInput()`으로 런타임 검증.
 
 ### 근거
-- **기본 88개 툴의 일관된 노출**: 각 툴마다 상세 JSON 스키마를 유지하는 부담 회피
+- **기본 93개 툴의 일관된 노출**: 각 툴마다 상세 JSON 스키마를 유지하는 부담 회피
 - **핸들러 단순성**: 비즈니스 로직에 집중
 - **OpenCode 브리지 단순화**: 모든 툴이 동일한 자유 형식 객체 입력
 
@@ -184,10 +184,11 @@ safe-tooling 툴(`safe_patch_check` 등)은 상세 `inputSchema`를 가집니다
 ## 결정 12: 의존성 최소주의
 
 ### 결정
-직접 런타임 의존성은 `@opencode-ai/plugin`, `@opentui/solid` 두 개이고, 개발 의존성은 `typescript` 하나다.
+직접 런타임 의존성은 `@opencode-ai/plugin`, `@opentui/solid`, `typescript` 세 개다.
 
 - `@opencode-ai/plugin`: OpenCode plugin bridge와 `./opencode` export의 타입/런타임 계약이다.
 - `@opentui/solid`: `./tui` export와 TUI dashboard runtime에 필요하다. `tiny-chu/tui`가 로드하는 dashboard plugin은 Solid 기반 slot UI를 렌더링한다.
+- `typescript`: root export의 `extractNamingSymbols()`가 compiler API로 source symbol을 읽는 데 필요하다.
 
 ### 근거
 - **Node 내장 우선**: `fs`, `path`, `crypto`, `readline` 등으로 충분
@@ -208,7 +209,7 @@ safe-tooling 툴(`safe_patch_check` 등)은 상세 `inputSchema`를 가집니다
 | 증거 기반 | 할루시네이션 금지 (결정 8) |
 | 안전 기본값 | safe tooling 옵트인 (결정 7) |
 | 명시적 실패 | fail-closed (MalformedJsonError, 경로 위반) |
-| 최소 의존성 | Node 내장 + 직접 런타임 의존성 2개 (결정 12) |
+| 최소 의존성 | Node 내장 + 직접 런타임 의존성 3개 (결정 12) |
 
 ## 다음 읽을 문서
 

@@ -1,9 +1,25 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, readFile, stat, symlink, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import { acquireSafeToolingLock, createArtifactPublishApply, createArtifactPublishManifest, createArtifactWorkspaceCommit, createArtifactWorkspacePrepare, hashSourceTarget } from "../dist/index.js";
+import { createPortableSymlink as symlink } from "./support/symlink.mjs";
+
+const execFileAsync = promisify(execFile);
+
+async function makeDirectoryUnwritable(directory) {
+  if (process.platform !== "win32") {
+    await chmod(directory, 0o500);
+    return () => chmod(directory, 0o700);
+  }
+  const identity = process.env.USERDOMAIN && process.env.USERNAME ? `${process.env.USERDOMAIN}\\${process.env.USERNAME}` : process.env.USERNAME;
+  assert.ok(identity, "Windows ACL tests need USERNAME");
+  await execFileAsync("icacls", [directory, "/deny", `${identity}:(OI)(CI)(W,D)`]);
+  return () => execFileAsync("icacls", [directory, "/remove:d", identity]);
+}
 
 test("artifact_workspace_prepare creates an isolated git workspace outside source root", async () => {
   // Given: a source repo with allowlisted input.
@@ -148,13 +164,17 @@ test("artifact_publish_apply rolls back when a multi-file publish write fails", 
   });
 
   // When: the second target becomes unwritable after manifest creation.
-  await chmod(path.join(root, "locked"), 0o500);
-  const failed = await createArtifactPublishApply(root, { manifestPath: manifest.manifestPath });
-  await chmod(path.join(root, "locked"), 0o700);
+  const restoreWritable = await makeDirectoryUnwritable(path.join(root, "locked"));
+  let failed;
+  try {
+    failed = await createArtifactPublishApply(root, { manifestPath: manifest.manifestPath });
+  } finally {
+    await restoreWritable();
+  }
 
   // Then: the first write is rolled back and no partial publish remains.
   assert.equal(failed.applied, false);
-  assert.ok(failed.diagnostics.some((diagnostic) => diagnostic.code === "publish_write_failed"));
+  assert.ok(failed.diagnostics.some((diagnostic) => diagnostic.code === (process.platform === "win32" ? "target_access_failed" : "publish_write_failed")));
   assert.equal(await readFile(path.join(root, "docs", "one.md"), "utf8"), "one-old\n");
   assert.equal(await readFile(path.join(root, "locked", "two.md"), "utf8"), "two-old\n");
 });

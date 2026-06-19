@@ -35,6 +35,7 @@ import { isWorkerRuntimeMode, normalizeTinyChuRuntimeMode, TinyChuModeDispatchEr
 import { writeRulesSnapshot } from "./rules-snapshot.js";
 import { renderCompactSmallContextGuide } from "./small-context-compact.js";
 import { createSmallContextOrchestrationProfile } from "./small-context-profile.js";
+import { createSmallModelContributionEvaluation } from "./small-model-contribution.js";
 import { createContextBudgetSimulation, createEvidenceGate, createSmallModelReplay, createToolCallConformanceProbe } from "./small-model-reliability.js";
 import { createSafeToolHandlers } from "./safe-tool-handlers.js";
 import { createChunkedWritePlan, createContextDigest, createResumePacket } from "./small-model-tools.js";
@@ -48,6 +49,7 @@ import { markdownInput, numberInput, publicJobFormatInput, stringInput, stringLi
 import type { OpenCodeRuntimeConfig, TinyChuConfig, TinyPluginModule, TinyToolContext, TinyToolHandler } from "./tiny-plugin-types.js";
 import { wikiToolModule } from "./wiki-tool-loader.js";
 import { reportLayoutTruth, updateLayoutTruth, verifyLayoutTruth } from "./layout-truth.js";
+import { createNamingToolHandlers } from "./naming-tool-handlers.js";
 import { createUiLayoutCatalog, createUxRationaleTrace, createUxValidationMatrix } from "./ux-reverse-analysis.js";
 import { createUxReverseReport } from "./ux-reverse-report.js";
 import { createAnalysisWorkflowStart, createPublicJobResumePacket, createWorkflowProgressHeartbeat, createWorkflowSotAudit } from "./workflow-reliability.js";
@@ -191,7 +193,9 @@ export function createTinyChuPlugin(config: TinyChuConfig = {}): TinyPluginModul
         return createResumePacket(task);
       },
       task_focus_packet: async (input) => createTaskFocusPacket(root, tasks, input),
+      ...createNamingToolHandlers(root),
       chunked_write_plan: async (input) => createChunkedWritePlan(input),
+      small_model_contribution_evaluation: async (input) => createSmallModelContributionEvaluation(input),
       small_model_replay: async (input) => createSmallModelReplay(input),
       artifact_format_template: async (input) => createArtifactFormatTemplate(root, input),
       artifact_check: async (input) => checkArtifactMarkdown({

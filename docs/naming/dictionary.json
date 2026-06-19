@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "overloaded.create",
+      "name": "create",
+      "normalized": "create",
+      "kind": "term",
+      "namespace": "shared",
+      "casing": "lowerCase",
+      "tokens": [
+        "create"
+      ],
+      "status": "active",
+      "collisionGroup": "overloaded-stems",
+      "aliases": [],
+      "blockedVariants": [],
+      "sourceRefs": [
+        ".omo/plans/naming-dictionary-system.md:T1"
+      ],
+      "meaning": "Common creation verb. Use a precise noun suffix for public APIs, such as createWorkflowStatus or createTinyChuPlugin."
+    },
+    {
+      "id": "overloaded.index",
+      "name": "index",
+      "normalized": "index",
+      "kind": "term",
+      "namespace": "shared",
+      "casing": "lowerCase",
+      "tokens": [
+        "index"
+      ],
+      "status": "active",
+      "collisionGroup": "overloaded-stems",
+      "aliases": [],
+      "blockedVariants": [],
+      "sourceRefs": [
+        ".omo/plans/naming-dictionary-system.md:T1"
+      ],
+      "meaning": "Overloaded noun for lookup tables, package entry points, and generated search structures. Pair it with a domain token when adding public names."
+    },
+    {
+      "id": "overloaded.input",
+      "name": "input",
+      "normalized": "input",
+      "kind": "term",
+      "namespace": "shared",
+      "casing": "lowerCase",
+      "tokens": [
+        "input"
+      ],
+      "status": "active",
+      "collisionGroup": "overloaded-stems",
+      "aliases": [],
+      "blockedVariants": [],
+      "sourceRefs": [
+        ".omo/plans/naming-dictionary-system.md:T1"
+      ],
+      "meaning": "Generic boundary data. Prefer a domain prefix for exported types, and keep plain input for local parser boundaries."
+    },
+    {
+      "id": "overloaded.result",
+      "name": "result",
+      "normalized": "result",
+      "kind": "term",
+      "namespace": "shared",
+      "casing": "lowerCase",
+      "tokens": [
+        "result"
+      ],
+      "status": "active",
+      "collisionGroup": "overloaded-stems",
+      "aliases": [],
+      "blockedVariants": [],
+      "sourceRefs": [
+        ".omo/plans/naming-dictionary-system.md:T1"
+      ],
+      "meaning": "Generic return value. Prefer a domain prefix for exported result types or tool outputs."
+    },
+    {
+      "id": "overloaded.symbol",
+      "name": "symbol",
+      "normalized": "symbol",
+      "kind": "term",
+      "namespace": "shared",
+      "casing": "lowerCase",
+      "tokens": [
+        "symbol"
+      ],
+      "status": "active",
+      "collisionGroup": "overloaded-stems",
+      "aliases": [],
+      "blockedVariants": [],
+      "sourceRefs": [
+        ".omo/plans/naming-dictionary-system.md:T1"
+      ],
+      "meaning": "Overloaded compiler or naming record. Public names should specify whether this means TypeScript declarations, dictionary entries, or runtime identifiers."
+    },
+    {
+      "id": "overloaded.workflow",
+      "name": "workflow",
+      "normalized": "workflow",
+      "kind": "term",
+      "namespace": "shared",
+      "casing": "lowerCase",
+      "tokens": [
+        "workflow"
+      ],
+      "status": "active",
+      "collisionGroup": "overloaded-stems",
+      "aliases": [],
+      "blockedVariants": [],
+      "sourceRefs": [
+        ".omo/plans/naming-dictionary-system.md:T1"
+      ],
+      "meaning": "Tiny-Chu orchestration workflow concept. Use a narrower phase, run, packet, or projection suffix where ambiguity matters."
+    },
+    {
+      "id": "setting.anthropicBudgetTokens",
+      "name": "anthropicBudgetTokens",
+      "normalized": "anthropicbudgettokens",
+      "kind": "setting",
+      "namespace": "model-settings",
+      "casing": "camelCase",
+      "tokens": [
+        "anthropic",
+        "Budget",
+        "Tokens"
+      ],
+      "status": "reserved",
+      "collisionGroup": "provider-reasoning-budget",
+      "aliases": [],
+      "blockedVariants": [
+        "anthropic_budget_tokens",
+        "budgetTokens",
+        "thinkingBudget"
+      ],
+      "sourceRefs": [
+        "src/opencode/agent-model-options.ts:generation.reasoning.anthropicBudgetTokens"
+      ],
+      "meaning": "Anthropic-native reasoning token budget option."
+    },
+    {
+      "id": "setting.openaiEffort",
+      "name": "openaiEffort",
+      "normalized": "openaieffort",
+      "kind": "setting",
+      "namespace": "model-settings",
+      "casing": "camelCase",
+      "tokens": [
+        "openai",
+        "Effort"
+      ],
+      "status": "reserved",
+      "collisionGroup": "provider-reasoning-effort",
+      "aliases": [],
+      "blockedVariants": [
+        "openai_effort",
+        "reasoningEffort"
+      ],
+      "sourceRefs": [
+        "src/opencode/agent-model-options.ts:generation.reasoning.openaiEffort"
+      ],
+      "meaning": "OpenAI Responses reasoning effort option."
+    },
+    {
+      "id": "setting.providerServiceTier",
+      "name": "providerServiceTier",
+      "normalized": "providerservicetier",
+      "kind": "setting",
+      "namespace": "model-settings",
+      "casing": "camelCase",
+      "tokens": [
+        "provider",
+        "Service",
+        "Tier"
+      ],
+      "status": "reserved",
+      "collisionGroup": "provider-routing",
+      "aliases": [],
+      "blockedVariants": [
+        "serviceTier",
+        "provider_service_tier"
+      ],
+      "sourceRefs": [
+        "src/opencode/agent-model-options.ts:generation.providerServiceTier"
+      ],
+      "meaning": "Provider-specific service tier selection for model dispatch."
+    },
+    {
+      "id": "setting.providerToolChoice",
+      "name": "providerToolChoice",
+      "normalized": "providertoolchoice",
+      "kind": "setting",
+      "namespace": "model-settings",
+      "casing": "camelCase",
+      "tokens": [
+        "provider",
+        "Tool",
+        "Choice"
+      ],
+      "status": "reserved",
+      "collisionGroup": "provider-tooling",
+      "aliases": [],
+      "blockedVariants": [
+        "toolChoice",
+        "provider_tool_choice"
+      ],
+      "sourceRefs": [
+        "src/opencode/agent-model-options.ts:generation.providerToolChoice"
+      ],
+      "meaning": "Provider-native tool choice mode for model dispatch."
+    },
+    {
+      "id": "setting.temperature",
+      "name": "temperature",
+      "normalized": "temperature",
+      "kind": "setting",
+      "namespace": "model-settings",
+      "casing": "lowerCase",
+      "tokens": [
+        "temperature"
+      ],
+      "status": "reserved",
+      "collisionGroup": "model-sampling",
+      "aliases": [],
+      "blockedVariants": [
+        "temp"
+      ],
+      "sourceRefs": [
+        "src/opencode/agent-model-options.ts:generation.sampling.temperature"
+      ],
+      "meaning": "Sampling temperature value for generation randomness."
+    },
+    {
+      "id": "setting.topK",
+      "name": "topK",
+      "normalized": "topk",
+      "kind": "setting",
+      "namespace": "model-settings",
+      "casing": "camelCase",
+      "tokens": [
+        "top",
+        "K"
+      ],
+      "status": "reserved",
+      "collisionGroup": "model-sampling",
+      "aliases": [],
+      "blockedVariants": [
+        "top_k",
+        "topk"
+      ],
+      "sourceRefs": [
+        "src/opencode/agent-model-options.ts:generation.sampling.topK"
+      ],
+      "meaning": "Top-K sampling cutoff for providers that support it."
+    },
+    {
+      "id": "setting.topP",
+      "name": "topP",
+      "normalized": "topp",
+      "kind": "setting",
+      "namespace": "model-settings",
+      "casing": "camelCase",
+      "tokens": [
+        "top",
+        "P"
+      ],
+      "status": "reserved",
+      "collisionGroup": "model-sampling",
+      "aliases": [],
+      "blockedVariants": [
+        "top_p",
+        "topp"
+      ],
+      "sourceRefs": [
+        "src/opencode/agent-model-options.ts:generation.sampling.topP"
+      ],
+      "meaning": "Nucleus sampling probability cutoff for providers that support it."
+    }
+  ]
+}
