@@ -42,27 +42,8 @@ test("root governance docs expose contributor conduct security and release contr
   ]);
 });
 
-test("github templates are present", () => {
-  for (const file of [
-    ".github/ISSUE_TEMPLATE/bug_report.yml",
-    ".github/ISSUE_TEMPLATE/feature_request.yml",
-  ]) {
-    const text = readText(file);
-    for (const key of ["name:", "description:", "title:", "labels:", "body:"]) {
-      assert.ok(text.includes(key), `${file} missing ${key}`);
-    }
-    assert.equal(/\t/.test(text), false, `${file} should not contain tabs`);
-  }
-
-  assertIncludes(".github/pull_request_template.md", [
-    "Summary",
-    "Linked issue",
-    "Tests",
-    "CHANGELOG.md",
-    "Release impact",
-    "Breaking change",
-    "Security impact",
-  ]);
+test("host metadata directories stay untracked", () => {
+  assertIncludes(".gitignore", [".github/", ".idea/"]);
 });
 
 test("canonical changelog replaces legacy HYSTORY path", () => {
@@ -91,5 +72,5 @@ test("root usage docs cross-link governance and release surfaces", () => {
   }
   assertIncludes("README.md", ["docs/HISTORY.md"]);
   assertIncludes("HOW_TO_USE.md", ["docs/HISTORY.md"]);
-  assertIncludes("README.md", ["CODE_OF_CONDUCT.md", ".github/ISSUE_TEMPLATE/", ".github/pull_request_template.md"]);
+  assertIncludes("README.md", ["CODE_OF_CONDUCT.md", ".github/", ".idea/"]);
 });
