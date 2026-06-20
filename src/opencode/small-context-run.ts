@@ -11,6 +11,13 @@ export interface SmallContextRunModel {
   readonly outputTokenTarget: number;
 }
 
+export interface SmallContextRunDirtyWorktreeDetector {
+  readonly status: "clean" | "dirty" | "skipped" | "degraded";
+  readonly command: "git status --porcelain=v1 -z --untracked-files=no";
+  readonly trackedFiles: readonly string[];
+  readonly message: string;
+}
+
 export interface SmallContextRunGate {
   readonly status: SmallContextRunStatus;
   readonly mode: "small_context";
@@ -29,11 +36,12 @@ export interface SmallContextRunGate {
   readonly staleEvidence: {
     readonly source: "incremental_evidence_cache";
     readonly semantics: "source_hash_staleness";
-    readonly dirtyWorktreeDetector: false;
+    readonly dirtyWorktreeDetector: boolean;
   };
   readonly dirtyWorktreePolicy: {
-    readonly advisoryOnly: true;
+    readonly advisoryOnly: boolean;
     readonly commandChecklist: readonly string[];
+    readonly detector?: SmallContextRunDirtyWorktreeDetector;
   };
   readonly session?: {
     readonly taskId?: string;
@@ -67,6 +75,10 @@ export function createSmallContextRunGate(input: {
   readonly foreman: SmallContextModelProfile;
   readonly delegate: SmallContextModelProfile;
   readonly session?: SmallContextRunGate["session"];
+  readonly dirtyWorktreePolicy?: {
+    readonly advisoryOnly: boolean;
+    readonly detector: SmallContextRunDirtyWorktreeDetector;
+  };
 }): SmallContextRunGate {
   return {
     status: input.status ?? "ready",
@@ -106,15 +118,16 @@ export function createSmallContextRunGate(input: {
     staleEvidence: {
       source: "incremental_evidence_cache",
       semantics: "source_hash_staleness",
-      dirtyWorktreeDetector: false,
+      dirtyWorktreeDetector: Boolean(input.dirtyWorktreePolicy),
     },
     dirtyWorktreePolicy: {
-      advisoryOnly: true,
+      advisoryOnly: input.dirtyWorktreePolicy?.advisoryOnly ?? true,
       commandChecklist: [
         "run git status --short before editing",
         "for every dirty tracked file in scope, inspect git diff -- <file>",
         "do not infer dirty worktree state from incremental_evidence_cache",
       ],
+      ...(input.dirtyWorktreePolicy ? { detector: input.dirtyWorktreePolicy.detector } : {}),
     },
     ...(input.session ? { session: input.session } : {}),
   };
@@ -123,6 +136,10 @@ export function createSmallContextRunGate(input: {
 export function createDefaultSmallContextRunGate(input: {
   readonly status?: SmallContextRunStatus;
   readonly session?: SmallContextRunGate["session"];
+  readonly dirtyWorktreePolicy?: {
+    readonly advisoryOnly: boolean;
+    readonly detector: SmallContextRunDirtyWorktreeDetector;
+  };
 } = {}): SmallContextRunGate {
   return createSmallContextRunGate({
     foreman: DEFAULT_SMALL_CONTEXT_MODELS.foreman,

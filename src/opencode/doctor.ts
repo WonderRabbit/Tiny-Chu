@@ -3,8 +3,9 @@ import path from "node:path";
 import { resolveTinyChuPaths } from "../state/paths.js";
 import { TaskStore } from "../state/task-store.js";
 import { createEnvironmentDoctor } from "./extension-environment.js";
+import { runNativeCommand } from "./native-runner.js";
 import { createSessionPreflight } from "./session-preflight.js";
-import { createDefaultSmallContextRunGate, type SmallContextRunGate } from "./small-context-run.js";
+import { createDefaultSmallContextRunGate, type SmallContextRunDirtyWorktreeDetector, type SmallContextRunGate } from "./small-context-run.js";
 
 export type DoctorStatus = "ready" | "degraded" | "attention" | "blocked";
 export type DoctorCheckStatus = DoctorStatus | "skipped";
@@ -29,6 +30,7 @@ export interface DoctorInput {
   readonly expectedShellVersion?: string;
   readonly id?: string;
   readonly taskId?: string;
+  readonly checkDirtyWorktree?: boolean;
   readonly checks?: readonly DoctorCheck[];
 }
 
@@ -47,6 +49,18 @@ export interface DoctorResult {
 
 const STATUS_RANK: Record<DoctorCheckStatus, number> = { skipped: 0, ready: 1, degraded: 2, attention: 3, blocked: 4 };
 const POWERSHELL_RUNTIME_VERSION = "7.6.2";
+const GIT_STATUS_COMMAND = "git status --porcelain=v1 -z --untracked-files=no";
+const DIRTY_WORKTREE_CHECK_STATUS: Record<SmallContextRunDirtyWorktreeDetector["status"], DoctorCheckStatus> = {
+  clean: "ready",
+  dirty: "attention",
+  degraded: "degraded",
+  skipped: "skipped",
+};
+
+type GitStatusResult =
+  | { readonly kind: "ok"; readonly stdout: string }
+  | { readonly kind: "failed"; readonly code?: string; readonly stderr: string; readonly message: string }
+  | { readonly kind: "timed_out" };
 
 function statusFromChecks(checks: readonly DoctorCheck[]): DoctorStatus {
   const status = checks.reduce<DoctorCheckStatus>((worst, check) => STATUS_RANK[check.status] > STATUS_RANK[worst] ? check.status : worst, "ready");
@@ -65,6 +79,70 @@ function sectionSummaries(checks: readonly DoctorCheck[]): readonly DoctorSectio
 function envStatus(status: "ok" | "missing" | "error", required: boolean): DoctorCheckStatus {
   if (status === "ok") return "ready";
   return required ? "blocked" : "degraded";
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (error instanceof Error && "code" in error && typeof error.code === "string") return error.code;
+  return undefined;
+}
+
+function parseDirtyTrackedFiles(stdout: string): readonly string[] {
+  const entries = stdout.split("\0").filter((entry) => entry !== "");
+  const files: string[] = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (!entry || entry.length < 4) continue;
+    const status = entry.slice(0, 2);
+    const filePath = entry.slice(3);
+    if (status !== "??" && filePath !== "") files.push(filePath);
+    if (status.includes("R") || status.includes("C")) index += 1;
+  }
+  return files.sort();
+}
+
+async function runGitStatus(root: string, timeoutMs: number): Promise<GitStatusResult> {
+  const result = await runNativeCommand("git", ["status", "--porcelain=v1", "-z", "--untracked-files=no"], {
+    cwd: root,
+    timeoutMs,
+    maxStdoutBytes: 16 * 1024,
+    maxStderrBytes: 4 * 1024,
+  });
+  if (result.status === "timeout" || result.timedOut) return { kind: "timed_out" };
+  if (result.status === "missing") return { kind: "failed", code: "ENOENT", stderr: result.stderr, message: "git command is unavailable" };
+  if (result.exitCode === 0) return { kind: "ok", stdout: result.stdout };
+  return { kind: "failed", stderr: result.stderr, message: `git status exited with code ${result.exitCode ?? "unknown"}` };
+}
+
+async function detectDirtyWorktree(root: string, timeoutMs: number): Promise<SmallContextRunDirtyWorktreeDetector> {
+  const result = await runGitStatus(root, timeoutMs);
+  switch (result.kind) {
+    case "ok": {
+      const trackedFiles = parseDirtyTrackedFiles(result.stdout);
+      return trackedFiles.length > 0
+        ? { status: "dirty", command: GIT_STATUS_COMMAND, trackedFiles, message: `${trackedFiles.length} dirty tracked file(s)` }
+        : { status: "clean", command: GIT_STATUS_COMMAND, trackedFiles: [], message: "No dirty tracked files" };
+    }
+    case "timed_out":
+      return { status: "degraded", command: GIT_STATUS_COMMAND, trackedFiles: [], message: `git status timed out after ${timeoutMs}ms` };
+    case "failed":
+      if (result.stderr.includes("not a git repository")) {
+        return { status: "skipped", command: GIT_STATUS_COMMAND, trackedFiles: [], message: "Root is not a Git repository" };
+      }
+      return {
+        status: "degraded",
+        command: GIT_STATUS_COMMAND,
+        trackedFiles: [],
+        message: result.code === "ENOENT" ? "git command is unavailable" : result.message,
+      };
+    default: {
+      const exhaustive: never = result;
+      return exhaustive;
+    }
+  }
+}
+
+function dirtyWorktreeCheck(detector: SmallContextRunDirtyWorktreeDetector): DoctorCheck {
+  return { section: "small_context_run", name: "dirty_worktree", status: DIRTY_WORKTREE_CHECK_STATUS[detector.status], message: detector.message, details: detector };
 }
 
 async function readJsonFiles(dir: string, section: string, name: string): Promise<DoctorCheck[]> {
@@ -104,7 +182,7 @@ async function sessionChecks(root: string, input: DoctorInput): Promise<DoctorCh
     const preflight = createSessionPreflight(task, { maxFiles: 3, maxSnippets: 12, maxChunks: 4 });
     return [{ section: "session", name: "task_preflight", status: "ready", message: `Latest checkpoint count: ${task.checkpoints?.length ?? 0}`, details: preflight }];
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
+    const code = errorCode(error);
     return [{ section: "session", name: "task_preflight", status: code === "ENOENT" ? "attention" : "blocked", message: code === "ENOENT" ? `Task not found: ${selected}` : `Cannot read task: ${selected}`, details: error instanceof Error ? error.message : String(error) }];
   }
 }
@@ -127,6 +205,7 @@ function smallContextSession(input: DoctorInput, checks: readonly DoctorCheck[])
 
 export async function createDoctor(root: string | undefined, input: DoctorInput = {}): Promise<DoctorResult> {
   const configuredRoot = resolveTinyChuPaths(root).root;
+  const dirtyWorktreeDetector = input.checkDirtyWorktree ? await detectDirtyWorktree(configuredRoot, input.timeoutMs ?? 800) : undefined;
   const environment = await createEnvironmentDoctor({ toolNames: input.toolNames, timeoutMs: input.timeoutMs });
   const checks: DoctorCheck[] = [
     ...environment.checks.map((check) => ({
@@ -147,7 +226,9 @@ export async function createDoctor(root: string | undefined, input: DoctorInput 
   }
   checks.push(
     { section: "small_context_run", name: "no_live_provider_calls", status: "ready", message: "Tiny-Chu small-context gate is local packet shaping only" },
-    { section: "small_context_run", name: "dirty_worktree_policy", status: "ready", message: "Executors must inspect git status --short and git diff -- <file>; doctor does not run git" },
+    dirtyWorktreeDetector
+      ? dirtyWorktreeCheck(dirtyWorktreeDetector)
+      : { section: "small_context_run", name: "dirty_worktree_policy", status: "ready", message: "Executors must inspect git status --short and git diff -- <file>; doctor does not run git" },
   );
   const status = statusFromChecks(checks);
   return {
@@ -156,6 +237,10 @@ export async function createDoctor(root: string | undefined, input: DoctorInput 
     sections: sectionSummaries(checks),
     checks,
     remediation: environment.remediation,
-    smallContextRun: createDefaultSmallContextRunGate({ status, session: smallContextSession(input, checks) }),
+    smallContextRun: createDefaultSmallContextRunGate({
+      status,
+      session: smallContextSession(input, checks),
+      ...(dirtyWorktreeDetector ? { dirtyWorktreePolicy: { advisoryOnly: false, detector: dirtyWorktreeDetector } } : {}),
+    }),
   };
 }

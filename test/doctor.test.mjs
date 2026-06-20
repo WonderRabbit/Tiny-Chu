@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { access, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import test from "node:test";
 import { createDoctor, createTinyChuPlugin } from "../dist/index.js";
 import { TinyChuOpenCodePlugin } from "../dist/opencode/plugin.js";
+
+const execFileAsync = promisify(execFile);
+
+async function git(root, args) {
+  return execFileAsync("git", args, { cwd: root, maxBuffer: 1024 * 1024 });
+}
 
 test("doctor returns normalized sections and status precedence", async () => {
   const result = await createDoctor(undefined, { toolNames: ["node"], timeoutMs: 300 });
@@ -68,6 +76,45 @@ test("doctor returns small-context run gate", async () => {
   assert.ok(["ready", "degraded", "attention", "blocked"].includes(result.smallContextRun.status));
   assert.ok(result.checks.some((check) => check.section === "small_context_run" && check.name === "no_live_provider_calls" && check.status === "ready"));
   await assert.rejects(() => access(path.join(root, ".tiny", "public-jobs")), /ENOENT/);
+});
+
+test("doctor can gate small-context runs on dirty tracked Git files", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-doctor-dirty-git-"));
+  await git(root, ["init"]);
+  await git(root, ["config", "user.email", "tiny-chu@example.com"]);
+  await git(root, ["config", "user.name", "Tiny Chu"]);
+  await writeFile(path.join(root, "tracked.txt"), "before\n", "utf8");
+  await writeFile(path.join(root, "space name.txt"), "before\n", "utf8");
+  await writeFile(path.join(root, "arrow old.txt"), "before\n", "utf8");
+  await git(root, ["add", "."]);
+  await git(root, ["-c", "commit.gpgsign=false", "commit", "-m", "init"]);
+  await writeFile(path.join(root, "space name.txt"), "after\n", "utf8");
+  await git(root, ["mv", "arrow old.txt", "arrow -> new.txt"]);
+  await git(root, ["add", "tracked.txt"]);
+  await writeFile(path.join(root, "tracked.txt"), "after\n", "utf8");
+
+  const result = await createDoctor(root, { toolNames: ["node"], timeoutMs: 300, checkDirtyWorktree: true });
+  const dirtyCheck = result.checks.find((check) => check.section === "small_context_run" && check.name === "dirty_worktree");
+
+  assert.equal(result.smallContextRun.staleEvidence.dirtyWorktreeDetector, true);
+  assert.equal(result.smallContextRun.dirtyWorktreePolicy.advisoryOnly, false);
+  assert.equal(result.smallContextRun.dirtyWorktreePolicy.detector?.status, "dirty");
+  assert.deepEqual(result.smallContextRun.dirtyWorktreePolicy.detector?.trackedFiles, ["arrow -> new.txt", "space name.txt", "tracked.txt"]);
+  assert.equal(dirtyCheck?.status, "attention");
+  assert.match(dirtyCheck?.message ?? "", /3 dirty tracked file/);
+});
+
+test("doctor dirty-worktree detector skips non-Git roots without blocking", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tiny-chu-doctor-non-git-"));
+
+  const result = await createDoctor(root, { toolNames: ["node"], timeoutMs: 300, checkDirtyWorktree: true });
+  const dirtyCheck = result.checks.find((check) => check.section === "small_context_run" && check.name === "dirty_worktree");
+
+  assert.notEqual(result.status, "blocked");
+  assert.equal(result.smallContextRun.staleEvidence.dirtyWorktreeDetector, true);
+  assert.equal(result.smallContextRun.dirtyWorktreePolicy.detector?.status, "skipped");
+  assert.deepEqual(result.smallContextRun.dirtyWorktreePolicy.detector?.trackedFiles, []);
+  assert.equal(dirtyCheck?.status, "skipped");
 });
 
 test("OpenCode doctor bridge returns budgeted normalized output", async () => {
